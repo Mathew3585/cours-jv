@@ -1,0 +1,66 @@
+Un jeu de kart a souvent beaucoup d'objets : turbo, triple turbo, piège, projectile… Si on écrivait chaque objet en dur dans le kart, `AKartPawn` deviendrait énorme, et ajouter un objet voudrait dire modifier le kart à chaque fois. On fait l'inverse : **chaque objet est un fichier de données**, un <Terme id="data-asset">Data Asset</Terme>, et le kart ne sait même pas quels objets existent.
+
+Voici qui fait quoi dans ce module :
+
+| Qui | Rôle |
+|---|---|
+| `AKartItemBox` | La boîte sur la piste. Elle donne un objet au kart qui la touche. |
+| `UKartItemPoolData` | La table de tirage : quels objets une boîte peut donner, et avec quelle chance. |
+| `UKartItemComponent` | La poche du kart : garde l'objet en main et l'utilise quand on appuie sur la touche. |
+| `UKartItemData` | Un objet. Chaque enfant (turbo, piège…) sait faire son propre effet. |
+
+Le chemin d'un objet : la boîte demande à la poche de tirer un objet dans la table, puis le joueur appuie sur la touche et la poche dit à l'objet « fais ton effet sur ce kart ».
+
+## Le header KartItemData.h
+
+<CodePasAPas fichier="KartItemData.h" debut={1} fin={20}>
+  <Etape lignes="1-5" titre="Les includes">
+    `Engine/DataAsset.h` apporte `UPrimaryDataAsset`, la classe parente des Data Assets. Le reste est habituel.
+  </Etape>
+  <Etape lignes="7-8" titre="Deux déclarations anticipées">
+    Le kart sur lequel l'objet agit, et la texture de l'icône. Seulement des pointeurs, donc pas besoin d'inclure leurs headers.
+  </Etape>
+  <Etape lignes="10-14" titre="Un Data Asset, c'est quoi ?">
+    Un fichier créé dans le Content Browser, comme un Blueprint, mais qui ne contient **que des données**. Un asset = un objet du jeu : `DA_Item_Turbo`, `DA_Item_TripleTurbo`… Cette classe est le **parent** de tous les objets : elle contient ce qu'ils ont en commun.
+  </Etape>
+  <Etape lignes="15-16" titre="Pourquoi Abstract ?">
+    Un « objet en général » n'a pas d'effet. On interdit donc d'en créer un asset : seules les classes enfants apparaîtront dans la liste quand on crée un Data Asset. C'est une <Terme id="classe-abstraite">classe abstraite</Terme>.
+  </Etape>
+  <Etape lignes="17-20" titre="UCLASS(Abstract, BlueprintType)">
+    `Abstract` fait ce qu'on vient de dire. `BlueprintType` permet d'utiliser ce type dans les Blueprints (une variable de type « Kart Item Data », par exemple). Le préfixe **U** signale un UObject qui n'est pas un Actor : un Data Asset n'est jamais posé dans le niveau.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemData.h" debut={22} fin={40}>
+  <Etape lignes="22-25" titre="Le nom de l'objet">
+    Un `FText`, le type de texte qu'on affiche à l'écran. `EditDefaultsOnly` : on le règle dans l'asset, pas sur une copie posée dans le niveau (un Data Asset n'est jamais posé de toute façon).
+  </Etape>
+  <Etape lignes="27-29" titre="L'icône">
+    L'image qui s'affichera dans la case d'objet du HUD (module suivant).
+  </Etape>
+  <Etape lignes="31-33" titre="Le nombre d'utilisations">
+    1 pour un objet simple, 3 pour un triple. `ClampMin = "1"` empêche de mettre 0 dans l'éditeur. C'est grâce à cette variable que le triple turbo ne demandera **aucune ligne de code** en plus.
+  </Etape>
+  <Etape lignes="35-40" titre="Activate : le cœur du système">
+    Chaque objet fait son effet dans `Activate`. <Terme id="virtual">virtual</Terme> permet aux enfants de la remplacer. Le `const` à la fin est essentiel : un même asset `DA_Item_Turbo` est **partagé** par tous les karts. S'il retenait « il me reste 2 utilisations », tous les karts partageraient ce compteur. Le `const` interdit au compilateur de modifier l'asset : l'état de chaque kart est rangé ailleurs, dans sa poche.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="piege">Ne mets jamais de variable « d'état » (temps restant, nombre d'utilisations restantes…) dans un Data Asset. Il n'existe qu'une seule fois en mémoire pour tout le jeu.</Encadre>
+
+## Le fichier KartItemData.cpp
+
+<CodePasAPas fichier="KartItemData.cpp" debut={1} fin={8}>
+  <Etape lignes="1" titre="L'include">
+    Le header de la classe, avec son dossier `Items/`.
+  </Etape>
+  <Etape lignes="3-8" titre="La version du parent">
+    Le parent ne sait rien faire : il renvoie `false`, ce qui veut dire « pas utilisé ». Si un jour un enfant oublie de redéfinir `Activate`, l'objet ne sera pas consommé pour rien et on remarquera vite le problème en testant.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="plus-loin">On aurait pu écrire `Activate` en `UFUNCTION(BlueprintNativeEvent)` pour pouvoir coder de nouveaux objets en Blueprint. On reste en C++ pur ici pour garder l'exemple simple.</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/objets-bonus/principe-bonus/const-partage" />

@@ -1,0 +1,111 @@
+Le `.cpp` de la case d'objet a deux rôles. D'abord, trouver le composant d'objet du kart du joueur et s'abonner à ses delegates, même si le kart n'existe pas encore quand le widget est créé. Ensuite, afficher : l'icône et le nombre d'utilisations quand l'objet change, et le défilement des icônes pendant la roulette.
+
+## Construction et destruction
+
+<CodePasAPas fichier="KartItemWidget.cpp" debut={1} fin={26}>
+  <Etape lignes="1-9" titre="Les includes">
+    Les widgets qu'on manipule (Image, TextBlock), le pawn et le PlayerController, et les trois classes du système d'objets dont on lit le contenu.
+  </Etape>
+  <Etape lignes="11-13" titre="Signature et Super">
+    Comme toujours, on commence par la version du parent.
+  </Etape>
+  <Etape lignes="15-17" titre="Une case vide au départ">
+    Pas d'icône, pas de texte. `FText::GetEmpty()` est un texte vide tout prêt.
+  </Etape>
+  <Etape lignes="19-21" titre="Pourquoi écouter le PlayerController ?">
+    Le widget peut être créé avant que le joueur ait son kart. Le HUD de course contournait ce problème en relisant le kart à chaque image. Ici on fait mieux : on demande au PlayerController de nous prévenir quand il change de pawn.
+  </Etape>
+  <Etape lignes="22-26" titre="S'abonner, puis se brancher tout de suite">
+    <Terme id="onpossessedpawnchanged">OnPossessedPawnChanged</Terme> nous préviendra des **prochains** changements. Pour le pawn **actuel**, on appelle `BindToPawn` tout de suite. S'il n'y a pas encore de pawn, `GetPawn()` renvoie `nullptr` et `BindToPawn` ne fait rien.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemWidget.cpp" debut={28} fin={43}>
+  <Etape lignes="28-34" titre="Se désabonner du PlayerController">
+    Le PlayerController vit plus longtemps que ce widget. S'il gardait l'abonnement, il appellerait un widget détruit.
+  </Etape>
+  <Etape lignes="35-38" titre="Se désabonner du kart">
+    `BindToPawn(nullptr)` se désabonne de l'ancien composant et ne s'abonne à rien. On réutilise la fonction au lieu de recopier son code. Le parent passe en dernier.
+  </Etape>
+  <Etape lignes="40-43" titre="Le pawn a changé">
+    On ignore `OldPawn` : `BindToPawn` se souvient déjà de l'ancien composant.
+  </Etape>
+</CodePasAPas>
+
+## BindToPawn : se brancher sur le bon kart
+
+<CodePasAPas fichier="KartItemWidget.cpp" debut={45} fin={67}>
+  <Etape lignes="45-52" titre="1. Quitter l'ancien composant">
+    `IsValid()` vérifie que le <Terme id="tweakobjectptr">pointeur faible</Terme> pointe encore sur un composant vivant. Si oui, on retire nos deux fonctions de ses delegates.
+  </Etape>
+  <Etape lignes="54-56" titre="2. Trouver le nouveau">
+    <Terme id="findcomponentbyclass">FindComponentByClass</Terme> cherche la poche à objets sur le pawn, sans savoir que c'est un kart. La roulette éventuelle de l'ancien kart est oubliée.
+  </Etape>
+  <Etape lignes="58-61" titre="Pas de poche, pas de branchement">
+    Pas de pawn, ou un pawn sans composant d'objet : on s'arrête là.
+  </Etape>
+  <Etape lignes="63-67" titre="3. S'abonner et afficher l'état actuel">
+    <Terme id="adduniquedynamic">AddUniqueDynamic</Terme> évite de s'abonner deux fois. Puis on appelle `HandleItemChanged` à la main : si le kart avait déjà un objet, la case l'affiche tout de suite, sans attendre le prochain changement.
+  </Etape>
+</CodePasAPas>
+
+## Réagir au composant d'objet
+
+<CodePasAPas fichier="KartItemWidget.cpp" debut={69} fin={94}>
+  <Etape lignes="69-76" titre="La roulette commence">
+    On retient la table et on remet la roulette au début. `RouletteTimer` part « plein » (égal à l'intervalle) : dès l'image suivante, `NativeTick` affiche une première icône, sans laisser la case vide. Le widget ne sait pas quel objet va sortir, et il n'en a pas besoin : le composant l'a déjà tiré, la roulette n'est qu'une animation.
+  </Etape>
+  <Etape lignes="78-81" titre="L'objet a changé">
+    Que l'objet arrive, qu'il soit utilisé ou qu'il disparaisse, la roulette s'arrête.
+  </Etape>
+  <Etape lignes="83" titre="L'icône">
+    On affiche l'icône de l'objet, ou on cache l'image si la poche est vide. `Icon.Get()` sort le pointeur simple du `TObjectPtr`.
+  </Etape>
+  <Etape lignes="85-94" titre="Le nombre d'utilisations">
+    « x3 » seulement s'il reste plus d'une utilisation. `FText::Format` remplace `{0}` par le nombre, comme pour le « Tour 2/3 » du HUD de course. Sinon, texte vide.
+  </Etape>
+</CodePasAPas>
+
+## La roulette, image par image
+
+<CodePasAPas fichier="KartItemWidget.cpp" debut={96} fin={118}>
+  <Etape lignes="96-98" titre="Signature et Super">
+    `NativeTick` est appelé à chaque image tant que le widget est affiché.
+  </Etape>
+  <Etape lignes="100-104" titre="Rien à animer">
+    Pas de roulette, ou une table vide : on sort. Le test de la table vide protège aussi le calcul du modulo plus bas, qui diviserait par 0.
+  </Etape>
+  <Etape lignes="106-111" titre="Attendre le bon moment">
+    On accumule le temps des images. Tant qu'on n'a pas atteint 0,08 seconde, on sort. Sinon on retire 0,08 au lieu de remettre à 0 : le temps en trop n'est pas perdu, et la roulette garde un rythme régulier.
+  </Etape>
+  <Etape lignes="113-114" titre="L'icône suivante">
+    Le <Terme id="modulo">modulo</Terme> fait boucler l'index : avec 4 objets dans la table, 0, 1, 2, 3, puis de nouveau 0.
+  </Etape>
+  <Etape lignes="116-118" titre="L'afficher">
+    On lit l'objet de cette ligne de la table et on affiche son icône. Une ligne de table sans objet donne une case vide un instant.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemWidget.cpp" debut={120} fin={131}>
+  <Etape lignes="120-127" titre="Pas d'icône : cacher l'image">
+    `Hidden` et pas `Collapsed` : l'image devient invisible mais garde sa place. Le cadre de la case ne bouge pas dans le HUD.
+  </Etape>
+  <Etape lignes="129-131" titre="Afficher l'icône">
+    `SetBrushFromTexture` change l'image affichée. `HitTestInvisible` : visible, mais la souris passe au travers, comme pour le HUD de course.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">
+Le widget ne décide de rien : il ne tire pas l'objet, il ne compte pas les utilisations. Il affiche ce que le composant lui envoie. Si on supprime le widget, le jeu marche toujours.
+</Encadre>
+
+## Dans l'éditeur : la case d'objet
+
+1. Crée un Widget Blueprint `WBP_ItemSlot`, puis dans Graph > Class Settings, mets sa classe parente sur `KartItemWidget`.
+2. Dans le Designer, ajoute une Image nommée exactement `ItemIcon` et un Text nommé exactement `UsesText`. Place la case dans un coin de l'écran.
+3. Dans `BP_KartPlayerController`, choisis `WBP_ItemSlot` dans `Item Widget Class`.
+4. Lance le jeu et roule dans une boîte : les icônes défilent pendant 2 secondes, puis l'objet s'affiche.
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/objets-attaque/widget-roulette/abonnement" />

@@ -1,0 +1,127 @@
+Où ranger l'objet que le kart a en main ? On pourrait ajouter trois variables dans `AKartPawn`… mais le kart fait déjà plus de 800 lignes. On crée plutôt un <Terme id="uactorcomponent">composant</Terme> : une brique de code qu'on ajoute à un acteur, comme on ajoute une caméra. C'est la **poche** du kart. Elle garde l'objet, lance la roulette, et utilise l'objet quand on appuie sur la touche.
+
+Autre avantage : la boîte à bonus cherchera « un acteur qui a une poche », pas « un kart ». Une IA, ou un autre véhicule, pourrait ramasser des objets sans changer une ligne de la boîte.
+
+## Le header KartItemComponent.h
+
+<CodePasAPas fichier="KartItemComponent.h" debut={1} fin={14}>
+  <Etape lignes="1-5" titre="Les includes">
+    `Components/ActorComponent.h` apporte `UActorComponent`, la classe parente de tous les composants sans position.
+  </Etape>
+  <Etape lignes="7-8" titre="Déclarations anticipées">
+    Un objet et une table de tirage, seulement par pointeur.
+  </Etape>
+  <Etape lignes="10-11" titre="L'event « l'objet a changé »">
+    Un <Terme id="delegate">delegate</Terme>, comme ceux du GameMode. `_TwoParams` : il envoie deux valeurs, l'objet (ou `nullptr` si la poche est vide) et le nombre d'utilisations restantes. Le widget du HUD s'y abonnera pour mettre à jour l'icône.
+  </Etape>
+  <Etape lignes="13-14" titre="L'event « la roulette commence »">
+    Il envoie la table et la durée : le widget pourra faire défiler les icônes de la table pendant ce temps.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemComponent.h" debut={16} fin={57}>
+  <Etape lignes="16-20" titre="Pourquoi un composant">
+    Le commentaire résume ce qu'on vient de dire. `BlueprintSpawnableComponent` fait apparaître le composant dans le bouton **Add** des Blueprints : on pourrait l'ajouter à la main à n'importe quel acteur.
+  </Etape>
+  <Etape lignes="21-24" titre="UCLASS et la classe parente">
+    `ClassGroup = (Kart)` range le composant dans une catégorie « Kart » de la liste **Add**. Le préfixe **U** : un composant est un UObject, pas un Actor.
+  </Etape>
+  <Etape lignes="26-31" titre="Recevoir un objet">
+    `TryGiveRandomItem` est appelée par la boîte. Le mot « Try » prévient : ça peut échouer (on a déjà un objet), et le `bool` renvoyé dit si ça a marché.
+  </Etape>
+  <Etape lignes="33-39" titre="Utiliser ou jeter l'objet">
+    `UseItem` est appelée par le kart quand on appuie sur la touche. `ClearItem` vide la poche. Elle n'est appelée nulle part pour l'instant : elle est prête pour le jour où une course recommence (c'est le défi de ce module).
+  </Etape>
+  <Etape lignes="41-51" titre="Lire l'état">
+    Quatre petites fonctions `BlueprintPure` écrites dans le header : a-t-on un objet, la roulette tourne-t-elle, quel objet, combien d'utilisations.
+  </Etape>
+  <Etape lignes="53-57" titre="Les deux events">
+    Les variables des deux delegates. <Terme id="blueprintassignable">BlueprintAssignable</Terme> permet à un Blueprint de s'y abonner aussi.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemComponent.h" debut={59} fin={93}>
+  <Etape lignes="59-62" titre="La durée de la roulette">
+    2 secondes de suspense pendant lesquelles on ne peut pas utiliser d'objet. À 0, l'objet arrive tout de suite.
+  </Etape>
+  <Etape lignes="64-66" titre="Un texte de debug">
+    Tant que le widget du HUD n'existe pas (module suivant), on affiche l'objet reçu en texte de debug, comme le faisait le GameMode.
+  </Etape>
+  <Etape lignes="68-78" titre="L'état de la poche">
+    L'objet en main, les utilisations restantes, et la roulette. Ces variables sont **dans le composant**, donc une copie par kart. C'est ici, et pas dans le Data Asset, qu'on retient « il me reste 2 turbos ». `VisibleAnywhere` permet de les surveiller dans le panneau Details pendant le Play.
+  </Etape>
+  <Etape lignes="80-85" titre="Deux fonctions privées">
+    `FinishRoulette` sera appelée par un <Terme id="timer">timer</Terme>. `SetItem` est le **seul** endroit qui change l'objet en main : on est sûr que l'event est envoyé à chaque changement.
+  </Etape>
+  <Etape lignes="87-90" titre="L'objet en attente">
+    L'objet tiré au début de la roulette, donné à la fin. Le `UPROPERTY()` vide sert au ramasse-miettes d'Unreal : sans lui, le moteur ne saurait pas qu'on garde un pointeur vers cet asset.
+  </Etape>
+  <Etape lignes="92-93" titre="La poignée du timer">
+    `FTimerHandle` permet de retrouver le timer pour l'annuler (dans `ClearItem`).
+  </Etape>
+</CodePasAPas>
+
+## Le fichier KartItemComponent.cpp
+
+<CodePasAPas fichier="KartItemComponent.cpp" debut={1} fin={13}>
+  <Etape lignes="1-7" titre="Les includes">
+    Le debug (`Engine.h`), les deux Data Assets, le kart (on appelle `Activate` avec lui), et le gestionnaire de timers.
+  </Etape>
+  <Etape lignes="9-13" titre="Pas de Tick">
+    Le composant ne fait rien à chaque image : il réagit à la boîte, à la touche et à son timer. Pour un composant, c'est `PrimaryComponentTick` et pas `PrimaryActorTick`.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemComponent.cpp" debut={15} fin={44}>
+  <Etape lignes="15-21" titre="Refuser si la poche est pleine">
+    Pas de table, un objet déjà en main, ou une roulette en cours : on refuse. Une seule chose en poche à la fois.
+  </Etape>
+  <Etape lignes="23-28" titre="Tirer le résultat tout de suite">
+    Le résultat est décidé **maintenant**. La roulette n'est qu'une animation : le widget fera défiler des icônes au hasard, mais l'objet est déjà choisi. Si la table est vide, on refuse aussi.
+  </Etape>
+  <Etape lignes="30-31" titre="Prévenir le HUD">
+    On note que la roulette tourne, et on <Terme id="broadcast">Broadcast</Terme> l'event avec la table et la durée.
+  </Etape>
+  <Etape lignes="33-44" titre="Le timer de la roulette">
+    Dans 2 secondes, Unreal appellera `FinishRoulette`. Le dernier paramètre `false` veut dire « une seule fois », pas en boucle. Si la durée est 0, on termine tout de suite. Puis `true` : on a bien reçu quelque chose.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemComponent.cpp" debut={46} fin={55}>
+  <Etape lignes="46-55" titre="Fin de la roulette">
+    La roulette s'arrête, et l'objet en attente arrive en poche avec son nombre d'utilisations lu dans le Data Asset (`Uses`). C'est là que le triple turbo reçoit ses 3 utilisations.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemComponent.cpp" debut={57} fin={84}>
+  <Etape lignes="57-63" titre="Rien à utiliser">
+    Pendant la roulette ou avec une poche vide, la touche ne fait rien.
+  </Etape>
+  <Etape lignes="65-66" titre="Retrouver le kart">
+    <Terme id="getowner">GetOwner</Terme> renvoie l'acteur qui porte le composant. Un <Terme id="cast">Cast</Terme> le convertit en kart (ou `nullptr` si c'est autre chose).
+  </Etape>
+  <Etape lignes="68-73" titre="Le polymorphisme en action">
+    `CurrentItem` est un `UKartItemData*`. Pourtant, si c'est un turbo, c'est la version `Activate` **du turbo** qui s'exécute. C'est le <Terme id="polymorphisme">polymorphisme</Terme> : le composant ne connaît aucun objet en particulier. Si l'objet n'a pas pu servir (`false`), on garde l'utilisation.
+  </Etape>
+  <Etape lignes="75-84" titre="Une utilisation de moins">
+    S'il en reste plusieurs, on en retire une. Sinon, la poche se vide. Dans les deux cas on passe par `SetItem`, pour que le HUD soit prévenu.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemComponent.cpp" debut={86} fin={107}>
+  <Etape lignes="86-92" titre="Vider la poche">
+    On annule le timer de la roulette s'il tourne, on oublie l'objet en attente, et on vide la poche.
+  </Etape>
+  <Etape lignes="94-100" titre="Changer l'objet et prévenir">
+    On range les nouvelles valeurs, puis on prévient tous les abonnés d'un coup.
+  </Etape>
+  <Etape lignes="102-107" titre="Le texte de debug">
+    Le nom de l'objet, ou « aucun ». La clé 10 est différente de celles du kart (1, 2, 3) : le message ne les écrase pas. `*ItemName` transforme le `FString` en texte que <Terme id="printf">Printf</Terme> sait lire.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">Le composant ne sait pas ce que fait un objet, et l'objet ne sait pas comment on le range. Chaque classe a un seul travail : c'est ce qui permet d'ajouter des objets sans toucher au reste.</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/objets-bonus/item-component/roulette" />

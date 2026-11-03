@@ -1,0 +1,70 @@
+Le header a déclaré `BeginPlay`, deux classes à choisir et deux pointeurs. Le `.cpp` ne contient qu'une fonction : `BeginPlay`, qui fabrique les deux widgets puis les pose à l'écran. On le recopie de la ligne 1 à la ligne 44. Les lignes de la case d'objet bonus, ajoutées plus tard, sont expliquées dans le module Objets bonus.
+
+## Les includes et le début de BeginPlay
+
+<CodePasAPas fichier="KartPlayerController.cpp" debut={1} fin={4}>
+  <Etape lignes="1" titre="Son propre header">
+    Un `.cpp` commence toujours par inclure son propre header : il y retrouve la déclaration de la classe.
+  </Etape>
+  <Etape lignes="3-4" titre="Les headers des widgets">
+    Dans le header, une déclaration anticipée suffisait. Ici on va **créer** les widgets : le compilateur a besoin des vraies classes, donc on inclut leurs headers.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.cpp" debut={7} fin={15}>
+  <Etape lignes="7-9" titre="Signature et Super::BeginPlay">
+    `AKartPlayerController::BeginPlay` dit qu'on écrit le `BeginPlay` de notre classe. La première ligne appelle la version de `APlayerController` : <Terme id="super">Super</Terme> désigne la classe parente. Sans cet appel, le PlayerController ne ferait pas son propre travail de démarrage.
+  </Etape>
+  <Etape lignes="11-15" titre="Seulement pour le joueur local">
+    <Terme id="islocalcontroller">IsLocalController</Terme> vérifie que ce PlayerController appartient à quelqu'un qui joue sur cette machine. En réseau, le serveur a aussi un PlayerController pour chaque joueur distant ; ces joueurs n'ont pas d'écran ici, donc on ne leur crée rien. Le `return` sort tout de suite de la fonction.
+  </Etape>
+</CodePasAPas>
+
+## Créer puis afficher les deux widgets
+
+<CodePasAPas fichier="KartPlayerController.cpp" debut={17} fin={24}>
+  <Etape lignes="17-18" titre="Une classe a-t-elle été choisie ?">
+    Si la case `CountdownWidgetClass` est vide dans l'éditeur, elle vaut <Terme id="nullptr">nullptr</Terme> (« rien »). Dans ce cas, le `if` est faux et on saute ce widget au lieu de planter.
+  </Etape>
+  <Etape lignes="19" titre="CreateWidget">
+    <Terme id="createwidget">CreateWidget</Terme> fabrique le widget à partir de la classe choisie. Le premier paramètre, `this`, est son propriétaire : le PlayerController. Le résultat est rangé dans `CountdownWidget`, le pointeur déclaré dans le header.
+  </Etape>
+  <Etape lignes="20-24" titre="AddToViewport">
+    On vérifie que la création a réussi, puis <Terme id="addtoviewport">AddToViewport</Terme> pose le widget à l'écran. La dernière accolade ferme le `if` de la ligne 17.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.cpp" debut={36} fin={44}>
+  <Etape lignes="36-38" titre="Même chose pour le HUD">
+    Exactement le même schéma pour le chrono et les tours : on vérifie la case `RaceHudWidgetClass`, puis on fabrique le widget.
+  </Etape>
+  <Etape lignes="39-44" titre="L'afficher, et fin de BeginPlay">
+    Le HUD est posé à l'écran à son tour. La dernière accolade ferme `BeginPlay`. Les deux widgets existent donc dès le début de la partie : c'est à chacun de décider quand se montrer, on le verra dans leur `.cpp`.
+  </Etape>
+</CodePasAPas>
+
+Les vérifications de `nullptr` ont une contrepartie : **rien ne te prévient**. Si une case est vide, le jeu tourne normalement, mais sans compte à rebours ou sans chrono.
+
+<Encadre type="info">
+`CreateWidget` fabrique le widget en mémoire, `AddToViewport` l'affiche. Ce sont deux étapes séparées : on pourrait créer un menu de pause au lancement et ne l'afficher que plus tard.
+</Encadre>
+
+## Dans l'éditeur : le Blueprint du PlayerController
+
+Les deux cases `TSubclassOf` se remplissent dans un Blueprint. Crée (ou ouvre) `BP_KartPlayerController`, un Blueprint dont la <Terme id="classe-parente">classe parente</Terme> est `KartPlayerController`. Dans son panneau Details, catégorie **Kart > UI**, tu trouveras `Countdown Widget Class` et `Race Hud Widget Class`.
+
+Pour l'instant, le menu déroulant ne te propose aucun widget : `WBP_Countdown` et `WBP_RaceHud` n'existent pas encore, et ils devront hériter des classes C++ qu'on écrit dans les leçons suivantes. Tu reviendras remplir ces cases à la fin du header de chaque widget.
+
+## Dans l'éditeur : le GameMode doit utiliser ce Blueprint
+
+Le constructeur de `AKartGameMode` choisit `AKartPlayerController::StaticClass()` comme classe de PlayerController : c'est la classe **C++**, dont les deux cases sont vides. Si on en reste là, aucun widget ne s'affichera.
+
+Pour que ce soit `BP_KartPlayerController` qui soit créé, choisis-le dans le champ **Player Controller Class** du Blueprint du GameMode utilisé par le niveau (ou dans World Settings > GameMode Override).
+
+<Encadre type="piege">
+Le compte à rebours ne s'affiche pas ? Vérifie dans l'ordre : le GameMode utilise bien `BP_KartPlayerController` et pas la classe C++ ; les deux cases de la catégorie Kart > UI sont remplies ; le texte de debug du GameMode (`bShowDebugText`) ne te trompe pas en affichant son propre « 3, 2, 1 » par-dessus. Le code ne signale aucune erreur quand une case est vide.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/widgets-hud/cpp-playercontroller/rien-ne-s-affiche" />

@@ -1,0 +1,90 @@
+Le widget du compte à rebours ne compte rien lui-même. C'est le GameMode qui gère le « 3, 2, 1, GO » : il décide quand passer au chiffre suivant et quand débloquer les karts. Le widget se contente d'**écouter** et d'afficher ce qu'on lui annonce.
+
+Pour écouter, il utilise un <Terme id="delegate">delegate</Terme> du GameMode. Un delegate est un event : le GameMode le déclenche (on dit qu'il le « broadcast »), et toutes les fonctions qui s'y sont abonnées sont appelées. Ici, le GameMode déclare `OnCountdownTick`, qui envoie un nombre : 3, 2, 1, puis 0 pour le GO (lignes 40-42 de `KartGameMode.h`). On recopie maintenant `KartCountdownWidget.cpp`, de la ligne 1 à la ligne 65.
+
+## NativeConstruct : se cacher et s'abonner
+
+<CodePasAPas fichier="KartCountdownWidget.cpp" debut={1} fin={24}>
+  <Etape lignes="1" titre="Son propre header">
+    Le `.cpp` commence par inclure `KartCountdownWidget.h`.
+  </Etape>
+  <Etape lignes="3-5" titre="Les includes">
+    `Components/TextBlock.h` pour pouvoir appeler `SetText` sur le texte (le header ne l'avait qu'annoncé). `KartGameMode.h` pour accéder au GameMode et à son event. `TimerManager.h` pour le timer qui cachera le « GO! ».
+  </Etape>
+  <Etape lignes="7-9" titre="Signature et Super">
+    On écrit le <Terme id="nativeconstruct">NativeConstruct</Terme> de notre classe, et on appelle d'abord `Super::NativeConstruct()`, la version de `UUserWidget`.
+  </Etape>
+  <Etape lignes="11-12" titre="Caché au départ">
+    Le widget se cache avec `Collapsed`, une valeur de <Terme id="eslatevisibility">ESlateVisibility</Terme>. Le PlayerController l'a pourtant mis à l'écran : il reste là, invisible, en attendant le premier chiffre.
+  </Etape>
+  <Etape lignes="14-15" titre="Récupérer le GameMode">
+    `GetAuthGameMode<AKartGameMode>()` récupère le GameMode de la partie, converti en `AKartGameMode`. Il renvoie `nullptr` si le niveau utilise un autre GameMode : dans ce cas le `if` est faux et on saute tout le bloc.
+  </Etape>
+  <Etape lignes="16" titre="S'abonner à OnCountdownTick">
+    <Terme id="adduniquedynamic">AddUniqueDynamic</Terme> abonne `HandleCountdownTick` à `OnCountdownTick` : à chaque chiffre, le GameMode appellera cette fonction. On lui donne l'objet (`this`) et l'adresse de la fonction (`&UKartCountdownWidget::HandleCountdownTick`).
+  </Etape>
+  <Etape lignes="18-24" titre="Arriver en retard">
+    Si le widget est créé alors que le décompte a déjà commencé, il a raté les premiers broadcasts. On demande donc au GameMode où il en est et on affiche tout de suite le bon chiffre, en appelant `HandleCountdownTick` nous-mêmes. `!GameMode->IsRaceStarted()` évite d'afficher quoi que ce soit si la course est déjà lancée. Les deux accolades ferment le `if` du GameMode puis `NativeConstruct`.
+  </Etape>
+</CodePasAPas>
+
+Ce rattrapage complète une autre précaution : le GameMode attend `StartDelay` secondes (1 par défaut) avant d'annoncer le « 3 ». Son commentaire, ligne 110 de `KartGameMode.h`, dit pourquoi : laisser au widget le temps de s'abonner.
+
+## NativeDestruct : faire le ménage
+
+<CodePasAPas fichier="KartCountdownWidget.cpp" debut={26} fin={39}>
+  <Etape lignes="26-30" titre="Arrêter le timer">
+    Dans <Terme id="nativedestruct">NativeDestruct</Terme>, on vérifie d'abord `GetWorld()` par prudence : cette fonction est aussi appelée quand le niveau se ferme. Puis `ClearTimer` arrête le timer du « GO! », pour qu'il ne rappelle pas `HideCountdown` sur un widget détruit.
+  </Etape>
+  <Etape lignes="32-35" titre="Se désabonner">
+    `RemoveDynamic` défait l'abonnement fait dans `NativeConstruct`. Sinon le GameMode pourrait appeler un widget qui n'existe plus.
+  </Etape>
+  <Etape lignes="36-39" titre="Super à la fin">
+    On ferme le `if` du World, puis on appelle `Super::NativeDestruct()` **à la fin** : on range ses affaires avant que la classe parente ne termine la destruction. La dernière accolade ferme la fonction.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">
+Un abonnement se fait dans `NativeConstruct` et se défait dans `NativeDestruct`. Chaque `AddUniqueDynamic` doit avoir son `RemoveDynamic`. Et `AddUniqueDynamic` (plutôt que `AddDynamic`) est une sécurité : si `NativeConstruct` était appelé une seconde fois sans `NativeDestruct` entre les deux, la fonction ne serait pas abonnée deux fois, donc pas appelée deux fois par chiffre.
+</Encadre>
+
+## HandleCountdownTick : afficher un chiffre ou GO
+
+<CodePasAPas fichier="KartCountdownWidget.cpp" debut={41} fin={60}>
+  <Etape lignes="41-44" titre="Se montrer">
+    Le GameMode appelle cette fonction avec `Number`. Le widget devient visible, en `HitTestInvisible` : le texte s'affiche, mais la souris passe au travers. Un widget `Visible` posé en plein écran pourrait intercepter les clics destinés au jeu ou à un autre widget.
+  </Etape>
+  <Etape lignes="45" titre="Annuler l'ancien timer">
+    `HideTimer` est la poignée du <Terme id="timer">timer</Terme> : elle permet de l'annuler. On l'annule à chaque nouveau chiffre, au cas où la course serait relancée pendant que « GO! » est encore affiché : l'ancien timer ne doit pas cacher le nouveau « 3 ».
+  </Etape>
+  <Etape lignes="47-50" titre="Un chiffre">
+    Si `Number` est plus grand que 0, on affiche le chiffre. `SetText` attend un <Terme id="ftext">FText</Terme>, pas un `int32` : `FText::AsNumber` fait la conversion.
+  </Etape>
+  <Etape lignes="51-54" titre="GO">
+    Sinon, c'est 0 : on affiche `GoText`, le texte réglable du header.
+  </Etape>
+  <Etape lignes="55-57" titre="Lancer le timer">
+    Un timer, c'est « appelle cette fonction dans X secondes ». Ici : appelle `HideCountdown` sur `this` après `GoDisplayTime` secondes. `FMath::Max(GoDisplayTime, 0.01f)` garantit une durée strictement positive, même si on a mis 0 dans l'éditeur ; le dernier paramètre `false` veut dire que le timer ne se répète pas.
+  </Etape>
+  <Etape lignes="59-60" titre="Prévenir le Blueprint">
+    Dans les deux cas, on appelle `OnCountdownNumberShown`, l'event déclaré dans le header : le WBP peut y jouer une animation ou un son.
+  </Etape>
+</CodePasAPas>
+
+## HideCountdown : disparaître
+
+<CodePasAPas fichier="KartCountdownWidget.cpp" debut={62} fin={65}>
+  <Etape lignes="62-65" titre="Se cacher à nouveau">
+    Quand le timer se déclenche, le widget repasse en `Collapsed`. Il n'est pas détruit : si la course est relancée, il réapparaîtra au prochain chiffre.
+  </Etape>
+</CodePasAPas>
+
+## Pourquoi écouter plutôt que vérifier à chaque image ?
+
+Le widget aurait pu demander au GameMode, à chaque image, « quel chiffre maintenant ? ». Ce serait des dizaines de questions par seconde pour un chiffre qui change une fois par seconde. Avec le delegate, le widget ne travaille que quand il se passe vraiment quelque chose.
+
+Autre avantage : le GameMode ne sait **rien** du widget. Il annonce « 2 » à qui veut l'entendre. C'est ce que dit le commentaire des lignes 27-29 de `KartGameMode.h` : l'UI n'a qu'à écouter.
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/widgets-hud/cpp-countdown/se-desabonner" />

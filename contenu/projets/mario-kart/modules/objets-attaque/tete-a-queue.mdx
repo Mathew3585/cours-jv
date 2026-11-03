@@ -1,0 +1,133 @@
+Jusqu'ici, les objets bonus aidaient le kart qui les utilise. Maintenant, on veut des objets qui **gênent les autres** : un piège posé sur la piste, un projectile qui fonce devant. Avant de les écrire, il faut que le kart sache réagir quand il est touché : partir en tête-à-queue.
+
+Le kart existe déjà depuis le module 1, et on revient le modifier. C'est normal : un jeu grandit, et le code écrit au début évolue avec lui. On ajoute quelques lignes à des endroits précis de `KartPawn.h` et `KartPawn.cpp`, et on retouche une fonction existante, `UpdateVisuals`. Cette leçon ne montre que ces lignes, du haut vers le bas de chaque fichier.
+
+## Le header : ce que le kart sait faire en plus
+
+<CodePasAPas fichier="KartPawn.h" debut={72} fin={77}>
+  <Etape lignes="72-74" titre="SpinOut : être touché">
+    Le piège et le projectile appelleront `SpinOut` quand ils touchent un kart. Elle est `public` : ce sont d'autres classes qui l'appellent. Le paramètre `Duration` vient de l'objet qui touche, ce qui permet d'avoir des dangers plus ou moins méchants.
+  </Etape>
+  <Etape lignes="76-77" titre="IsSpinningOut : est-ce que je tourne ?">
+    Le kart est en tête-à-queue tant qu'il reste du temps. Plutôt que de stocker un booléen en plus, on le déduit de `SpinOutTimeRemaining` : une seule variable à tenir à jour, donc impossible d'avoir deux informations qui se contredisent.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.h" debut={292} fin={300}>
+  <Etape lignes="292-296" titre="Combien de tours sur lui-même">
+    Une nouvelle section de réglages, à la suite des autres. `SpinOutTurns` est le nombre de tours complets que fait le châssis. C'est un entier : on veut que le kart retombe droit à la fin, donc un nombre de tours **complets**.
+  </Etape>
+  <Etape lignes="298-300" titre="La vitesse perdue au choc">
+    0,4 : le kart garde 40 % de sa vitesse au moment du choc. `ClampMin` et `ClampMax` empêchent de régler une valeur absurde dans l'éditeur, comme 2 (le choc ferait accélérer).
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.h" debut={348} fin={358}>
+  <Etape lignes="348-350" titre="Le temps restant">
+    Il descend jusqu'à 0 pendant le tête-à-queue. C'est lui que lit `IsSpinningOut`. Il est dans la catégorie `Kart|State` avec les autres variables d'état : on peut le regarder dans le panneau Details pendant le Play.
+  </Etape>
+  <Etape lignes="352-354" titre="La durée totale">
+    On garde aussi la durée de départ. Avec les deux, on sait où on en est : 0,75 seconde restante sur 1,5, c'est la moitié.
+  </Etape>
+  <Etape lignes="356-358" titre="L'angle du châssis">
+    De combien de degrés le châssis a tourné sur lui-même. C'est seulement visuel : la sphère de collision, elle, ne tourne pas.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.h" debut={417} fin={420}>
+  <Etape lignes="417-420" titre="Une étape de plus dans le Tick">
+    `UpdateSpinOut` est une nouvelle étape du <Terme id="tick">Tick</Terme>, comme `UpdateGround` ou `UpdateSpeed`. Elle est `private` : personne d'autre que le kart ne doit l'appeler.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.h" debut={433} fin={435}>
+  <Etape lignes="433-435" titre="BodySlideYaw : une variable pour le drift">
+    L'angle du châssis en drift. Avant, il n'existait pas : `UpdateVisuals` relisait cet angle directement sur le mesh du châssis. Mais pendant un tête-à-queue, le mesh tourne aussi sur lui-même. Relire son angle donnerait « drift + tête-à-queue » mélangés. On garde donc l'angle du drift à part.
+  </Etape>
+</CodePasAPas>
+
+## Le .cpp : brancher le tête-à-queue
+
+<CodePasAPas fichier="KartPawn.cpp" debut={229} fin={230}>
+  <Etape lignes="229-230" titre="Appeler l'étape au bon moment">
+    On l'appelle **avant** toutes les autres étapes. `UpdateSpinOut` met les touches à zéro et freine. Si elle passait après `UpdateSpeed`, le kart aurait accéléré une image de plus avec les touches du joueur.
+  </Etape>
+</CodePasAPas>
+
+Le module 1 a déjà expliqué `UpdateVisuals`. Regarde ce qui a changé pour le châssis :
+
+<CodePasAPas fichier="KartPawn.cpp" debut={541} fin={553}>
+  <Etape lignes="541-544" titre="L'angle de drift dans sa variable">
+    Avant, la ligne disait en gros : « angle actuel = angle du mesh moins sa rotation de départ ». Maintenant, `BodySlideYaw` se souvient de l'angle de l'image d'avant, et <Terme id="finterpto">FInterpTo</Terme> le rapproche de la cible. Le résultat est le même en drift, mais il ne dépend plus du mesh.
+  </Etape>
+  <Etape lignes="546-549" titre="On ajoute le tête-à-queue par-dessus">
+    Le châssis prend l'angle de drift **plus** `SpinOutYaw`. En temps normal `SpinOutYaw` vaut 0 et rien ne change. Pendant un tête-à-queue, le châssis tourne sur lui-même, et les roues avec lui car elles y sont attachées.
+  </Etape>
+  <Etape lignes="551-553" titre="La caméra ne suit pas le tête-à-queue">
+    La caméra suit seulement `BodySlideYaw`. Si elle suivait aussi `SpinOutYaw`, tout l'écran ferait deux tours : illisible, et désagréable pour le joueur.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">
+Quand une nouvelle fonctionnalité casse une hypothèse de l'ancien code (ici : « l'angle du mesh, c'est l'angle du drift »), on ne bricole pas autour. On corrige l'ancien code pour qu'il ne dépende plus de cette hypothèse.
+</Encadre>
+
+<CodePasAPas fichier="KartPawn.cpp" debut={686} fin={690}>
+  <Etape lignes="686-690" titre="Pas de saut pendant un tête-à-queue">
+    Dans `Jump`, juste après le test du sol, on ajoute une deuxième sortie. Le joueur appuie sur saut pendant qu'il tourne : rien ne se passe.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.cpp" debut={707} fin={711}>
+  <Etape lignes="707-711" titre="Pas de drift non plus">
+    Même idée dans `StartDrift`. Sans cette garde, un joueur pourrait commencer un drift en plein tête-à-queue, le charger, et repartir avec un turbo.
+  </Etape>
+</CodePasAPas>
+
+## SpinOut : le moment du choc
+
+<CodePasAPas fichier="KartPawn.cpp" debut={788} fin={805}>
+  <Etape lignes="788-789" titre="La signature">
+    `SpinOut` est écrite à la fin du fichier, dans la section des objets bonus.
+  </Etape>
+  <Etape lignes="790-794" titre="Pas de double tête-à-queue">
+    Une durée nulle n'a pas de sens, on l'ignore. Et si le kart tourne déjà, on ne recommence pas. Sans ça, deux pièges posés côte à côte relanceraient le chrono et bloqueraient le kart deux fois plus longtemps.
+  </Etape>
+  <Etape lignes="796-797" titre="Lancer le chrono">
+    Le temps restant et la durée totale partent de la même valeur. Dès cette ligne, `IsSpinningOut` renvoie vrai.
+  </Etape>
+  <Etape lignes="799-805" titre="Le choc">
+    On garde 40 % de la vitesse. Le turbo en cours est annulé. Le drift aussi, **sans** passer par `EndDrift` : `EndDrift` donnerait le turbo de la charge accumulée, et se faire toucher ne doit pas récompenser.
+  </Etape>
+</CodePasAPas>
+
+## UpdateSpinOut : chaque image du tête-à-queue
+
+<CodePasAPas fichier="KartPawn.cpp" debut={807} fin={832}>
+  <Etape lignes="807-813" titre="Rien à faire en temps normal">
+    Pas de tête-à-queue : on remet l'angle à 0 et on sort. C'est le cas presque tout le temps.
+  </Etape>
+  <Etape lignes="815" titre="Le chrono descend">
+    On retire le temps de l'image, sans descendre sous 0. `FMath::Max` garde le plus grand des deux nombres.
+  </Etape>
+  <Etape lignes="817-819" titre="Les touches sont ignorées">
+    Exactement comme pendant le compte à rebours, au début du Tick. Les touches sont relues à chaque image : dès la fin du tête-à-queue, le kart répond de nouveau.
+  </Etape>
+  <Etape lignes="821-822" titre="Freiner fort">
+    <Terme id="finterpconstantto">FInterpConstantTo</Terme> fait descendre la vitesse vers 0 d'un pas régulier, à la force du freinage du kart (`BrakeDeceleration`).
+  </Etape>
+  <Etape lignes="824-825" titre="Où en est-on ?">
+    `Progress` va de 0 au moment du choc à 1 à la fin. Avec 1,5 seconde au total et 0,75 restante : 1 - 0,75 / 1,5 = 0,5.
+  </Etape>
+  <Etape lignes="827-832" titre="La courbe de rotation">
+    Une courbe <Terme id="ease-out">ease out</Terme> : elle monte vite au début, puis ralentit. Le châssis tourne fort juste après le choc, puis perd son élan. À la fin, `EaseOut` vaut 1 : le châssis a fait pile 2 tours, soit 720 degrés, et 720 degrés c'est la même position que 0. Quand `SpinOutYaw` repasse à 0 à l'image suivante, on ne voit aucun saut.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="piege">
+Si `SpinOutTurns` n'était pas un nombre entier de tours (1,5 par exemple), le châssis finirait de travers, puis sauterait d'un coup à l'angle 0 à l'image suivante.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/objets-attaque/tete-a-queue/body-slide-yaw" />

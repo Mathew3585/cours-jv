@@ -1,0 +1,117 @@
+Le projectile est un danger qui avance. Grâce à l'<Terme id="heritage">héritage</Terme>, tout ce qui concerne la collision, le kart touché et la disparition est déjà écrit dans `AKartItemHazard`. Cette classe n'ajoute que le mouvement : coller au sol, avancer, et rebondir sur les murs.
+
+On ne prend pas le `ProjectileMovementComponent` d'Unreal : comme pour le kart, on écrit le mouvement nous-mêmes dans le <Terme id="tick">Tick</Terme>. On contrôle tout, et c'est l'occasion de réutiliser ce que tu as vu dans `MoveKart`.
+
+## Le header
+
+<CodePasAPas fichier="KartItemProjectile.h" debut={1} fin={21}>
+  <Etape lignes="1-5" titre="Les includes">
+    On inclut le header du parent, `KartItemHazard.h`, et pas `Actor.h` : notre parent direct est le danger.
+  </Etape>
+  <Etape lignes="7-9" titre="Ce que fait la classe">
+    Le commentaire dit clairement ce qui est hérité et ce qui est ajouté.
+  </Etape>
+  <Etape lignes="10-13" titre="Un enfant du danger">
+    `public AKartItemHazard` : le projectile est un danger. Partout où le code attend un `AKartItemHazard`, on peut lui donner un projectile.
+  </Etape>
+  <Etape lignes="15-18" titre="Constructeur et Tick">
+    Le parent n'a pas de `Tick` à lui, mais AActor en a un : on le <Terme id="override">redéfinit</Terme> pour faire avancer le projectile à chaque image.
+  </Etape>
+  <Etape lignes="20-21" titre="BeginPlay">
+    Le projectile redéfinit aussi `BeginPlay` pour choisir sa direction de départ. On verra qu'il appelle d'abord celui du parent.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemProjectile.h" debut={23} fin={48}>
+  <Etape lignes="23-31" titre="Vitesse et rebonds">
+    4000 cm/s, plus que la vitesse max du kart (2500) : le projectile peut rattraper ceux de devant. `MaxBounces` limite le nombre de rebonds.
+  </Etape>
+  <Etape lignes="33-39" titre="Gravité et contact avec le sol">
+    Les mêmes idées que pour le kart. La gravité ne sert que si le projectile quitte le sol. `GroundStickDistance` est la marge sous le projectile dans laquelle on considère qu'il touche encore le sol.
+  </Etape>
+  <Etape lignes="41-43" titre="La direction">
+    Une direction horizontale, qui change à chaque rebond. Elle est `private` : seul le projectile la modifie.
+  </Etape>
+  <Etape lignes="45-48" titre="Vitesse verticale et rebonds restants">
+    `VerticalSpeed` pour la chute, `BouncesLeft` pour compter les rebonds. L'accolade ferme la classe.
+  </Etape>
+</CodePasAPas>
+
+## Constructeur et BeginPlay
+
+<CodePasAPas fichier="KartItemProjectile.cpp" debut={1} fin={14}>
+  <Etape lignes="1-4" titre="Sol ou mur ?">
+    La même règle que `WalkableFloorZ` dans le kart : une surface dont la <Terme id="normale">normale</Terme> monte assez (Z ≥ 0,7) est un sol. En dessous, c'est un mur.
+  </Etape>
+  <Etape lignes="6-9" titre="Rallumer le Tick">
+    Le constructeur du parent s'exécute **avant** celui-ci : il a mis `bCanEverTick` à faux. On le remet à vrai, car le projectile bouge à chaque image.
+  </Etape>
+  <Etape lignes="11-14" titre="Une durée de vie">
+    <Terme id="initiallifespan">InitialLifeSpan</Terme> : au bout de 10 secondes, l'acteur se détruit tout seul. Un projectile perdu ne restera pas dans le niveau jusqu'à la fin de la course.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemProjectile.cpp" debut={16} fin={24}>
+  <Etape lignes="16-19" titre="D'abord le parent">
+    <Terme id="super">Super::BeginPlay()</Terme> lance le BeginPlay du danger : il branche la détection des karts et pose le projectile au sol. Si on l'oubliait, le projectile ne toucherait jamais personne.
+  </Etape>
+  <Etape lignes="21-24" titre="Partir tout droit">
+    `UKartItemData_SpawnActor` a créé l'acteur tourné dans la direction du kart. On prend donc son avant. `GetSafeNormal2D` retire la hauteur et remet la longueur à 1 : une direction bien horizontale.
+  </Etape>
+</CodePasAPas>
+
+## Le Tick : sol, déplacement, rebond
+
+<CodePasAPas fichier="KartItemProjectile.cpp" debut={26} fin={45}>
+  <Etape lignes="26-28" titre="Signature et Super::Tick">
+    Le Tick commence toujours par appeler celui du parent.
+  </Etape>
+  <Etape lignes="30-32" titre="La direction de cette image">
+    `Direction` part de `MoveDirection`, mais elle pourra suivre la pente juste après. `MoveDirection`, elle, reste horizontale.
+  </Etape>
+  <Etape lignes="34-37" titre="Coller au sol">
+    `FindGround`, héritée du parent, cherche le sol juste sous le projectile. S'il y en a, on arrête la chute et on replace le projectile à la bonne hauteur.
+  </Etape>
+  <Etape lignes="39-41" titre="Suivre la pente">
+    <Terme id="projection-plan">VectorPlaneProject</Terme> « aplatit » la direction sur le sol, comme dans `MoveKart`. Dans une montée, le projectile monte au lieu de rentrer dans la pente.
+  </Etape>
+  <Etape lignes="42-45" titre="Sinon, tomber">
+    Pas de sol sous le projectile (au bord d'un saut) : la gravité le fait accélérer vers le bas.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemProjectile.cpp" debut={47} fin={63}>
+  <Etape lignes="47-48" titre="Le déplacement de l'image">
+    Vers l'avant à `Speed`, plus vers le haut ou le bas à `VerticalSpeed`. Les deux sont multipliés par `DeltaTime` : le mouvement est le même quel que soit le nombre d'images par seconde.
+  </Etape>
+  <Etape lignes="50-56" titre="Avancer avec un sweep">
+    Avec le <Terme id="sweep">sweep</Terme> (`true`), la sphère s'arrête si elle touche quelque chose qui la bloque. Les karts ne la bloquent pas (Overlap) : ils déclenchent seulement l'event du parent. Rien touché : on a fini pour cette image.
+  </Etape>
+  <Etape lignes="58-63" titre="Un sol ou une bosse">
+    La surface touchée est assez plate : ce n'est pas un mur. On finit la partie du trajet qui restait (`1 - Hit.Time`) sans collision, comme le kart sur ses bosses.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemProjectile.cpp" debut={65} fin={78}>
+  <Etape lignes="65-71" titre="Plus de rebonds ? Disparaître">
+    C'est un mur. S'il ne reste aucun rebond, le projectile se <Terme id="destroy">détruit</Terme>. Sinon on retire un rebond. Avec `MaxBounces` à 3, le projectile disparaît au 4e mur.
+  </Etape>
+  <Etape lignes="73-76" titre="Le rebond">
+    <Terme id="mirrorbyvector">MirrorByVector</Terme> renvoie la direction en miroir par rapport au mur, comme une balle de billard. On la remet à l'horizontale : un mur un peu penché ne doit pas envoyer le projectile vers le ciel.
+  </Etape>
+  <Etape lignes="77-78" titre="Tourner l'acteur">
+    On tourne l'acteur dans sa nouvelle direction, pour que son mesh regarde là où il va. L'accolade ferme le Tick.
+  </Etape>
+</CodePasAPas>
+
+Exemple de rebond : le projectile va vers (1, 0, 0) et touche un mur de face, dont la normale est (-1, 0, 0). La partie qui rentre dans le mur est inversée : il repart vers (-1, 0, 0). S'il arrive en biais, vers (0.7, 0.7, 0), il repart vers (-0.7, 0.7, 0) : il garde la partie qui longe le mur.
+
+## Dans l'éditeur : le projectile
+
+1. Crée un Blueprint de classe parente `KartItemProjectile`, nomme-le `BP_ItemProjectile`, et donne un mesh à son composant `Mesh`.
+2. Crée un Data Asset de classe `KartItemData_SpawnActor`, nommé `DA_Item_Projectile`. Mets `ActorClass` sur `BP_ItemProjectile` et `SpawnOffset` à (150, 0, 0) : devant le kart cette fois. Remplis `DisplayName` et `Icon`.
+3. Ajoute `DA_Item_Projectile` dans `DA_ItemPool_Default`, avec un poids, par exemple 20.
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/objets-attaque/projectile/heritage" />

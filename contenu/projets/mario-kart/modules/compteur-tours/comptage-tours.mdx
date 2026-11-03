@@ -1,0 +1,79 @@
+Il reste une fonction à écrire dans `LapZone.cpp` : `HandleBeginOverlap`, celle qu'Unreal appelle quand quelque chose entre dans la boîte. Elle trie ce qui arrive : est-ce un kart ? roule-t-il dans le bon sens ? Si oui, elle prévient le kart.
+
+Ensuite, c'est au kart de décider si ce passage compte. Tu as déjà écrit ce code dans `KartPawn.cpp` au module Pawn Controller ; on va voir ici comment il fait avancer les checkpoints et les tours.
+
+## Réagir quand quelque chose entre
+
+<CodePasAPas fichier="LapZone.cpp" debut={65} fin={84}>
+  <Etape lignes="65-67" titre="La signature imposée">
+    Les mêmes paramètres que dans le header, dans le même ordre, sur deux lignes : c'est ce que l'event envoie. On n'en utilise qu'un, `OtherActor`, l'acteur qui vient d'entrer. L'accolade ouvre la fonction.
+  </Etape>
+  <Etape lignes="68-74" titre="Est-ce un kart ?">
+    N'importe quoi peut entrer dans la boîte : un objet du décor, un projectile… <Terme id="cast">Cast</Terme>`<AKartPawn>` vérifie que l'acteur est un kart. Si oui, on obtient un pointeur `AKartPawn*` ; sinon on obtient <Terme id="nullptr">nullptr</Terme> et on sort tout de suite avec `return`.
+  </Etape>
+  <Etape lignes="76-80" titre="Le bon sens ?">
+    On demande au kart sa direction avec `GetMoveDirection`, et on la passe à `IsGoingRightWay`, écrite juste au-dessus. Le `!` veut dire « non » : si ce n'est pas le bon sens (marche arrière, circuit pris à l'envers), on ignore le passage.
+  </Etape>
+  <Etape lignes="82-84" titre="Prévenir le kart, et fin du fichier">
+    La zone ne compte rien elle-même : elle dit au kart « tu viens de passer la zone numéro `ZoneIndex` » avec `EnterLapZone`. L'accolade ferme la fonction, et le fichier est terminé.
+  </Etape>
+</CodePasAPas>
+
+Remarque le style des tests : `if (problème) { return; }`. On élimine les cas qui ne nous intéressent pas dès le début, puis le vrai travail se fait à la fin, sans `if` imbriqués.
+
+Le test du sens n'a lieu qu'**au moment où le kart entre** dans la boîte. Un kart qui entre en marche arrière, puis repart en avant sans en être sorti, n'est pas compté : l'event ne se redéclenche que s'il sort et entre à nouveau.
+
+## Qui retient quoi
+
+La zone ne connaît que ce qui la concerne : sa boîte, sa flèche, son numéro. Le kart, lui, connaît sa progression. Chaque kart a donc ses propres comptes, et les zones n'ont rien à mémoriser, même avec plusieurs karts sur la piste.
+
+Côté kart, quatre variables suffisent : `CurrentLap`, le tour en cours (commence à 1) ; `NextCheckpoint`, le prochain checkpoint attendu (repart à 1 à chaque tour) ; `bHasFinishedRace` et `FinishTime`, la fin de course et le temps d'arrivée. Elles sont en `VisibleAnywhere` : pendant le Play, sélectionne ton kart dans l'Outliner et regarde `NextCheckpoint` augmenter.
+
+## Le kart reçoit une zone
+
+`EnterLapZone` commence par trois vérifications : il faut un GameMode de kart, une course lancée (pas pendant le compte à rebours) et un kart qui n'a pas déjà fini. Sinon, rien ne compte. Puis vient le cœur du système :
+
+```cpp
+if (ZoneIndex == NextCheckpoint)
+{
+	++NextCheckpoint;
+}
+else if (ZoneIndex == 0 && NextCheckpoint > GameMode->GetCheckpointCount())
+{
+	CompleteLap();
+}
+```
+
+Si c'est le checkpoint attendu, on attend le suivant. Si c'est la ligne d'arrivée **et** que `NextCheckpoint` dépasse le nombre de checkpoints, tous ont été passés : le tour est fini. Tout le reste est ignoré. Le nombre de checkpoints vient du GameMode : c'est le plus grand `ZoneIndex` du niveau.
+
+## Un tour, pas à pas
+
+Prenons un circuit avec **3 checkpoints**. Au départ, `NextCheckpoint` vaut 1.
+
+1. Si la grille est derrière la ligne, le kart la passe juste après le GO : zone 0, mais 1 n'est pas plus grand que 3. Ignoré.
+2. Checkpoints 1, 2 puis 3 : chacun est celui attendu, `NextCheckpoint` passe à 2, puis 3, puis 4.
+3. Ligne d'arrivée : zone 0 et 4 est plus grand que 3. Tour validé, `CompleteLap` est appelée.
+
+## Et si le kart triche ?
+
+Juste après un tour validé, il recule à travers la ligne : la zone refuse, mauvais sens. Il repasse en avant : zone 0, mais `NextCheckpoint` est revenu à 1. Ignoré.
+
+S'il coupe par un raccourci et rate le checkpoint 2, le checkpoint 3 est ignoré (il attend le 2), et la ligne aussi. Il devra revenir chercher le 2.
+
+<Encadre type="piege">
+Sans aucun checkpoint sur le circuit, le nombre de checkpoints vaut 0. `NextCheckpoint` (1) est alors toujours plus grand que 0 : **chaque** passage de la ligne dans le bon sens valide un tour, et la triche des allers-retours redevient possible. Le GameMode l'écrit en avertissement dans l'Output Log.
+</Encadre>
+
+## Fin de tour et fin de course
+
+`CompleteLap` remet d'abord `NextCheckpoint` à 1 : il faudra repasser tous les checkpoints. Puis, si `CurrentLap >= GameMode->GetLapCount()`, c'était le dernier tour : `bHasFinishedRace` passe à vrai, `FinishTime` garde le temps du chrono, le GameMode est prévenu avec `NotifyKartFinished`, et un `return` évite de passer au tour suivant. Sinon, `++CurrentLap`.
+
+Une fois `bHasFinishedRace` à vrai, plus aucune zone ne compte pour ce kart. Au début de chaque compte à rebours, le GameMode appelle `ResetRaceProgress` sur tous les karts : tour 1, checkpoint 1, course pas finie, temps à 0.
+
+<Encadre type="retenir">
+La zone dit « tu as passé la zone n ». Le kart compare n à `NextCheckpoint` : bon checkpoint, il avance ; ligne d'arrivée après tous les checkpoints, il finit le tour ; sinon, rien. Chaque kart a ses propres compteurs.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/compteur-tours/comptage-tours/numeros" />

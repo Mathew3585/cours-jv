@@ -1,0 +1,97 @@
+Tout est prêt, sauf le kart lui-même. Le `AKartPawn` que tu as écrit au module 1 ne sait pas qu'il a une poche, et aucune touche n'utilise d'objet. On **revient donc dans un fichier déjà écrit** pour le faire évoluer. C'est normal dans un vrai projet : le code grandit avec le jeu, et une bonne structure permet d'ajouter sans tout casser.
+
+Dans cette leçon, on ne voit que les lignes **ajoutées** pour les objets bonus. Les autres ont été expliquées au module 1. Les lignes du tête-à-queue (`SpinOut`) sont aussi dans ces fichiers, mais on les verra au module suivant : saute-les pour l'instant.
+
+## Les ajouts dans KartPawn.h
+
+<CodePasAPas fichier="KartPawn.h" debut={12} fin={14}>
+  <Etape lignes="14" titre="Annoncer la poche">
+    Une <Terme id="declaration-anticipee">déclaration anticipée</Terme> de plus : le header ne garde qu'un pointeur vers le composant.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.h" debut={65} fin={70}>
+  <Etape lignes="65-70" titre="ApplyBoost, la porte d'entrée du turbo">
+    Une nouvelle section publique pour les objets. `StartBoost`, écrite au module 1, est `private` : seul le kart peut l'appeler. Plutôt que de la rendre publique, on ajoute `ApplyBoost`, publique, qui l'appelle. Le kart garde le contrôle : on pourra plus tard y ajouter des vérifications sans toucher aux objets.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.h" debut={79} fin={80}>
+  <Etape lignes="79-80" titre="Donner accès à la poche">
+    Un getter `BlueprintPure` pour qu'un Blueprint ou une autre classe puisse lire la poche du kart.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.h" debut={116} fin={121}>
+  <Etape lignes="119-121" titre="Le composant dans la liste des composants">
+    Rangé avec les autres composants, juste après la caméra. Il apparaîtra dans le Blueprint du kart, sous les meshes.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.h" debut={141} fin={146}>
+  <Etape lignes="144-146" titre="Une nouvelle touche">
+    Une cinquième `UInputAction`, comme les quatre autres. On mettra `IA_UseItem` dedans dans le Blueprint du kart.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.h" debut={385} fin={386}>
+  <Etape lignes="386" titre="La fonction appelée par la touche">
+    Rangée avec les autres fonctions d'input, même signature qu'elles.
+  </Etape>
+</CodePasAPas>
+
+## Les ajouts dans KartPawn.cpp
+
+<CodePasAPas fichier="KartPawn.cpp" debut={13} fin={14}>
+  <Etape lignes="14" titre="L'include du composant">
+    Dans le `.cpp`, on crée le composant et on appelle ses fonctions : il faut son header complet.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.cpp" debut={53} fin={56}>
+  <Etape lignes="55-56" titre="Créer la poche">
+    Avec <Terme id="createdefaultsubobject">CreateDefaultSubobject</Terme>, comme les autres composants. Mais pas de `SetupAttachment` : un <Terme id="uactorcomponent">ActorComponent</Terme> n'a pas de position, il n'est attaché à rien.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.cpp" debut={210} fin={212}>
+  <Etape lignes="212" titre="Brancher la touche">
+    `Started` : une seule fois au moment où on appuie, comme le saut. Avec `Triggered`, maintenir la touche utiliserait les trois turbos d'un coup.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.cpp" debut={295} fin={303}>
+  <Etape lignes="295-298" titre="Pas d'objet n'importe quand">
+    Pendant le compte à rebours (`bCanMove` faux), la touche ne fait rien. `IsSpinningOut` dit si le kart est en tête-à-queue : on la verra au module suivant.
+  </Etape>
+  <Etape lignes="299-303" titre="Passer la main à la poche">
+    Le kart ne sait pas utiliser un objet : il demande à son composant. C'est la seule ligne du kart qui parle d'objets en jeu.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.cpp" debut={778} fin={786}>
+  <Etape lignes="778" titre="Une nouvelle section">
+    À la fin du fichier, une section pour tout ce qui concerne les objets.
+  </Etape>
+  <Etape lignes="780-786" titre="ApplyBoost">
+    Une durée nulle ou négative ne veut rien dire : on l'ignore. Sinon on lance le turbo du drift, déjà écrit au module 1. Le turbo d'objet et le turbo de drift sont **le même** turbo : même vitesse, même champ de vision élargi.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">Une quarantaine de lignes ajoutées au kart, commentaires compris, pour tout un système d'objets. Le reste est dans des classes à part. Si demain on ajoute dix objets, le kart ne bouge plus.</Encadre>
+
+## Dans l'éditeur
+
+Le code est prêt, il faut maintenant créer les assets. Range-les dans un dossier `Content/Game/Items/`.
+
+1. **La touche.** Clic droit > Input > Input Action : `IA_UseItem` (type Digital/bool). Dans `IMC_Default`, ajoute `IA_UseItem` avec une touche (par exemple **E** ou un bouton de la manette). Dans `BP_Kart`, mets `IA_UseItem` dans **Use Item Action**.
+2. **Le turbo.** Clic droit > Miscellaneous > Data Asset, choisis la classe **Kart Item Data Boost** : `DA_Item_Turbo`. Remplis `Display Name`, une icône, `Uses = 1`.
+3. **Le triple turbo.** Duplique `DA_Item_Turbo` en `DA_Item_TripleTurbo` et mets `Uses = 3`. Aucun code en plus.
+4. **La table.** Data Asset de classe **Kart Item Pool Data** : `DA_ItemPool_Default`. Ajoute deux lignes : le turbo (poids 3) et le triple turbo (poids 1).
+5. **La boîte.** Blueprint Class qui hérite de **Kart Item Box** : `BP_ItemBox`. Choisis un cube pour `BoxMesh` et `DA_ItemPool_Default` pour `Item Pool`. Pose plusieurs boîtes sur le circuit.
+
+Lance le jeu et roule dans une boîte : après 2 secondes, le texte de debug affiche l'objet reçu. Appuie sur la touche : turbo.
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/objets-bonus/brancher-le-kart/porte-entree" />

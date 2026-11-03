@@ -1,0 +1,99 @@
+On a le parent `UKartItemData`. On écrit maintenant un premier enfant, le **turbo**, puis la **table de tirage** qui choisit au hasard l'objet donné par une boîte. Tu vas voir l'intérêt de l'<Terme id="heritage">héritage</Terme> : la classe du turbo tient en quelques lignes, parce que le parent a déjà tout le reste.
+
+## Le header KartItemData_Boost.h
+
+<CodePasAPas fichier="KartItemData_Boost.h" debut={1} fin={21}>
+  <Etape lignes="1-5" titre="Les includes">
+    Cette fois on inclut le header du **parent**, `Items/KartItemData.h` : pour hériter d'une classe, le compilateur doit la connaître en entier. Une déclaration anticipée ne suffit pas.
+  </Etape>
+  <Etape lignes="7-8" titre="Un triple turbo gratuit">
+    Le turbo et le triple turbo sont la même classe : deux assets différents, l'un avec `Uses = 1`, l'autre avec `Uses = 3`. C'est ça, un système « piloté par les données ».
+  </Etape>
+  <Etape lignes="9-12" titre="Hériter de UKartItemData">
+    `public UKartItemData` : le turbo **est un** objet. Il a donc déjà `DisplayName`, `Icon` et `Uses` sans les réécrire. Pas d'`Abstract` cette fois : on veut pouvoir créer des assets de cette classe.
+  </Etape>
+  <Etape lignes="14-17" titre="Le seul réglage en plus">
+    La durée du turbo. Le turbo d'objet réutilise la vitesse de turbo du kart (celle du drift) : seule la durée change d'un asset à l'autre.
+  </Etape>
+  <Etape lignes="19-21" titre="Remplacer Activate">
+    Même signature que chez le parent, plus <Terme id="override">override</Terme>. Si on se trompe (un `const` oublié, un mauvais paramètre), le compilateur refuse : sans `override`, on créerait sans le savoir une deuxième fonction qui ne serait jamais appelée.
+  </Etape>
+</CodePasAPas>
+
+## Le fichier KartItemData_Boost.cpp
+
+<CodePasAPas fichier="KartItemData_Boost.cpp" debut={1} fin={15}>
+  <Etape lignes="1-3" titre="Les includes">
+    Ici on appelle une fonction du kart : il faut donc son header complet, `KartPawn.h`.
+  </Etape>
+  <Etape lignes="5-10" titre="Pas de kart, pas de turbo">
+    On vérifie le pointeur avant de s'en servir. Sans kart, on renvoie `false` : l'objet n'est pas consommé.
+  </Etape>
+  <Etape lignes="12-15" titre="Demander un turbo au kart">
+    Le kart sait déjà faire un turbo depuis le drift. L'objet ne le recode pas : il appelle `ApplyBoost`, une fonction publique qu'on ajoutera au kart dans la dernière leçon de ce module. Puis `true` : une utilisation est consommée.
+  </Etape>
+</CodePasAPas>
+
+## Le header KartItemPoolData.h
+
+<CodePasAPas fichier="KartItemPoolData.h" debut={1} fin={23}>
+  <Etape lignes="1-7" titre="Includes et déclaration anticipée">
+    La table est aussi un Data Asset, d'où `Engine/DataAsset.h`. Elle ne contient que des pointeurs vers des objets : `UKartItemData` est seulement annoncé.
+  </Etape>
+  <Etape lignes="9-14" titre="Une ligne de la table : une USTRUCT">
+    Une <Terme id="ustruct">USTRUCT</Terme> est un petit paquet de variables, sans fonctions compliquées. Le préfixe **F** est la convention d'Unreal pour les structures (comme `FVector`). `GENERATED_BODY()` est obligatoire ici aussi : c'est lui qui permet à l'éditeur d'afficher la structure.
+  </Etape>
+  <Etape lignes="16-17" titre="L'objet de la ligne">
+    Un pointeur vers un Data Asset d'objet : dans l'éditeur, on choisira `DA_Item_Turbo` dans une liste.
+  </Etape>
+  <Etape lignes="19-23" titre="Le poids">
+    Un poids n'est pas un pourcentage : c'est une part. Avec un turbo à 3 et un piège à 1, le total fait 4 et le turbo sort 3 fois sur 4. L'avantage : on peut ajouter un objet sans recalculer les autres pour que tout fasse 100.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemPoolData.h" debut={25} fin={39}>
+  <Etape lignes="25-30" titre="La table, un Data Asset">
+    `DA_ItemPool_Default` sera un asset de cette classe. On peut en créer plusieurs, une par circuit par exemple, et chaque boîte choisit la sienne.
+  </Etape>
+  <Etape lignes="32-34" titre="La liste des lignes">
+    Un <Terme id="tarray">TArray</Terme> est le tableau d'Unreal : sa taille peut changer. Dans l'éditeur, un bouton **+** ajoute une ligne.
+  </Etape>
+  <Etape lignes="36-39" titre="Tirer un objet">
+    `PickRandomItem` est `const` : tirer au sort ne modifie pas la table.
+  </Etape>
+</CodePasAPas>
+
+## Le fichier KartItemPoolData.cpp : le tirage pondéré
+
+Le principe du <Terme id="tirage-pondere">tirage pondéré</Terme> : on aligne les poids les uns après les autres sur une règle, on tire un nombre au hasard sur cette règle, et on regarde dans quelle case il tombe. Plus une case est large, plus elle a de chances d'être touchée.
+
+<CodePasAPas fichier="KartItemPoolData.cpp" debut={1} fin={20}>
+  <Etape lignes="1-3" titre="Les includes">
+    On lit `Entry.Item` : le header de `UKartItemData` est nécessaire.
+  </Etape>
+  <Etape lignes="5-15" titre="1. Additionner les poids">
+    La boucle `for (const FKartItemPoolEntry& Entry : Entries)` parcourt chaque ligne sans la copier (`&`) et sans la modifier (`const`). On n'additionne que les lignes valides : un objet choisi et un poids positif.
+  </Etape>
+  <Etape lignes="17-20" titre="Table vide">
+    Si rien n'est valide, il n'y a rien à tirer : on renvoie <Terme id="nullptr">nullptr</Terme>.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemPoolData.cpp" debut={22} fin={46}>
+  <Etape lignes="22-24" titre="2. Tirer un nombre">
+    <Terme id="frandrange">FRandRange</Terme> renvoie un nombre à virgule au hasard entre 0 et le total. Exemple : turbo 50, piège 30, projectile 20, total 100, on tire 73.
+  </Etape>
+  <Etape lignes="26-34" titre="3. Parcourir la liste">
+    On parcourt les lignes dans l'ordre, en sautant les lignes invalides avec `continue` (exactement les mêmes que celles ignorées dans la somme).
+  </Etape>
+  <Etape lignes="36-42" titre="Trouver la case">
+    On retire le poids de chaque ligne au nombre tiré. Quand il devient négatif, le nombre était « dans » cette ligne : c'est elle qui gagne. Avec 73 : 73 - 50 = 23, encore positif, on continue. 23 - 30 = -7, négatif : c'est le piège.
+  </Etape>
+  <Etape lignes="44-46" titre="Une sécurité">
+    Les nombres à virgule ont de petites erreurs d'arrondi. Si le nombre tiré tombe pile sur le total, aucune soustraction ne devient négative : on renvoie alors la dernière ligne valide plutôt que rien.
+  </Etape>
+</CodePasAPas>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/objets-bonus/objets-et-tirage/poids" />

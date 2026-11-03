@@ -1,0 +1,64 @@
+Pendant une course, deux éléments d'interface s'affichent par-dessus le jeu : le gros « 3, 2, 1, GO! » au départ, puis le chrono et le tour en cours (« Tour 2/3 »). Ce sont deux **widgets**, des morceaux d'interface fabriqués avec <Terme id="umg">UMG</Terme>.
+
+Avant d'écrire les widgets, on écrit **celui qui les crée** : le <Terme id="controller">PlayerController</Terme> du joueur. Il représente la personne qui tient la manette, et l'interface est faite pour elle. Le kart peut être détruit ou remplacé ; le PlayerController reste là toute la partie. On commence par son header, `KartPlayerController.h`, de la ligne 1 à la ligne 41. Les lignes de la case d'objet bonus, ajoutées plus tard, sont expliquées dans le module Objets bonus.
+
+## Le début du fichier
+
+<CodePasAPas fichier="KartPlayerController.h" debut={1} fin={8}>
+  <Etape lignes="1" titre="#pragma once">
+    Comme tous les headers Unreal, le fichier commence par <Terme id="pragma-once">#pragma once</Terme> : il ne sera lu qu'une fois par fichier compilé.
+  </Etape>
+  <Etape lignes="3-5" titre="Les includes">
+    `CoreMinimal.h` apporte les types de base d'Unreal. `GameFramework/PlayerController.h` apporte la classe parente `APlayerController`. `KartPlayerController.generated.h` est écrit par Unreal et reste **toujours** le dernier include.
+  </Etape>
+  <Etape lignes="7-8" titre="Les deux classes de widget, annoncées">
+    Deux <Terme id="declaration-anticipee">déclarations anticipées</Terme> : le header dit seulement que `UKartCountdownWidget` et `UKartRaceHudWidget` existent. Il ne manipule que des pointeurs vers elles, donc ça suffit. On écrira ces deux classes dans les leçons suivantes ; les vrais includes iront dans le `.cpp`.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.h" debut={11} fin={15}>
+  <Etape lignes="11-15" titre="Un PlayerController à nous">
+    Le commentaire résume le rôle de la classe : créer l'interface, seulement pour le joueur local. <Terme id="uclass">UCLASS()</Terme> la fait connaître au moteur, et `public APlayerController` dit qu'elle hérite de `APlayerController` : elle garde tout ce que fait déjà un PlayerController (posséder le kart, recevoir les touches). <Terme id="generated-body">GENERATED_BODY()</Terme> réserve la place du code généré.
+  </Etape>
+</CodePasAPas>
+
+## Quelles classes de widget créer
+
+<CodePasAPas fichier="KartPlayerController.h" debut={17} fin={22}>
+  <Etape lignes="17-18" titre="protected et BeginPlay">
+    Le seul code de la classe sera dans <Terme id="beginplay">BeginPlay</Terme>, appelé une fois quand le PlayerController entre en jeu. C'est le bon moment pour afficher l'interface. Le mot <Terme id="override">override</Terme> dit qu'on remplace la version de `APlayerController`.
+  </Etape>
+  <Etape lignes="20-22" titre="La classe du compte à rebours">
+    Une variable <Terme id="tsubclassof">TSubclassOf</Terme> : elle ne contient pas un widget, mais une **classe** de widget, le modèle à fabriquer. Grâce à `EditAnywhere`, on la remplit dans l'éditeur, dans la catégorie `Kart|UI`. Le commentaire dit déjà quoi y mettre : `WBP_Countdown`, dans `BP_KartPlayerController`.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.h" debut={28} fin={30}>
+  <Etape lignes="28-30" titre="La classe du HUD de course">
+    Même chose pour le chrono et les tours : on y mettra `WBP_RaceHud`. Le type `TSubclassOf<UKartRaceHudWidget>` limite le menu déroulant de l'éditeur à cette classe et aux Blueprints qui en héritent : impossible de mettre le compte à rebours ici par erreur.
+  </Etape>
+</CodePasAPas>
+
+Pourquoi ne pas écrire directement `UKartCountdownWidget` dans le code ? Parce que la classe C++ ne contient que la **logique** du widget. Son **apparence** (police, couleur, position à l'écran) est dessinée dans un <Terme id="widget-blueprint">Widget Blueprint</Terme>, `WBP_Countdown`, qui hérite de la classe C++. Le C++ ne connaît pas ce Blueprint : c'est l'éditeur qui le lui donne, à travers `CountdownWidgetClass`.
+
+## Les widgets une fois créés
+
+<CodePasAPas fichier="KartPlayerController.h" debut={32} fin={34}>
+  <Etape lignes="32-34" titre="Le widget du compte à rebours">
+    Après sa fabrication, le widget est rangé dans un pointeur <Terme id="tobjectptr">TObjectPtr</Terme>. Il est `private` : personne d'autre n'en a besoin. Le `UPROPERTY()` vide n'est pas là pour l'éditeur : il dit au moteur que ce pointeur garde le widget en vie, pour que le ramasse-miettes d'Unreal (le système qui détruit les objets que plus personne n'utilise) ne le supprime pas.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.h" debut={39} fin={41}>
+  <Etape lignes="39-41" titre="Le widget du HUD, et la fin de la classe">
+    Le même pointeur pour le HUD de course. L'accolade fermante suivie d'un point-virgule `};` termine la déclaration de la classe : sans ce `;`, la compilation échoue.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">
+Deux familles de variables : `CountdownWidgetClass` est une **classe** à choisir dans l'éditeur (`TSubclassOf`), `CountdownWidget` est l'**objet** fabriqué à partir d'elle (`TObjectPtr`). La première se règle avant de jouer, la seconde est remplie par le code pendant la partie.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/widgets-hud/header-playercontroller/pourquoi-tsubclassof" />

@@ -1,0 +1,77 @@
+Lignes 217 à 293 : le cœur du kart. <Terme id="tick">Tick</Terme> est appelée à chaque image et donne le plan de toute la suite du fichier. Juste après viennent les fonctions d'input, celles que l'Enhanced Input appelle quand le joueur appuie sur une touche.
+
+On sépare deux moments. **Écouter** : les fonctions d'input notent ce que veut le joueur dans des variables (`ThrottleInput`, `SteerInput`). **Agir** : à chaque image, Tick lit ces notes et fait bouger le kart. Image mentale : le joueur glisse des post-it sur le bureau du pilote ; à chaque image, le pilote lit les post-it posés et conduit en conséquence.
+
+## Le Tick, image par image
+
+<CodePasAPas fichier="KartPawn.cpp" debut={217} fin={227}>
+  <Etape lignes="217-219" titre="Appeler le parent">
+    <Terme id="super">Super::Tick</Terme> exécute d'abord le Tick de `APawn`. Le paramètre <Terme id="deltatime">DeltaTime</Terme> est le temps écoulé depuis l'image précédente, en secondes.
+  </Etape>
+  <Etape lignes="221-227" titre="Kart bloqué : on efface les touches">
+    Pendant le compte à rebours, `bCanMove` est faux. On remet les deux inputs à zéro : le kart n'accélère pas et ne tourne pas. Mais on ne quitte **pas** la fonction : la suite du Tick tourne quand même, donc la gravité continue de poser le kart sur la piste.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.cpp" debut={232} fin={249}>
+  <Etape lignes="232-241" titre="Les étapes, dans l'ordre">
+    Neuf petites fonctions, appelées l'une après l'autre, et qui reçoivent toutes DeltaTime. On les lira une par une dans les leçons 4 à 6. Leur ordre est expliqué juste en dessous.
+  </Etape>
+  <Etape lignes="243-249" titre="Le texte de debug">
+    Si la case de debug du GameMode était cochée au lancement, on affiche les infos du kart à l'écran avec `ShowDebugInfo` (dernière fonction du fichier). La case a été lue une seule fois dans BeginPlay et rangée dans `bShowDebug`. L'accolade ferme Tick.
+  </Etape>
+</CodePasAPas>
+
+Pourquoi l'accélérateur reste-t-il « enfoncé » à la fin du décompte, alors qu'on remet `ThrottleInput` à zéro à chaque image ? Le commentaire de la ligne 222 l'explique : les touches sont relues à chaque image. Tant que la touche est tenue, `OnThrottle` réécrit `ThrottleInput`, puis le Tick l'efface. Le jour où `bCanMove` repasse à vrai, plus personne ne l'efface : le kart démarre aussitôt.
+
+## Pourquoi cet ordre ?
+
+L'ordre suit une logique simple : **lire le monde, décider, bouger, afficher**. `UpdateGround` lit le sol, dont presque toutes les étapes ont besoin. `UpdateBoost` décompte le turbo avant que `UpdateSpeed` ne le consulte. `UpdateSpeed`, `UpdateSteering` et `UpdateDrift` décident de la vitesse et du virage. `MoveKart` et `AlignToGround` bougent et inclinent le kart. Enfin `UpdateVisuals` et `UpdateCameraFieldOfView` affichent le résultat, sans changer le mouvement.
+
+Le header (lignes 388 à 398) annonce les étapes « dans l'ordre », mais il range `UpdateBoost` après `UpdateDrift`. L'ordre qui compte vraiment est celui du Tick. Dans le `.cpp`, les fonctions ne sont pas non plus écrites dans l'ordre d'appel : on les retrouvera au fil du fichier.
+
+<Encadre type="retenir">
+Chaque étape du Tick est une petite fonction avec un nom clair. Pour comprendre ou corriger un comportement, tu sais tout de suite où chercher : un problème de virage est dans `UpdateSteering`, un kart qui traverse un mur est dans `MoveKart`.
+</Encadre>
+
+## Pourquoi DeltaTime partout ?
+
+Un jeu ne tourne pas toujours au même nombre d'images par seconde. À 2500 cm/s et 60 images par seconde, DeltaTime vaut environ 0,0167 s : le kart avance de 42 cm par image. À 30 images par seconde, il avance de 83 cm par image. Dans les deux cas, au bout d'une seconde, il a parcouru 25 mètres.
+
+Sans DeltaTime, le kart avancerait d'une distance fixe par image : il irait deux fois plus vite sur un PC deux fois plus rapide. C'est pour ça que chaque étape reçoit DeltaTime et multiplie ses vitesses par lui.
+
+## Les fonctions d'input
+
+<CodePasAPas fichier="KartPawn.cpp" debut={251} fin={293}>
+  <Etape lignes="251-256" titre="Lire l'accélérateur">
+    Un bandeau de section, puis `OnThrottle`. `Value` est un <Terme id="finputactionvalue">FInputActionValue</Terme>. `Get<float>()` l'ouvre comme un nombre, entre -1 et 1 : +1 accélère, -1 freine ou recule. Sur une gâchette de manette, on peut obtenir des valeurs intermédiaires, comme 0,5.
+  </Etape>
+  <Etape lignes="258-261" titre="Remettre à zéro en lâchant">
+    Indispensable. Quand on lâche la touche, `Triggered` n'est plus appelé : sans cette fonction, `ThrottleInput` garderait sa dernière valeur et le kart accélérerait tout seul, pour toujours.
+  </Etape>
+  <Etape lignes="263-266" titre="Le volant">
+    Exactement la même chose pour `SteerInput` : -1 à gauche, +1 à droite.
+  </Etape>
+  <Etape lignes="268-271" titre="Lâcher le volant">
+    0 quand on lâche : les roues reviennent droites et le kart arrête de tourner.
+  </Etape>
+  <Etape lignes="273-280" titre="Commencer le drift">
+    On ne commence un drift que si le kart a le droit de bouger. Les autres conditions (être au sol, aller assez vite, tourner) sont vérifiées dans `StartDrift`, à la fin du fichier.
+  </Etape>
+  <Etape lignes="282-285" titre="Finir le drift">
+    Ici, pas de test de `bCanMove` : on termine **toujours** le drift quand on relâche, même si le kart est bloqué.
+  </Etape>
+  <Etape lignes="287-293" titre="Sauter">
+    Même principe que pour le drift : on vérifie `bCanMove`, et `Jump` vérifiera que le kart est au sol.
+  </Etape>
+</CodePasAPas>
+
+Les fonctions de relâchement reçoivent `Value` comme les autres, même si elles ne s'en servent pas : toutes les fonctions d'input ont ainsi la même forme, celle qu'attend `BindAction`.
+
+<Encadre type="info">
+Pourquoi ne pas avancer le kart directement dans `OnThrottle` ? Parce que cette fonction n'est appelée que lorsque l'Enhanced Input le décide, alors que le kart doit bouger à **chaque** image : pour ralentir quand on lâche, pour tomber, pour glisser en drift. Tout le mouvement est donc au même endroit, dans le Tick.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/pawn-controller/cpp-tick-fonctions-input/ecouter-agir" />

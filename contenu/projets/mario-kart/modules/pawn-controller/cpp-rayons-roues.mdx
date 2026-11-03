@@ -1,0 +1,88 @@
+Lignes 587 à 674 : deux fonctions utilitaires appelées par les étapes du Tick. `TraceGroundUnderWheels`, utilisée par `UpdateGround`, lance quatre rayons invisibles, un sous chaque roue, pour savoir **où est le sol** et **comment il est penché**. `SetWheelRotation`, utilisée par `UpdateVisuals`, oriente une roue.
+
+On réutilise les outils de la leçon 4 : vecteurs, normale et produit scalaire. Rappel : **multiplier** un vecteur par un nombre change sa longueur (`Forward * 50` = 50 cm vers l'avant), **additionner** deux vecteurs met les flèches bout à bout.
+
+## Lancer les quatre rayons
+
+<CodePasAPas fichier="KartPawn.cpp" debut={587} fin={629}>
+  <Etape lignes="587-588" titre="Deux résultats par référence">
+    La fonction renvoie le nombre de roues qui touchent le sol. Le point et la pente du sol sont renvoyés dans `OutGroundPoint` et `OutGroundNormal`, passés <Terme id="passage-par-reference">par référence</Terme>. Elle est <Terme id="fonction-const">const</Terme> : elle observe, elle ne modifie pas le kart.
+  </Etape>
+  <Etape lignes="589-591" titre="Trois flèches attachées au kart">
+    Le haut du kart, 50 cm vers l'avant et 50 cm vers la droite (`GroundProbeHalfLength` et `GroundProbeHalfWidth`).
+  </Etape>
+  <Etape lignes="593-595" titre="Les quatre coins">
+    En combinant ces flèches (avant moins droite, avant plus droite, arrière moins droite, arrière plus droite), on obtient la position des quatre roues par rapport au centre, rangées dans un tableau de 4 cases.
+  </Etape>
+  <Etape lignes="597-601" titre="Ne pas se toucher soi-même">
+    Les rayons partent de l'intérieur du kart. Sans `AddIgnoredActor(this)`, ils toucheraient d'abord notre propre sphère et jamais le sol.
+  </Etape>
+  <Etape lignes="603-606" titre="De quoi faire des moyennes">
+    `Points` garde le point touché par chaque roue, `PointSum` et `NormalSum` additionnent les résultats, `WheelsOnFloor` compte les roues qui touchent.
+  </Etape>
+  <Etape lignes="608-611" titre="Départ et arrivée de chaque rayon">
+    Une boucle `for` de 0 à 3, une fois par roue. Chaque rayon part 45 cm **au-dessus** du centre (`RideHeight`), à l'aplomb d'une roue, et descend selon l'axe « haut » du kart. Il mesure 2 × 45 + 80 = 170 cm. Partir d'en haut évite qu'en montée, le départ se retrouve déjà sous la route.
+  </Etape>
+  <Etape lignes="613-620" titre="Le rayon, et le tri sol / mur">
+    Le <Terme id="line-trace">line trace</Terme> renvoie vrai s'il touche quelque chose, et remplit le <Terme id="fhitresult">FHitResult</Terme>. On ne garde le contact que si la surface est un sol : produit scalaire entre sa normale et le haut du kart supérieur ou égal à 0,7.
+  </Etape>
+  <Etape lignes="622-629" titre="Noter le contact">
+    Pour chaque roue qui touche un sol : on retient le point, on l'ajoute à la somme, on ajoute la normale à la somme, on compte une roue de plus. La dernière accolade ferme la boucle.
+  </Etape>
+</CodePasAPas>
+
+Le rayon suit l'axe « haut » **du kart**, pas la verticale du monde. Dans une pente, ses rayons partent perpendiculairement à son plancher, comme des roues qui cherchent la route sous elles.
+
+## Faire la moyenne
+
+<CodePasAPas fichier="KartPawn.cpp" debut={631} fin={665}>
+  <Etape lignes="631-636" titre="Aucune roue au sol">
+    Le kart est en l'air. On renvoie des valeurs neutres (sa propre position, une normale vers le ciel) et 0 roue.
+  </Etape>
+  <Etape lignes="638-639" titre="Le point moyen">
+    Diviser la somme des points par leur nombre donne le point au milieu des contacts : la hauteur moyenne de la route sous le kart.
+  </Etape>
+  <Etape lignes="641-642" titre="La pente moyenne">
+    On additionne les normales, puis on remet la somme à une longueur de 1 avec `GetSafeNormal`. Utile au bord d'un saut, quand certaines roues sont dans le vide.
+  </Etape>
+  <Etape lignes="644-650" titre="Quatre roues : les diagonales">
+    Quand les quatre roues touchent, on fait mieux. Les deux diagonales (avant gauche vers arrière droite, avant droite vers arrière gauche) sont couchées sur la route. Leur <Terme id="produit-vectoriel">produit vectoriel</Terme> donne une flèche perpendiculaire aux deux : la normale du plan des quatre roues.
+  </Etape>
+  <Etape lignes="652-656" titre="La remettre vers le haut">
+    Selon l'ordre des diagonales, le produit vectoriel peut pointer vers le bas. Si le produit scalaire avec le haut du kart est négatif, la flèche est à l'envers : on la retourne.
+  </Etape>
+  <Etape lignes="658-662" titre="Une sécurité">
+    Si les diagonales étaient alignées, le produit vectoriel serait nul et `GetSafeNormal` renverrait `(0, 0, 0)`. On ne garde la nouvelle normale que si elle n'est pas nulle ; sinon, on reste sur la moyenne des normales.
+  </Etape>
+  <Etape lignes="664-665" titre="Renvoyer le nombre de roues">
+    `UpdateGround` s'en sert pour savoir si au moins une roue voit le sol.
+  </Etape>
+</CodePasAPas>
+
+Le produit vectoriel en une image : pose deux crayons à plat sur la table, en croix. La seule direction perpendiculaire aux deux, c'est celle qui sort de la table (ou qui rentre dedans). Inverser les deux crayons inverse le sens du résultat, d'où la vérification.
+
+Pourquoi les diagonales plutôt que la moyenne des normales ? Une piste est faite de triangles, et la normale touchée par un rayon est celle du petit triangle sous la roue. Les diagonales, elles, relient les **points réellement touchés** : le plan qu'elles décrivent est celui sur lequel le kart est vraiment posé, comme une table à quatre pieds.
+
+<Encadre type="retenir">
+**Pourquoi quatre rayons ?** Un seul rayon au centre sauterait d'un triangle à l'autre et ferait trembler le kart. Quatre rayons, puis une moyenne, donnent une hauteur et une pente stables, et le kart s'incline comme un vrai véhicule posé sur ses quatre roues.
+</Encadre>
+
+## Orienter une roue
+
+<CodePasAPas fichier="KartPawn.cpp" debut={667} fin={674}>
+  <Etape lignes="667-671" titre="La signature et les explications">
+    La fonction reçoit la roue, sa rotation de départ et l'angle de braquage. Les commentaires expliquent que la roue tourne sur elle-même autour de son axe X (Roll), puis braque autour de Z (Yaw). Le modèle de roue est tourné de -90 degrés, c'est pourquoi son axe de roue est X. Si les roues tournent à l'envers, il suffit d'utiliser `-WheelSpinAngle`.
+  </Etape>
+  <Etape lignes="672" titre="Rotation et braquage dans un seul quaternion">
+    Un <Terme id="frotator">FRotator</Terme> se lit dans l'ordre Pitch, Yaw, Roll : pas de Pitch, le braquage en Yaw, la rotation de la roue en Roll. On le convertit en <Terme id="quaternion">quaternion</Terme>.
+  </Etape>
+  <Etape lignes="673-674" titre="Par-dessus la rotation de départ">
+    Multiplier deux quaternions enchaîne deux rotations. Avec `A * B`, Unreal applique d'abord B puis A : ici, d'abord la rotation de départ de la roue, puis la rotation et le braquage par-dessus.
+  </Etape>
+</CodePasAPas>
+
+Pourquoi un quaternion plutôt que d'additionner des angles ? Additionner des angles de Pitch, Yaw et Roll ne donne pas toujours la rotation attendue dès qu'on tourne autour de plusieurs axes à la fois. Multiplier des quaternions, c'est dire clairement « fais cette rotation, puis celle-là », dans un ordre précis.
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/pawn-controller/cpp-rayons-roues/quatre-rayons" />

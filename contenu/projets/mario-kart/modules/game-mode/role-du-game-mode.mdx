@@ -1,0 +1,141 @@
+Dans une course, il faut quelqu'un qui donne le départ, tient le chrono et sait combien de tours il faut faire. Ce n'est pas le rôle d'un kart : c'est celui de l'arbitre. Dans Unreal, l'arbitre s'appelle le <Terme id="game-mode">GameMode</Terme>.
+
+Il n'existe qu'**un seul** GameMode dans le niveau, créé automatiquement au lancement. Il ne se voit pas et ne roule pas : il fait respecter les règles. Notre `AKartGameMode` gère le compte à rebours « 3, 2, 1, GO », débloque les karts au GO, lance le chrono et connaît le nombre de tours.
+
+## Pourquoi l'arbitre, et pas le kart ?
+
+Imagine que chaque kart compte lui-même « 3, 2, 1 ». Avec quatre karts, il y aurait quatre comptes à rebours, qui ne démarrent pas forcément à la même image. Et le widget qui affiche le « 3 » devrait demander à quel kart se fier.
+
+Avec un arbitre unique, il n'y a qu'**une seule vérité** : un seul compte à rebours, un seul chrono, un seul nombre de tours. Les karts et l'interface se contentent d'écouter l'arbitre ou de lui poser des questions. C'est pour ça que le kart ne contient que `SetCanMove` : il obéit, il ne décide pas.
+
+## Les delegates : la sonnette du GameMode
+
+Le haut du header déclare trois **events**. Le GameMode s'en sert pour prévenir le reste du jeu, sans savoir qui écoute.
+
+<CodePasAPas fichier="KartGameMode.h" debut={1} fin={33}>
+  <Etape lignes="1-5" titre="Les includes">
+    Le même début que tous les headers Unreal. La classe parente vient de `GameFramework/GameModeBase.h`, et `KartGameMode.generated.h` reste le dernier <Terme id="include">include</Terme>.
+  </Etape>
+  <Etape lignes="7-16" titre="Lire le nom de la macro">
+    Un <Terme id="delegate">delegate</Terme> est un event. Le long nom de la macro se lit morceau par morceau : `DECLARE` crée un nouveau **type** d'event, `DYNAMIC` le rend visible en Blueprint, `MULTICAST` autorise plusieurs abonnés, `_OneParam` dit qu'il envoie une valeur.
+  </Etape>
+  <Etape lignes="18-19" titre="FOnCountdownTick">
+    Le type de l'event du compte à rebours. Il transporte un `int32` nommé `Number` : 3, 2, 1, puis 0 pour le GO. Ce n'est qu'un **modèle** : l'event réel est une variable créée plus bas avec ce type.
+  </Etape>
+  <Etape lignes="21-25" titre="FOnRaceStarted et FOnKartFinished">
+    `FOnRaceStarted` n'envoie rien : il dit juste « c'est parti ». `FOnKartFinished` envoie le kart qui vient de terminer, pour que l'écouteur sache de qui il s'agit.
+  </Etape>
+  <Etape lignes="27-33" titre="La classe">
+    `AKartGameMode` hérite de `AGameModeBase`, la version simple du GameMode d'Unreal. On retrouve <Terme id="uclass">UCLASS()</Terme> et <Terme id="generated-body">GENERATED_BODY()</Terme> comme pour le kart.
+  </Etape>
+</CodePasAPas>
+
+Pourquoi des events plutôt que d'appeler directement le widget ? Parce que le GameMode n'a pas à connaître l'interface. Il sonne la cloche, et ceux qui veulent l'entendre (widget, son, Blueprint de décor) s'abonnent. On peut ajouter ou retirer un abonné sans toucher au GameMode.
+
+## Ce que le GameMode propose aux autres
+
+La partie `public` est la liste de ce que les autres classes ont le droit de lui demander.
+
+<CodePasAPas fichier="KartGameMode.h" debut={35} fin={91}>
+  <Etape lignes="35-38" titre="public, constructeur et Tick">
+    Tout ce qui suit `public:` peut être appelé depuis les autres classes. On commence par le <Terme id="constructeur">constructeur</Terme> et un <Terme id="tick">Tick</Terme> marqué <Terme id="override">override</Terme>. Tu verras dans le `.cpp` que ce Tick ne sert qu'à afficher le chrono de debug.
+  </Etape>
+  <Etape lignes="40-50" titre="Les trois events">
+    Les variables d'event elles-mêmes. <Terme id="blueprintassignable">BlueprintAssignable</Terme> permet à un widget ou un Blueprint de s'y abonner. Les catégories `Kart|Countdown` et `Kart|Race` rangent tout ça dans l'éditeur.
+  </Etape>
+  <Etape lignes="52-60" titre="Questions sur le départ">
+    `IsRaceStarted` répond vrai si le GO est passé **ou** si le compte à rebours est désactivé (`!bUseCountdown`). Le `const` après les parenthèses en fait une <Terme id="fonction-const">fonction const</Terme> : elle lit, elle ne modifie rien.
+  </Etape>
+  <Etape lignes="62-64" titre="StartCountdown">
+    La seule fonction publique qui **change** quelque chose : elle relance le compte à rebours. `BlueprintCallable` (et pas `BlueprintPure`) parce qu'elle agit : un bouton « Recommencer » pourrait l'appeler.
+  </Etape>
+  <Etape lignes="66-74" titre="Tours et checkpoints">
+    Un commentaire en forme de séparateur annonce la partie course. Les karts demandent ici le nombre de tours et le nombre de checkpoints : deux fonctions `const` écrites directement dans le header, car elles tiennent en une ligne.
+  </Etape>
+  <Etape lignes="76-81" titre="Le chrono et l'arrivée">
+    `GetRaceTime` est seulement déclarée ici : son code est dans le `.cpp`. `NotifyKartFinished` n'a pas de <Terme id="ufunction">UFUNCTION</Terme> : seul le code C++ du kart l'appelle.
+  </Etape>
+  <Etape lignes="83-85" titre="La case de debug">
+    `IsDebugTextEnabled` dit si la case `bShowDebugText` est cochée. Le kart s'en sert pour savoir s'il doit afficher son propre debug.
+  </Etape>
+  <Etape lignes="87-91" titre="Le format du temps">
+    `FormatRaceTime` est une <Terme id="fonction-static">fonction static</Terme> : elle transforme des secondes en texte sans avoir besoin d'un GameMode précis. Le widget du chrono l'appelle avec `AKartGameMode::FormatRaceTime(...)`.
+  </Etape>
+</CodePasAPas>
+
+## Les réglages de la course
+
+<CodePasAPas fichier="KartGameMode.h" debut={93} fin={127}>
+  <Etape lignes="93-94" titre="BeginPlay">
+    <Terme id="beginplay">BeginPlay</Terme> est `protected` : le moteur l'appelle, les autres classes n'ont pas à le faire.
+  </Etape>
+  <Etape lignes="96-100" titre="Le nombre de tours">
+    Un séparateur annonce les réglages. 3 tours par défaut. `ClampMin = "1"` empêche de taper 0 dans l'éditeur : une course sans tour n'aurait pas de sens.
+  </Etape>
+  <Etape lignes="102-104" titre="Activer le compte à rebours">
+    `bUseCountdown` est coché par défaut. Décoché, les karts peuvent rouler dès le lancement du niveau.
+  </Etape>
+  <Etape lignes="106-112" titre="Durée et délai du départ">
+    Le nombre de secondes du décompte, puis un délai `StartDelay` avant le « 3 ». Ce délai laisse au niveau le temps de charger et au widget celui de s'abonner : sinon il raterait le premier chiffre.
+  </Etape>
+  <Etape lignes="114-119" titre="Afficher le debug">
+    La case qui allume les textes de debug, et la taille des chiffres du compte à rebours. Ils n'ont que `EditAnywhere`, sans `BlueprintReadOnly` : ils ne concernent que l'éditeur et le test.
+  </Etape>
+  <Etape lignes="121-127" titre="Le GO et le chrono de debug">
+    Combien de temps « GO! » reste affiché, et la taille du texte du chrono et des tours, plus petit que celui des chiffres.
+  </Etape>
+</CodePasAPas>
+
+Comme pour le kart, ces réglages sont en `EditAnywhere` : un designer fait une course en 5 tours ou un départ en 5 secondes sans recompiler.
+
+## L'état privé
+
+<CodePasAPas fichier="KartGameMode.h" debut={129} fin={160}>
+  <Etape lignes="129-136" titre="La chaîne du compte à rebours">
+    Trois fonctions qui s'enchaînent : `BeginCountdown` affiche le premier chiffre, `CountdownStep` passe au suivant chaque seconde, `StartRace` donne le GO. Elles sont `private` : personne d'autre ne doit sauter une étape.
+  </Etape>
+  <Etape lignes="138-148" titre="Les outils internes">
+    Bloquer tous les karts, compter les checkpoints, afficher le debug. `const FString&` est une <Terme id="reference-const">référence const</Terme> : on prête le texte sans le copier, et la fonction n'a pas le droit de le modifier.
+  </Etape>
+  <Etape lignes="150" titre="Le ticket du timer">
+    `FTimerHandle` identifie le <Terme id="timer">timer</Terme> du compte à rebours. On le garde pour pouvoir le remplacer ou l'arrêter plus tard.
+  </Etape>
+  <Etape lignes="152-160" titre="L'état de la course et la fin de la classe">
+    Le chiffre affiché, le GO passé ou non, l'heure du GO et le nombre de checkpoints. Ces valeurs changent pendant la partie, elles n'ont donc rien à faire dans l'éditeur. L'accolade suivie d'un point-virgule `};` ferme la classe : le header est complet.
+  </Etape>
+</CodePasAPas>
+
+## Le démarrage dans le .cpp
+
+<CodePasAPas fichier="KartGameMode.cpp" debut={1} fin={46}>
+  <Etape lignes="1-9" titre="Les includes du .cpp">
+    Ici on inclut pour de vrai ce qu'on utilise : le kart, le controller, les zones de tour. `EngineUtils.h` apporte <Terme id="tactoriterator">TActorIterator</Terme> et `TimerManager.h` les timers.
+  </Etape>
+  <Etape lignes="11-14" titre="Le constructeur choisit le PlayerController">
+    Dans le `.cpp`, chaque fonction est précédée du nom de la classe et de `::` : `AKartGameMode::AKartGameMode()` est le constructeur de `AKartGameMode`. Un GameMode décide quelles classes créer pour le joueur. Ici il impose `AKartPlayerController`, le <Terme id="controller">controller</Terme> qui crée les widgets du compte à rebours et du chrono.
+  </Etape>
+  <Etape lignes="16-18" titre="Autoriser le Tick">
+    `bCanEverTick = true` : sans cette ligne, le Tick du GameMode ne serait jamais appelé. L'accolade fermante termine le constructeur.
+  </Etape>
+  <Etape lignes="20-24" titre="BeginPlay commence par compter">
+    <Terme id="super">Super::BeginPlay()</Terme> laisse d'abord la classe parente faire son travail. Puis on compte les checkpoints du circuit, avant même le compte à rebours.
+  </Etape>
+  <Etape lignes="26-36" titre="Compte à rebours ou départ direct">
+    Si le compte à rebours est activé, on le lance. Sinon, la course commence tout de suite : `bRaceStarted` passe à vrai et on note l'heure du départ pour le chrono. La dernière accolade ferme `BeginPlay`.
+  </Etape>
+  <Etape lignes="38-46" titre="Un Tick pour le debug">
+    Le Tick n'appelle que `ShowRaceDebugText`, et seulement si la case de debug est cochée. Toute la logique de la course passe par des timers et des events, pas par le Tick.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">
+Le GameMode est l'**arbitre** : un seul par niveau, il porte les règles et l'état de la course. Il **prévient** les autres avec des events (`Broadcast`) et **répond** à leurs questions avec des fonctions `const` (`IsRaceStarted`, `GetLapCount`). Les karts obéissent, l'interface écoute.
+</Encadre>
+
+<Encadre type="info">
+Pour qu'un niveau utilise ce GameMode, il faut le choisir dans les **World Settings** (GameMode Override) ou dans les réglages du projet. Sinon Unreal prend un GameMode par défaut, et le kart roule tout de suite, sans compte à rebours.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/game-mode/role-du-game-mode/pourquoi-arbitre" />

@@ -1,0 +1,49 @@
+Avant d'avoir de beaux widgets, il faut pouvoir **voir** que le compte à rebours et le chrono marchent. Le GameMode écrit donc ses informations directement à l'écran, en texte de debug. Une case à cocher, `bShowDebugText`, allume ou éteint tout ça.
+
+Ces textes sont des **post-it** collés sur l'écran : moches, mais immédiats. Quand les widgets sont prêts, on décoche la case et ils disparaissent, sans toucher au code.
+
+## Le chrono et les tours, à chaque image
+
+Le Tick du GameMode (lignes 38 à 46) appelle `ShowRaceDebugText` à chaque image, si la case est cochée. Voici ce qu'elle fait.
+
+<CodePasAPas fichier="KartGameMode.cpp" debut={193} fin={223}>
+  <Etape lignes="193-198" titre="Les vérifications de départ">
+    La fonction est `const` : elle ne fait que lire l'état du GameMode. <Terme id="gengine">GEngine</Terme> est le moteur lui-même ; on vérifie qu'il existe avant de s'en servir. Et avant le GO, il n'y a pas de chrono à afficher : on sort tout de suite.
+  </Etape>
+  <Etape lignes="200-206" titre="Trouver le kart du joueur">
+    `GetPlayerPawn(this, 0)` renvoie le Pawn du premier joueur. C'est un `APawn` quelconque : <Terme id="cast">Cast</Terme> vérifie que c'est bien un kart. Si ce n'en est pas un, on obtient <Terme id="nullptr">nullptr</Terme> et on s'arrête.
+  </Etape>
+  <Etape lignes="208-214" titre="Le kart a fini">
+    On affiche « FINI ! » avec le temps d'arrivée **du kart** (`GetFinishTime`), pas le chrono général qui continue. `ToString()` transforme le `FText` en `FString`, et l'étoile `*` donne le texte brut que `%s` attend.
+  </Etape>
+  <Etape lignes="215-218" titre="Le kart roule encore">
+    Sinon : « Tour 1/3 » suivi du chrono. Le tour vient du kart, le nombre total de tours et le temps viennent du GameMode, tous deux formatés avec <Terme id="printf">Printf</Terme>.
+  </Etape>
+  <Etape lignes="220-223" titre="Afficher pour une seule image">
+    <Terme id="debug-message">AddOnScreenDebugMessage</Terme> avec une durée de 0 : le message ne dure qu'une image. Comme la fonction est rappelée à chaque Tick, le temps se met à jour en continu. La clé 101 évite que ce message remplace celui du compte à rebours. L'accolade ferme la fonction.
+  </Etape>
+</CodePasAPas>
+
+## Les chiffres du compte à rebours
+
+Les fonctions du compte à rebours (lignes 72, 88 et 106) passent toutes par `ShowDebugText`.
+
+<CodePasAPas fichier="KartGameMode.cpp" debut={225} fin={234}>
+  <Etape lignes="225-226" titre="Des paramètres prêtés">
+    Le texte et la couleur sont passés en <Terme id="reference-const">référence const</Terme> : pas de copie, pas de modification. La durée est un simple `float`.
+  </Etape>
+  <Etape lignes="227-230" titre="La case est-elle cochée ?">
+    Contrairement à `ShowRaceDebugText`, cette fonction vérifie elle-même `bShowDebugText`. Les trois endroits qui l'appellent n'ont donc pas à le faire.
+  </Etape>
+  <Etape lignes="232-234" titre="Toujours la même clé">
+    Clé 100 à chaque fois : le « 2 » remplace le « 3 », puis « GO! » remplace le « 1 ». La taille vient du réglage `DebugTextScale`, et la durée du paramètre (1 seconde par chiffre, `GoMessageDuration` pour le GO). La dernière accolade ferme la fonction et le fichier.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">
+La **clé** d'un message de debug, c'est son emplacement à l'écran. Même clé : le nouveau message remplace l'ancien. Clés différentes : les messages s'affichent ensemble. Ici, 100 pour le compte à rebours et 101 pour le chrono.
+</Encadre>
+
+Le kart utilise aussi cette case : dans son BeginPlay, il lit `IsDebugTextEnabled()` une seule fois pour savoir s'il doit afficher son propre debug. Une seule case dans le GameMode règle donc le debug de toute la course.
+
+<Quiz />

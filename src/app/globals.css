@@ -1,0 +1,238 @@
+@import "tailwindcss";
+
+/* Palette reprise du canevas de design : fond blanc crème, orange en accent. */
+@theme {
+  --color-creme: #fffaf2;
+  --color-creme-2: #fff4e6;
+  --color-creme-3: #fff8ee;
+  --color-sable: #f9ebd9;
+  --color-ligne: #f0e3d0;
+  --color-ligne-2: #eadcc8;
+  --color-ligne-3: #e3d2bb;
+  --color-piste: #f2e6d6;
+  --color-neutre: #f5ede2;
+
+  --color-encre: #2a1e14;
+  --color-encre-2: #5e4b39;
+  --color-muet: #75614d;
+  --color-brun: #3d2e22;
+
+  --color-orange: #e8691e;
+  --color-orange-fonce: #bf500c;
+  --color-orange-hover: #a84509;
+  --color-orange-pale: #fce2ca;
+  --color-orange-texte: #8a3a06;
+
+  --color-vert: #2f7a4b;
+  --color-vert-pale: #e3f2e7;
+  --color-vert-texte: #1e5434;
+  --color-ambre-pale: #fbebc8;
+  --color-ambre-texte: #7a4f00;
+  --color-rouge: #b23a2c;
+  --color-rouge-pale: #fae3df;
+  --color-rouge-texte: #7e2418;
+}
+
+@theme inline {
+  --font-display: var(--font-bricolage), system-ui, sans-serif;
+  --font-sans: var(--font-instrument), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), Consolas, monospace;
+}
+
+body {
+  background: var(--color-creme);
+  color: var(--color-encre);
+}
+
+/* Éléments natifs du navigateur, aux couleurs du site */
+::selection {
+  background: var(--color-orange-pale);
+  color: var(--color-orange-texte);
+}
+html {
+  scrollbar-color: #d9c3a5 transparent;
+}
+* {
+  scrollbar-width: thin;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d9c3a5;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: #c4a682;
+}
+/* Barres de défilement claires dans les zones de code sombres */
+.bg-encre {
+  scrollbar-color: #5c4836 transparent;
+}
+.bg-encre::-webkit-scrollbar-thumb,
+.bg-encre ::-webkit-scrollbar-thumb {
+  background-color: #5c4836;
+}
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #a8927b;
+}
+input:focus,
+textarea:focus {
+  outline: none;
+}
+input:focus-visible,
+textarea:focus-visible {
+  border-color: var(--color-orange);
+  outline: 2px solid var(--color-orange-pale);
+  outline-offset: 0;
+}
+input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 40px var(--color-creme) inset;
+  -webkit-text-fill-color: var(--color-encre);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-orange);
+  outline-offset: 2px;
+}
+
+/* Texte des leçons écrites en MDX */
+.prose-lecon {
+  font-size: 17px;
+  line-height: 1.7;
+}
+.prose-lecon > :is(p, ul, ol, h2, h3, blockquote, pre, aside) {
+  max-width: 72ch;
+}
+.prose-lecon > * + * {
+  margin-top: 1rem;
+}
+.prose-lecon h2 {
+  margin-top: 2.75rem;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.prose-lecon h3 {
+  margin-top: 2rem;
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 700;
+}
+.prose-lecon ul,
+.prose-lecon ol {
+  padding-left: 1.4rem;
+}
+.prose-lecon ul {
+  list-style: disc;
+}
+.prose-lecon ol {
+  list-style: decimal;
+}
+.prose-lecon li + li {
+  margin-top: 0.35rem;
+}
+.prose-lecon li::marker {
+  color: var(--color-orange);
+}
+.prose-lecon a {
+  color: var(--color-orange-fonce);
+  text-decoration: underline;
+}
+.prose-lecon strong {
+  font-weight: 650;
+}
+.prose-lecon :not(pre) > code,
+.etape-contenu code,
+.encadre-contenu code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--color-neutre);
+  padding: 0.1em 0.4em;
+  border-radius: 6px;
+}
+.prose-lecon pre {
+  overflow-x: auto;
+  border-radius: 14px;
+  background: var(--color-encre);
+  color: #f1e4d3;
+  padding: 16px 18px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.prose-lecon blockquote {
+  border-left: 3px solid var(--color-ligne-3);
+  padding-left: 1rem;
+  color: var(--color-encre-2);
+}
+.etape-contenu > * + *,
+.encadre-contenu > * + * {
+  margin-top: 0.5rem;
+}
+
+/* Lecteur de leçon plein écran */
+.lecteur-texte {
+  font-size: 16.5px;
+  line-height: 1.65;
+}
+.lecteur-intro {
+  font-size: 19px;
+  line-height: 1.7;
+}
+.lecteur-texte > :is(p, ul, ol, aside),
+.lecteur-intro > :is(p, ul, ol, aside) {
+  max-width: none;
+}
+.lecteur-texte .encadre {
+  margin: 0.5rem 0 0;
+}
+.lecteur-apparition {
+  animation: lecteur-apparition 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes lecteur-apparition {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lecteur-apparition {
+    animation: none;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-ligne-2 bg-white px-[18px] text-[15px] font-semibold text-encre transition-colors hover:border-[#d9c3a5];
+  }
+  .btn-pri {
+    @apply border-orange-fonce bg-orange-fonce text-white hover:border-orange-hover hover:bg-orange-hover;
+  }
+  .carte {
+    @apply rounded-[20px] border border-ligne bg-white;
+  }
+  .titre-section {
+    @apply font-display text-[22px] font-bold;
+  }
+}

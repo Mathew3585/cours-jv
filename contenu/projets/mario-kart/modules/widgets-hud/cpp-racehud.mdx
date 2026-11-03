@@ -1,0 +1,98 @@
+Le HUD de course combine les deux façons de se tenir au courant. Pour **apparaître**, il écoute un event du GameMode, comme le compte à rebours. Pour **mettre à jour le chrono**, il relit les valeurs à chaque image dans <Terme id="nativetick">NativeTick</Terme> : le chrono change en permanence, il n'y aurait aucun sens à attendre un event.
+
+On recopie `KartRaceHudWidget.cpp`, de la ligne 1 à la ligne 84. Les trois premières fonctions ressemblent beaucoup à celles du compte à rebours.
+
+## NativeConstruct : attendre le GO
+
+<CodePasAPas fichier="KartRaceHudWidget.cpp" debut={1} fin={25}>
+  <Etape lignes="1" titre="Son propre header">
+    Le `.cpp` commence par inclure `KartRaceHudWidget.h`.
+  </Etape>
+  <Etape lignes="3-5" titre="Les includes">
+    `Components/TextBlock.h` pour `SetText`, `KartGameMode.h` pour le GameMode. En plus, ce widget inclut `KartPawn.h` : il va lire le tour et le temps d'arrivée directement sur le kart du joueur.
+  </Etape>
+  <Etape lignes="7-9" titre="Signature et Super">
+    Le <Terme id="nativeconstruct">NativeConstruct</Terme> de notre classe, qui commence par appeler celui de `UUserWidget`.
+  </Etape>
+  <Etape lignes="11-12" titre="Caché au départ">
+    Comme le compte à rebours, le widget se met en `Collapsed` dès sa construction. Le chrono n'a rien à montrer avant le GO.
+  </Etape>
+  <Etape lignes="14-17" titre="S'abonner au GO">
+    On récupère le GameMode, puis on abonne `HandleRaceStarted` à `OnRaceStarted`, l'event sans paramètre que le GameMode déclenche au GO.
+  </Etape>
+  <Etape lignes="19-25" titre="Course déjà lancée">
+    Si la course a déjà commencé quand le widget est construit, l'event est passé : on s'affiche tout de suite. C'est aussi le cas quand le compte à rebours est désactivé dans le GameMode (`bUseCountdown` décoché) : `IsRaceStarted()` est alors vrai dès le début, et aucun `OnRaceStarted` n'est envoyé. Les accolades ferment le `if`, le bloc du GameMode puis la fonction.
+  </Etape>
+</CodePasAPas>
+
+## NativeDestruct et HandleRaceStarted
+
+<CodePasAPas fichier="KartRaceHudWidget.cpp" debut={27} fin={45}>
+  <Etape lignes="27-30" titre="Signature et World">
+    Dans <Terme id="nativedestruct">NativeDestruct</Terme>, le commentaire dit tout : le GameMode ne doit pas appeler un widget qui n'existe plus. On vérifie d'abord `GetWorld()`, par prudence.
+  </Etape>
+  <Etape lignes="31-36" titre="Se désabonner">
+    `RemoveDynamic` défait l'abonnement à `OnRaceStarted`. Ce widget n'a pas de timer : il n'y a rien d'autre à arrêter.
+  </Etape>
+  <Etape lignes="38-39" titre="Super à la fin">
+    Comme pour le compte à rebours, la classe parente termine la destruction en dernier.
+  </Etape>
+  <Etape lignes="41-45" titre="HandleRaceStarted">
+    Une seule ligne utile : le widget devient visible, en `HitTestInvisible` pour ne pas bloquer la souris. À partir de là, `NativeTick` met le chrono à jour.
+  </Etape>
+</CodePasAPas>
+
+## NativeTick : de quoi a-t-on besoin ?
+
+<CodePasAPas fichier="KartRaceHudWidget.cpp" debut={47} fin={67}>
+  <Etape lignes="47-49" titre="Signature et Super::NativeTick">
+    On laisse d'abord `UUserWidget` faire son propre travail, en lui transmettant les deux paramètres.
+  </Etape>
+  <Etape lignes="51" titre="Le GameMode">
+    Le chrono et le nombre de tours viennent du GameMode. Le pointeur est `const` : on ne fait que lire.
+  </Etape>
+  <Etape lignes="53-55" titre="Le kart du joueur">
+    Le tour actuel vient du kart. <Terme id="getowningplayerpawn">GetOwningPlayerPawn</Terme> donne le Pawn du joueur à qui appartient le widget : celui du PlayerController passé à `CreateWidget`. La version `<AKartPawn>` fait le <Terme id="cast">Cast</Terme> et renvoie `nullptr` si ce Pawn n'est pas un kart.
+  </Etape>
+  <Etape lignes="57-60" titre="Sortir s'il manque quelque chose">
+    Si l'un des deux manque, on sort sans rien faire : on n'utilise jamais un pointeur nul.
+  </Etape>
+  <Etape lignes="62-67" titre="Course relancée">
+    Si le GameMode relance un compte à rebours (avec `StartCountdown`), la course n'est plus « commencée ». Aucun event ne prévient le HUD : c'est lui qui s'en rend compte ici, se cache et sort. Il reviendra au prochain `OnRaceStarted`.
+  </Etape>
+</CodePasAPas>
+
+## NativeTick : afficher le chrono et le tour
+
+<CodePasAPas fichier="KartRaceHudWidget.cpp" debut={69} fin={84}>
+  <Etape lignes="69-74" titre="Course finie">
+    Quand le kart a passé la ligne de son dernier tour, le chrono affiche son **temps d'arrivée**, figé, et le texte du tour devient `FinishedText`.
+  </Etape>
+  <Etape lignes="75-77" titre="Course en cours : le chrono">
+    Sinon, le chrono affiche le temps écoulé depuis le GO. `AKartGameMode::FormatRaceTime` transforme les secondes en texte : c'est une <Terme id="fonction-static">fonction static</Terme>, appelée avec le nom de la classe suivi de `::`.
+  </Etape>
+  <Etape lignes="79-82" titre="Course en cours : le tour">
+    `FText::Format` remplace `{0}` par le tour actuel et `{1}` par le nombre de tours. Le commentaire explique le choix de <Terme id="ftext">FText</Terme> : c'est le type de texte que les widgets affichent.
+  </Etape>
+  <Etape lignes="83-84" titre="Fin de NativeTick">
+    La première accolade ferme le `else`, la seconde ferme `NativeTick` et le fichier.
+  </Etape>
+</CodePasAPas>
+
+## D'où viennent les valeurs
+
+Le widget n'invente aucun chiffre. Le chrono vient de `GameMode->GetRaceTime()` et le nombre de tours de `GameMode->GetLapCount()` (lignes 78 et 70 de `KartGameMode.h`). Le tour actuel, la course finie et le temps d'arrivée viennent de `GetCurrentLap()`, `HasFinishedRace()` et `GetFinishTime()` (lignes 55, 58 et 62 de `KartPawn.h`).
+
+C'est une bonne règle pour l'interface : **le widget affiche, il ne décide pas**. Si demain on remplace le HUD par un autre, la course continue de fonctionner exactement pareil.
+
+## Un dernier point sur les BindWidget
+
+Les lignes 72, 73, 77 et 81 utilisent `TimerText` et `LapText` sans vérifier qu'ils ne valent pas `nullptr`. Ce n'est pas un oubli : grâce à <Terme id="bindwidget">BindWidget</Terme>, un `WBP_RaceHud` sans ces deux textes ne compile pas.
+
+<Encadre type="retenir">
+On utilise `FText` et pas `FString` pour tout ce que le joueur lit. `FText::Format` avec un modèle créé par <Terme id="nsloctext">NSLOCTEXT</Terme> peut être traduit : en anglais, le modèle deviendrait `"Lap {0}/{1}"` sans toucher au code. Avec un `FString` collé morceau par morceau, la traduction serait impossible.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/widgets-hud/cpp-racehud/tick-ou-event" />

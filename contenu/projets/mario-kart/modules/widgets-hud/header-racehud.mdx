@@ -1,0 +1,69 @@
+Le second widget affiche le chrono (« 01:23.500 ») et le tour en cours (« Tour 2/3 »). Il suit exactement le même modèle que le compte à rebours : une classe C++ pour la logique, un Widget Blueprint pour l'apparence, et des textes reliés par <Terme id="bindwidget">BindWidget</Terme>.
+
+Une seule nouveauté : ce widget a besoin de <Terme id="nativetick">NativeTick</Terme>, car le chrono change à chaque image. On recopie `KartRaceHudWidget.h`, de la ligne 1 à la ligne 40.
+
+## Le début du fichier
+
+<CodePasAPas fichier="KartRaceHudWidget.h" debut={1} fin={15}>
+  <Etape lignes="1" titre="#pragma once">
+    Toujours la même première ligne : <Terme id="pragma-once">#pragma once</Terme>.
+  </Etape>
+  <Etape lignes="3-5" titre="Les includes">
+    Les mêmes que pour le compte à rebours : `CoreMinimal.h`, `Blueprint/UserWidget.h` pour la classe parente <Terme id="uuserwidget">UUserWidget</Terme>, et le `.generated.h` en dernier.
+  </Etape>
+  <Etape lignes="7" titre="UTextBlock, annoncé">
+    Une déclaration anticipée : le header ne garde que des pointeurs vers des `UTextBlock`.
+  </Etape>
+  <Etape lignes="9-11" titre="Le mode d'emploi">
+    Le commentaire annonce le comportement (caché pendant le « 3, 2, 1 », visible au GO) et le contrat avec le Blueprint : `WBP_RaceHud` hérite de cette classe et doit contenir deux textes nommés `TimerText` et `LapText`.
+  </Etape>
+  <Etape lignes="12-15" titre="La classe">
+    `UKartRaceHudWidget` hérite de `UUserWidget`, comme `UKartCountdownWidget`. Puis vient <Terme id="generated-body">GENERATED_BODY()</Terme>.
+  </Etape>
+</CodePasAPas>
+
+## Les fonctions et les textes
+
+<CodePasAPas fichier="KartRaceHudWidget.h" debut={17} fin={34}>
+  <Etape lignes="17-19" titre="NativeConstruct et NativeDestruct">
+    Les mêmes que pour le compte à rebours : <Terme id="nativeconstruct">NativeConstruct</Terme> pour se cacher et s'abonner au GameMode, <Terme id="nativedestruct">NativeDestruct</Terme> pour se désabonner.
+  </Etape>
+  <Etape lignes="21-22" titre="NativeTick en plus">
+    Appelée à chaque image ; le commentaire précise : tant que le widget est visible. Le chrono change sans arrêt, il faut donc le réécrire en continu. `MyGeometry` et `InDeltaTime` sont les paramètres imposés par `UUserWidget` ; notre code ne fera que les transmettre à `Super`.
+  </Etape>
+  <Etape lignes="24-26" titre="TimerText">
+    Le texte du chrono, en `BindWidget` : `WBP_RaceHud` doit contenir un Text nommé exactement `TimerText`.
+  </Etape>
+  <Etape lignes="28-30" titre="LapText">
+    Le texte du tour en cours, avec la même règle. S'il en manque un des deux, le WBP ne compile pas.
+  </Etape>
+  <Etape lignes="32-34" titre="FinishedText">
+    `FinishedText` remplace « Tour 2/3 » quand le joueur a fini : « FINI ! » par défaut. Comme `GoText`, c'est un <Terme id="ftext">FText</Terme> créé avec <Terme id="nsloctext">NSLOCTEXT</Terme>, modifiable dans le WBP.
+  </Etape>
+</CodePasAPas>
+
+## La partie privée
+
+<CodePasAPas fichier="KartRaceHudWidget.h" debut={36} fin={40}>
+  <Etape lignes="36-40" titre="HandleRaceStarted et la fin">
+    Une seule fonction privée, que le GameMode appellera au GO pour afficher le widget. Comme `HandleCountdownTick`, elle a besoin d'un `UFUNCTION()` pour pouvoir être abonnée à un event. Le `};` termine la classe.
+  </Etape>
+</CodePasAPas>
+
+## Dans l'éditeur : créer WBP_RaceHud
+
+Recompile le C++, puis crée un Widget Blueprint comme pour le compte à rebours, avec `KartRaceHudWidget` comme <Terme id="classe-parente">classe parente</Terme>. Nomme-le `WBP_RaceHud`.
+
+Dans le Designer, place **deux** widgets Text et renomme-les `TimerText` et `LapText`, lettre pour lettre. Compile : si un nom ne correspond pas, le WBP refuse de compiler, comme pour `CountdownText`.
+
+## Les derniers réglages
+
+Le texte de fin se change dans **Class Defaults**, catégorie Kart > Race (`Finished Text`). Enfin, ouvre `BP_KartPlayerController` et choisis `WBP_RaceHud` dans la case `Race Hud Widget Class`. Les deux cases de la catégorie Kart > UI sont maintenant remplies.
+
+<Encadre type="piege">
+Si `WBP_RaceHud` a été créé avec `UserWidget` comme parent, il n'apparaît pas dans la case `Race Hud Widget Class` : elle n'accepte que les classes qui héritent de `UKartRaceHudWidget`. Change sa Parent Class dans Class Settings.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/widgets-hud/header-racehud/repartition" />

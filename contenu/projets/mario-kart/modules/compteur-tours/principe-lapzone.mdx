@@ -1,0 +1,96 @@
+Dans une course, il faut savoir à quel tour en est chaque kart et quand il a fini. Pour ça, on pose sur le circuit des **zones de passage** : la ligne d'arrivée et plusieurs <Terme id="checkpoint">checkpoints</Terme>. Chaque zone est un petit acteur, `ALapZone`, qui remarque quand un kart le traverse.
+
+Le travail est partagé en deux. La zone détecte le kart et vérifie qu'il roule dans le bon sens. Le kart, lui, tient ses comptes : quel checkpoint il attend, à quel tour il en est. Dans cette leçon, on recopie le <Terme id="header">header</Terme> `LapZone.h` en entier, de la ligne 1 à la ligne 70.
+
+## Le principe : une ligne et des checkpoints
+
+Chaque zone porte un numéro, `ZoneIndex` : **0** pour la ligne d'arrivée, **1, 2, 3…** pour les checkpoints, dans l'ordre où on les rencontre sur le circuit.
+
+Le kart attend d'abord le checkpoint 1, puis le 2, puis le 3. Une fois tous passés, la ligne d'arrivée valide le tour, et on recommence à attendre le 1. Chaque zone a aussi une **flèche** qui montre le sens de la course : une zone ne compte que si le kart la traverse dans le sens de la flèche.
+
+## Le début du fichier
+
+Le long commentaire en haut du fichier résume tout le système. Recopie-le aussi : c'est lui qui t'expliquera ton code dans trois mois.
+
+<CodePasAPas fichier="LapZone.h" debut={1} fin={21}>
+  <Etape lignes="1" titre="#pragma once">
+    <Terme id="pragma-once">#pragma once</Terme> empêche ce header d'être lu deux fois dans le même fichier compilé. Comme tous les headers Unreal.
+  </Etape>
+  <Etape lignes="3-5" titre="Les includes">
+    `CoreMinimal.h` apporte les types de base. Cette fois on inclut `Actor.h`, le fichier de la classe parente AActor : une zone est un simple <Terme id="actor">Actor</Terme> posé dans le niveau, pas un Pawn. `LapZone.generated.h` reste le **dernier** include.
+  </Etape>
+  <Etape lignes="7-10" titre="Les déclarations anticipées">
+    Trois classes de composants et une structure, `FHitResult`. Le header n'utilise que des pointeurs ou des références vers elles : une <Terme id="declaration-anticipee">déclaration anticipée</Terme> suffit. Les vrais includes seront dans le `.cpp`.
+  </Etape>
+  <Etape lignes="12-17" titre="Le rôle d'une zone">
+    Une boîte qui détecte, une flèche qui donne le sens, un numéro. Le 0 est la ligne d'arrivée, les autres sont les checkpoints, à passer dans l'ordre. La ligne 17, un `//` seul, sert juste à aérer le commentaire.
+  </Etape>
+  <Etape lignes="18-21" titre="La triche des allers-retours">
+    Avec la flèche seule : tu passes la ligne en avant (+1 tour), tu recules en marche arrière (ignoré, mauvais sens), tu repasses en avant (+1 tour). En répétant ça, tu finis la course sans quitter la ligne. Les checkpoints bloquent cette triche : la ligne ne compte que si tu as fait **tout** le tour avant.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">
+La **flèche** vérifie le sens : un passage à contresens est ignoré. Les **checkpoints** vérifient que tu as vraiment fait le tour. La flèche seule se fait piéger par les allers-retours sur la ligne : c'est pour ça qu'on ajoute les checkpoints.
+</Encadre>
+
+## La classe et ses fonctions publiques
+
+<CodePasAPas fichier="LapZone.h" debut={22} fin={38}>
+  <Etape lignes="22-25" titre="Une UCLASS qui hérite d'AActor">
+    <Terme id="uclass">UCLASS()</Terme> et <Terme id="generated-body">GENERATED_BODY()</Terme>, comme pour le kart. `public AActor` : la zone est un Actor, le préfixe **A** de `ALapZone` le rappelle. On pourra en faire un Blueprint et en poser plusieurs copies sur le circuit.
+  </Etape>
+  <Etape lignes="27-28" titre="public et le constructeur">
+    Ce qui suit `public:` peut être appelé par les autres classes. Le <Terme id="constructeur">constructeur</Terme> `ALapZone()` crée la boîte et la flèche : on l'écrira au début du `.cpp`.
+  </Etape>
+  <Etape lignes="30-31" titre="Lire le numéro de la zone">
+    `GetZoneIndex` renvoie simplement `ZoneIndex`. Son code est écrit directement dans le header car il tient sur une ligne. `BlueprintPure` : elle lit une valeur sans rien modifier. Le GameMode s'en sert pour compter les checkpoints du circuit.
+  </Etape>
+  <Etape lignes="33-35" titre="Le bon sens">
+    `IsGoingRightWay` reçoit une direction et répond vrai ou faux. Le `const FVector&` est une <Terme id="reference-const">référence const</Terme> : le <Terme id="vecteur">vecteur</Terme> est passé sans être copié, et la fonction ne peut pas le modifier. Son code utilise le produit scalaire : c'est le sujet de la leçon 3.
+  </Etape>
+  <Etape lignes="37-38" titre="protected : BeginPlay">
+    `protected:` réserve la suite à la classe et à ses enfants, dont le Blueprint de la zone. La zone a besoin de <Terme id="beginplay">BeginPlay</Terme> pour s'abonner à l'event de sa boîte au lancement du jeu.
+  </Etape>
+</CodePasAPas>
+
+## Les composants et les réglages
+
+<CodePasAPas fichier="LapZone.h" debut={40} fin={61}>
+  <Etape lignes="40-45" titre="La boîte">
+    La ligne 40 est un titre de section en commentaire, pour se repérer. Puis un <Terme id="uboxcomponent">UBoxComponent</Terme> : la zone de détection, rangée dans un <Terme id="tobjectptr">TObjectPtr</Terme>. Le commentaire dit comment la régler dans le Blueprint : **X** est l'épaisseur (dans le sens de la course), **Y** la largeur de la piste, **Z** la hauteur.
+  </Etape>
+  <Etape lignes="47-50" titre="La flèche">
+    Un <Terme id="uarrowcomponent">UArrowComponent</Terme> qui montre dans quel sens traverser. Pour inverser le sens, on ne touche pas au code : on tourne l'acteur dans le niveau. Les deux composants sont `VisibleAnywhere` : on règle leurs propriétés, mais on ne peut pas les remplacer.
+  </Etape>
+  <Etape lignes="52-56" titre="Le numéro de la zone">
+    Nouvelle section, les réglages. `ZoneIndex` est `EditAnywhere` : on le choisit dans l'éditeur pour chaque zone posée. `ClampMin = "0"` interdit un numéro négatif. Attention au commentaire : les numéros doivent se suivre **sans trou**.
+  </Etape>
+  <Etape lignes="58-61" titre="Visible ou non en jeu">
+    `bShowInGame` coché : on voit la boîte et la flèche pendant le Play, pratique pour monter le circuit. Décoché : on ne les voit que dans l'éditeur.
+  </Etape>
+</CodePasAPas>
+
+Pourquoi « sans trou » ? Le GameMode compte les checkpoints en prenant le **plus grand** `ZoneIndex` du niveau. Avec des zones 1, 3 et 7, il croit qu'il y en a 7. Le kart attend alors le checkpoint 2, qui n'existe pas : plus aucun tour ne sera validé.
+
+<Encadre type="piege">
+Si tu dupliques un checkpoint dans le niveau, pense à changer son `ZoneIndex`. Un numéro sauté bloque le comptage des tours, et aucun message ne te prévient : le GameMode n'avertit que s'il n'y a pas de ligne d'arrivée ou pas de checkpoint du tout.
+</Encadre>
+
+## La fonction appelée par la boîte
+
+<CodePasAPas fichier="LapZone.h" debut={63} fin={70}>
+  <Etape lignes="63-66" titre="private et le rôle de HandleBeginOverlap">
+    `private:` : seule la zone peut appeler ce qui suit. Unreal appellera cette fonction quand quelque chose entre dans la boîte ; on ne l'appelle jamais nous-mêmes. Ses paramètres sont imposés par l'event de la boîte, même si on ne se sert que de `OtherActor`.
+  </Etape>
+  <Etape lignes="67" titre="UFUNCTION() obligatoire">
+    Sans <Terme id="ufunction">UFUNCTION()</Terme>, Unreal ne connaît pas la fonction et ne peut pas la brancher sur l'event. C'est une erreur fréquente : ça compile, mais rien ne se passe en jeu.
+  </Etape>
+  <Etape lignes="68-70" titre="Les paramètres et la fin de la classe">
+    La boîte touchée, l'acteur qui entre, son composant, puis des détails sur le contact (dont un <Terme id="fhitresult">FHitResult</Terme>). La liste est longue, on la coupe sur deux lignes. Enfin `};` ferme la classe : n'oublie pas le point-virgule.
+  </Etape>
+</CodePasAPas>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/compteur-tours/principe-lapzone/triche" />

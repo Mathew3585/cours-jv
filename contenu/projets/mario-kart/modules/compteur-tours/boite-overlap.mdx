@@ -1,0 +1,71 @@
+Une zone doit remarquer qu'un kart la traverse. Elle ne regarde pas à chaque image où sont les karts : elle laisse le moteur la prévenir. C'est le rôle de l'<Terme id="overlap">overlap</Terme> : quand un objet entre dans la boîte, Unreal appelle une fonction de notre choix.
+
+On commence `LapZone.cpp` par le haut : les includes, le constructeur qui fabrique la zone, puis `BeginPlay` qui l'abonne à l'event de sa boîte. Cette leçon couvre les lignes 1 à 52.
+
+## Les includes et le constructeur
+
+<CodePasAPas fichier="LapZone.cpp" debut={1} fin={14}>
+  <Etape lignes="1-5" titre="Les vrais includes">
+    D'abord le header de la classe. Le header ne faisait qu'annoncer `UBoxComponent` et `UArrowComponent` ; ici on inclut leurs fichiers, car on va appeler leurs fonctions. `KartPawn.h` est inclus aussi : la zone appellera des fonctions du kart.
+  </Etape>
+  <Etape lignes="7-8" titre="La signature du constructeur">
+    `ALapZone::ALapZone()` : le `ALapZone::` dit que ce <Terme id="constructeur">constructeur</Terme> appartient à la classe `ALapZone`. L'accolade ouvre son corps, qui va jusqu'à la ligne 36.
+  </Etape>
+  <Etape lignes="9-10" titre="Pas de Tick">
+    Une zone n'a rien à faire à chaque image : elle attend qu'on la prévienne. Couper le <Terme id="tick">Tick</Terme> évite à Unreal d'appeler une fonction vide sur chaque zone, à chaque image.
+  </Etape>
+  <Etape lignes="12-14" titre="La boîte est la racine">
+    <Terme id="createdefaultsubobject">CreateDefaultSubobject</Terme> crée la boîte. Elle devient le <Terme id="rootcomponent">composant racine</Terme> : quand on déplace ou tourne l'acteur dans le niveau, c'est la boîte qui bouge et tourne, et la flèche avec elle.
+  </Etape>
+</CodePasAPas>
+
+## Régler la boîte
+
+<CodePasAPas fichier="LapZone.cpp" debut={16} fin={26}>
+  <Etape lignes="16-18" titre="La taille par défaut">
+    `SetBoxExtent` prend une **demi-taille** en cm : 50 donne 1 m d'épaisseur, 500 donne 10 m de large, 200 donne 4 m de haut. La boîte doit être nettement plus épaisse que la distance parcourue par un kart en une image. À 2500 cm/s et 60 images par seconde, le kart avance d'environ 42 cm par image.
+  </Etape>
+  <Etape lignes="20-23" titre="Le profil Trigger">
+    Le <Terme id="profil-collision">profil de collision</Terme> « Trigger » ne bloque rien : le kart traverse la boîte, et Unreal signale seulement qu'il est entré. Avec « BlockAll », la zone deviendrait un mur invisible. Bonus : les rayons du kart qui cherchent le sol ne gardent que ce qui bloque, ils ignorent donc cette boîte.
+  </Etape>
+  <Etape lignes="25-26" titre="Activer les events d'overlap">
+    `SetGenerateOverlapEvents(true)` : sans cette ligne, la boîte ne déclenche jamais l'event `OnComponentBeginOverlap`.
+  </Etape>
+</CodePasAPas>
+
+## La flèche
+
+<CodePasAPas fichier="LapZone.cpp" debut={28} fin={36}>
+  <Etape lignes="28-30" titre="Attachée à la boîte">
+    On crée la flèche, puis <Terme id="setupattachment">SetupAttachment</Terme> l'accroche à la boîte. Elle pointe vers l'avant de l'acteur : l'axe X, en rouge dans l'éditeur.
+  </Etape>
+  <Etape lignes="32-36" titre="Bien visible, et fin du constructeur">
+    Une couleur verte, une taille de 3 et une longueur de 100 : une grosse flèche qu'on repère de loin en montant le circuit. Ces réglages sont purement visuels, ils ne changent pas le sens. L'accolade de la ligne 36 ferme le constructeur.
+  </Etape>
+</CodePasAPas>
+
+## S'abonner à l'event de la boîte
+
+`BeginPlay` s'exécute au lancement du jeu, une fois que la zone est posée dans le niveau. C'est le bon moment pour décider si elle est visible et pour s'abonner à sa boîte.
+
+<CodePasAPas fichier="LapZone.cpp" debut={38} fin={52}>
+  <Etape lignes="38-40" titre="Signature et Super::BeginPlay">
+    On écrit la fonction déclarée `virtual … override` dans le header (sans répéter ces deux mots ici). <Terme id="super">Super::BeginPlay()</Terme> laisse d'abord AActor faire son propre travail de démarrage : on l'appelle toujours en premier.
+  </Etape>
+  <Etape lignes="42-46" titre="Cacher ou non en jeu">
+    `SetHiddenInGame(true)` cache un composant pendant le jeu seulement. On passe `!bShowInGame` : si la case est cochée, on ne cache pas. Dans l'éditeur, la boîte et la flèche restent visibles quoi qu'il arrive.
+  </Etape>
+  <Etape lignes="48-52" titre="AddDynamic, et fin de BeginPlay">
+    `OnComponentBeginOverlap` est un <Terme id="delegate">délégué</Terme> de la boîte : une liste de fonctions à appeler quand quelque chose entre dedans. <Terme id="adddynamic">AddDynamic</Terme> ajoute notre fonction à cette liste. `this` désigne la zone elle-même, et `&ALapZone::HandleBeginOverlap` l'adresse de la fonction à appeler. L'accolade ferme `BeginPlay`.
+  </Etape>
+</CodePasAPas>
+
+Pourquoi s'abonner plutôt que vérifier à chaque image si un kart est dans la boîte ? Parce que le moteur calcule déjà les collisions. Il sait mieux que nous quand un objet entre dans un autre, et ne nous dérange qu'à ce moment-là.
+
+<Encadre type="piege">
+`AddDynamic` ne fonctionne qu'avec une fonction marquée `UFUNCTION()`. Si tu oublies la macro dans le header, Unreal ne trouve pas la fonction à brancher, et l'overlap ne déclenche rien du tout.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/compteur-tours/boite-overlap/epaisseur" />

@@ -1,0 +1,105 @@
+Le joueur doit voir quel objet il a en main. On ajoute au HUD une **case d'objet** : l'icône de l'objet, « x3 » pour un objet à plusieurs utilisations, et une roulette d'icônes pendant le tirage.
+
+Comme les autres widgets du module 4, c'est une classe C++ pour la logique et un Widget Blueprint pour l'apparence. Le widget n'invente rien : il **écoute** les <Terme id="delegate">delegates</Terme> du composant d'objet du kart (`OnItemChanged` et `OnRouletteStarted`, vus dans le module Objets bonus). Dans cette leçon : le header du widget, puis les lignes ajoutées au PlayerController pour le créer.
+
+## Le header du widget
+
+<CodePasAPas fichier="KartItemWidget.h" debut={1} fin={22}>
+  <Etape lignes="1-5" titre="Les includes">
+    `Blueprint/UserWidget.h` apporte <Terme id="uuserwidget">UUserWidget</Terme>, le parent de tous les widgets. Le `.generated.h` reste le dernier.
+  </Etape>
+  <Etape lignes="7-13" titre="Les déclarations anticipées">
+    Les widgets (UImage, UTextBlock), la texture de l'icône, le pawn, et les trois classes du système d'objets. Le header n'utilise que des pointeurs vers eux.
+  </Etape>
+  <Etape lignes="15-17" titre="Ce que doit contenir le WBP">
+    Le commentaire donne le contrat : le Widget Blueprint doit avoir une Image `ItemIcon` et un TextBlock `UsesText`, avec exactement ces noms.
+  </Etape>
+  <Etape lignes="18-22" titre="La classe">
+    `UKartItemWidget` hérite de UUserWidget, comme le widget du compte à rebours et le HUD de course.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemWidget.h" debut={23} fin={38}>
+  <Etape lignes="23-26" titre="Construction, destruction, Tick">
+    Les trois fonctions que tu connais déjà : <Terme id="nativeconstruct">NativeConstruct</Terme> (s'abonner), <Terme id="nativedestruct">NativeDestruct</Terme> (se désabonner) et <Terme id="nativetick">NativeTick</Terme> (ici, faire défiler la roulette).
+  </Etape>
+  <Etape lignes="28-30" titre="L'icône">
+    Un <Terme id="uimage">UImage</Terme> relié au WBP par <Terme id="bindwidget">BindWidget</Terme>. Si le WBP n'a pas d'image nommée `ItemIcon`, il refuse de compiler.
+  </Etape>
+  <Etape lignes="32-34" titre="Le nombre d'utilisations">
+    Un TextBlock pour afficher « x3 », « x2 », ou rien.
+  </Etape>
+  <Etape lignes="36-38" titre="La vitesse de la roulette">
+    Toutes les 0,08 seconde, l'icône change pendant la roulette, soit environ 12 icônes par seconde. Réglable dans le WBP.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemWidget.h" debut={40} fin={56}>
+  <Etape lignes="40-43" titre="Suivre le pawn du joueur">
+    Appelée quand le PlayerController change de pawn. `UFUNCTION()` est obligatoire : elle sera branchée sur un delegate dynamique.
+  </Etape>
+  <Etape lignes="45-50" titre="Les réponses au composant d'objet">
+    Leurs paramètres sont exactement ceux des deux delegates du composant : (objet, utilisations restantes) et (table, durée).
+  </Etape>
+  <Etape lignes="52-53" titre="BindToPawn">
+    Une fonction qui fait tout le branchement : se désabonner de l'ancien kart, s'abonner au nouveau.
+  </Etape>
+  <Etape lignes="55-56" titre="ShowIcon">
+    Une petite fonction pour afficher une icône, ou cacher l'image si on lui passe `nullptr`. Elle sert à trois endroits.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemWidget.h" debut={58} fin={69}>
+  <Etape lignes="58-60" titre="Un pointeur faible vers le composant">
+    Un <Terme id="tweakobjectptr">TWeakObjectPtr</Terme> : si le kart est détruit, le pointeur devient nul tout seul. Le widget écoute le composant, mais il n'a pas à le garder en vie.
+  </Etape>
+  <Etape lignes="62-64" titre="La table de la roulette">
+    Tant que `RoulettePool` n'est pas `nullptr`, la roulette tourne. Ici un `UPROPERTY()` classique suffit : la table est un Data Asset, elle existe de toute façon.
+  </Etape>
+  <Etape lignes="66-69" titre="L'état de la roulette">
+    L'icône affichée et le temps écoulé depuis le dernier changement. L'accolade ferme la classe.
+  </Etape>
+</CodePasAPas>
+
+## Le PlayerController crée la case d'objet
+
+Le PlayerController du module 4 crée déjà le compte à rebours et le HUD. On lui ajoute un troisième widget, en suivant exactement la même recette.
+
+<CodePasAPas fichier="KartPlayerController.h" debut={9} fin={9}>
+  <Etape lignes="9" titre="Annoncer la classe">
+    Une <Terme id="declaration-anticipee">déclaration anticipée</Terme> de plus, à côté des deux autres widgets.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.h" debut={24} fin={26}>
+  <Etape lignes="24-26" titre="La classe à créer">
+    Un <Terme id="tsubclassof">TSubclassOf</Terme> pour choisir `WBP_ItemSlot` dans `BP_KartPlayerController`, comme pour les deux autres.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.h" debut={36} fin={37}>
+  <Etape lignes="36-37" titre="Le widget créé">
+    On garde le widget créé dans un `UPROPERTY()`, pour qu'il ne soit pas effacé par le ramasse-miettes d'Unreal.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.cpp" debut={5} fin={5}>
+  <Etape lignes="5" titre="L'include">
+    Le chemin commence par `Items/` : le widget est rangé dans le sous-dossier des objets.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.cpp" debut={26} fin={34}>
+  <Etape lignes="26-28" titre="Une classe a-t-elle été choisie ?">
+    Si personne n'a choisi de widget dans le Blueprint, on saute ce bloc : le jeu marche, sans case d'objet.
+  </Etape>
+  <Etape lignes="29-34" titre="Créer et afficher">
+    <Terme id="createwidget">CreateWidget</Terme> fabrique le widget, puis <Terme id="addtoviewport">AddToViewport</Terme> le pose à l'écran. Trois widgets, trois blocs identiques : c'est voulu, chacun se lit tout seul.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="plus-loin">
+Trois blocs presque identiques, c'est la limite. Au quatrième widget, on écrirait une petite fonction qui prend la classe et renvoie le widget créé.
+</Encadre>
+
+<Quiz />

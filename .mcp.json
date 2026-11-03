@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "$env:SUPABASE_ACCESS_TOKEN = [Environment]::GetEnvironmentVariable('SUPABASE_ACCESS_TOKEN', 'User'); npx -y @supabase/mcp-server-supabase@0.15.0 --project-ref=ekzivfzpybsobhrypkvu"
+      ]
+    }
+  }
+}

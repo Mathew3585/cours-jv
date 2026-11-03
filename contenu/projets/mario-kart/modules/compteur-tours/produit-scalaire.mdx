@@ -1,0 +1,71 @@
+Quand un kart entre dans une zone, la zone doit répondre à une question : est-ce qu'il roule dans le sens de ma flèche ? Il faut deux directions, celle du kart et celle de la flèche, et un moyen de les comparer. Ce moyen, c'est le <Terme id="produit-scalaire">produit scalaire</Terme>.
+
+Pas de panique si tu n'as jamais fait de vecteurs : on n'a besoin que d'une image mentale et d'une multiplication. Le code à recopier tient en dix lignes, `IsGoingRightWay` (lignes 54 à 63 de `LapZone.cpp`), mais on prend d'abord le temps de comprendre le calcul.
+
+## Une direction, c'est une flèche
+
+Dans Unreal, une position ou une direction est un <Terme id="vecteur">vecteur</Terme> (`FVector`) : trois nombres X, Y et Z. Pour une **direction**, imagine une flèche de longueur 1 posée au sol.
+
+Regarde le circuit de haut, l'axe X vers la droite de ton écran et l'axe Y vers le haut, Z à 0. `(1, 0, 0)` va vers la droite, `(-1, 0, 0)` vers la gauche (le sens opposé), `(0, 1, 0)` vers le haut (à angle droit), et `(0.7, 0.7, 0)` part en biais entre la droite et le haut.
+
+Chaque acteur a une direction « devant lui » : son <Terme id="forward-vector">forward vector</Terme>, son axe X. C'est la flèche rouge qu'on voit dans l'éditeur quand on le sélectionne.
+
+## La direction du kart
+
+Le kart doit dire dans quelle direction il **se déplace**. Ce n'est pas toujours son avant : en marche arrière, il regarde devant lui mais il recule. C'est le rôle de `GetMoveDirection`, que tu as écrite dans `KartPawn.cpp` au module Pawn Controller. Son calcul tient en une ligne :
+
+```cpp
+return GetActorForwardVector() * FMath::Sign(CurrentSpeed);
+```
+
+<Terme id="sign">FMath::Sign</Terme> garde seulement le signe d'un nombre : +1, -1 ou 0. À 1800 cm/s, Sign donne 1 : la direction reste l'avant. À -300 cm/s (marche arrière), Sign donne -1 : la flèche est retournée vers l'arrière. À l'arrêt, Sign donne 0 : la direction devient `(0, 0, 0)`. La vitesse elle-même ne compte pas : seul le **sens** nous intéresse.
+
+## Le produit scalaire, avec les mains
+
+Le produit scalaire prend deux vecteurs et donne **un seul nombre** : on multiplie les X entre eux, les Y entre eux, les Z entre eux, et on additionne.
+
+```
+A = (Ax, Ay, Az)    B = (Bx, By, Bz)
+produit scalaire = Ax × Bx + Ay × By + Az × Bz
+```
+
+L'image mentale : tu marches dans la direction A, et le vent souffle dans la direction B. Le produit scalaire dit si le vent te pousse (positif), te freine (négatif) ou te prend de côté (zéro).
+
+## Cinq karts, une flèche
+
+Prenons la flèche d'une zone qui pointe vers la droite, `(1, 0, 0)` :
+
+- Le kart roule **dans le sens de la flèche**, `(1, 0, 0)` : 1 × 1 + 0 × 0 + 0 × 0 = **1**. Même sens.
+- Il roule **en biais, mais vers l'avant**, `(0.7, 0.7, 0)` : 0.7 × 1 + 0.7 × 0 + 0 × 0 = **0.7**. Plutôt le même sens.
+- Il roule **le long de la ligne**, `(0, 1, 0)` : 0 × 1 + 1 × 0 + 0 × 0 = **0**. Il ne la traverse pas.
+- Il est **en marche arrière**, `(-1, 0, 0)` : -1 × 1 + 0 × 0 + 0 × 0 = **-1**. Sens opposé.
+- Il est **arrêté**, `(0, 0, 0)` : tout vaut 0, le résultat est **0**.
+
+Avec deux flèches de longueur 1, le résultat est toujours entre -1 et 1. Plus il est proche de 1, plus les deux flèches vont dans le même sens.
+
+## Le test de la zone
+
+<CodePasAPas fichier="LapZone.cpp" debut={54} fin={63}>
+  <Etape lignes="54-55" titre="La signature">
+    `bool` : la fonction répond vrai ou faux. Elle reçoit la direction du kart en <Terme id="reference-const">référence const</Terme>, et le `const` final en fait une <Terme id="fonction-const">fonction const</Terme> : elle ne modifie pas la zone.
+  </Etape>
+  <Etape lignes="56-59" titre="Les trois cas">
+    Le commentaire résume ce qu'on vient de calculer. Positif : les deux directions vont plutôt dans le même sens. Zéro : elles sont perpendiculaires, le kart longe la ligne. Négatif : sens opposés.
+  </Etape>
+  <Etape lignes="60-61" titre="Pourquoi le produit scalaire">
+    Il suffit de regarder son **signe** : pas besoin de calculer un angle en degrés, ce qui serait plus long. Et on compare avec le « Forward » de la flèche, la direction dans laquelle elle pointe.
+  </Etape>
+  <Etape lignes="62-63" titre="Le calcul, et fin de la fonction">
+    `FVector::DotProduct` calcule le produit scalaire entre la direction du kart et `Arrow->GetForwardVector()`. On renvoie vrai seulement s'il est **strictement** plus grand que 0. L'accolade ferme la fonction.
+  </Etape>
+</CodePasAPas>
+
+Avec `> 0.f`, un kart qui traverse en biais compte quand même, tant qu'il va plutôt vers l'avant de la flèche. Un kart arrêté (résultat 0) ou qui recule (résultat négatif) ne compte pas.
+
+<Encadre type="retenir">
+Produit scalaire de deux directions : **positif** = même sens, **zéro** = à angle droit, **négatif** = sens opposés. Pour savoir si un objet va « vers » quelque chose, il suffit souvent de regarder ce signe. Le kart s'en sert aussi ailleurs, par exemple pour savoir s'il prend un mur de face.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/compteur-tours/produit-scalaire/marche-arriere" />

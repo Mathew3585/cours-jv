@@ -1,0 +1,55 @@
+Le turbo agissait sur le kart lui-même. Le piège et le projectile, eux, sont des **acteurs** à part : ils doivent apparaître dans le niveau, près du kart, au moment où le joueur appuie sur la touche.
+
+On pourrait écrire un Data Asset pour le piège et un autre pour le projectile. Mais leur travail est le même : « fais apparaître tel acteur à tel endroit autour du kart ». Une seule classe, `UKartItemData_SpawnActor`, suffit. Le piège et le projectile seront deux **assets** de cette classe, avec des réglages différents.
+
+## Le header
+
+<CodePasAPas fichier="KartItemData_SpawnActor.h" debut={1} fin={25}>
+  <Etape lignes="1-5" titre="Les includes">
+    On inclut le header du parent, `KartItemData.h` : on ne peut pas hériter d'une classe sans connaître sa déclaration complète. Le `.generated.h` reste le dernier include.
+  </Etape>
+  <Etape lignes="7-8" titre="Une classe pour plusieurs objets">
+    Le commentaire résume l'idée : ce qui change d'un objet à l'autre est une **donnée** (quel acteur, où), pas du code.
+  </Etape>
+  <Etape lignes="9-12" titre="Un enfant de UKartItemData">
+    `public UKartItemData` : cette classe <Terme id="heritage">hérite</Terme> du Data Asset parent. Elle récupère le nom, l'icône et le nombre d'utilisations sans les réécrire.
+  </Etape>
+  <Etape lignes="14-18" titre="L'acteur à créer">
+    `ActorClass` est un <Terme id="tsubclassof">TSubclassOf</Terme>`<AActor>` : dans l'éditeur, on choisit dans une liste un Blueprint qui hérite de AActor (`BP_ItemTrap`, `BP_ItemProjectile`). `EditDefaultsOnly` : on le règle dans l'asset, pas sur un objet posé dans le niveau.
+  </Etape>
+  <Etape lignes="20-22" titre="Où le faire apparaître">
+    Un décalage en cm **dans le <Terme id="repere-local">repère du kart</Terme>** : X vers l'avant, Y vers la droite, Z vers le haut. La valeur par défaut (-150, 0, 0) pose l'acteur 1,5 m derrière le kart, ce qui convient à un piège.
+  </Etape>
+  <Etape lignes="24-25" titre="Redéfinir Activate">
+    Comme le turbo, la classe <Terme id="override">remplace</Terme> la fonction `Activate` du parent. L'accolade et le point-virgule ferment la classe.
+  </Etape>
+</CodePasAPas>
+
+## Activate : faire apparaître l'acteur
+
+<CodePasAPas fichier="KartItemData_SpawnActor.cpp" debut={1} fin={28}>
+  <Etape lignes="1-4" titre="Les includes">
+    `Engine/World.h` donne accès au monde, qui sait créer des acteurs. `KartPawn.h` est inclus car on lit la position et la rotation du kart.
+  </Etape>
+  <Etape lignes="6-11" titre="Signature et vérifications">
+    `const` à la fin : la fonction ne modifie pas l'asset, partagé par tous les karts. Sans kart ou sans classe choisie dans l'asset, on renvoie `false` : l'objet n'est pas consommé, le joueur le garde.
+  </Etape>
+  <Etape lignes="13-15" titre="Du repère du kart au repère du monde">
+    <Terme id="transformposition">TransformPosition</Terme> applique la position et la rotation du kart au décalage. Si le kart regarde vers l'est, « 150 cm derrière » devient « 150 cm à l'ouest du kart ». Sans ça, le piège tomberait toujours du même côté, quelle que soit la direction du kart.
+  </Etape>
+  <Etape lignes="17-18" titre="Seulement la direction">
+    On ne garde que le Yaw du kart, la direction vers laquelle il regarde. Dans une montée, le kart est penché : un projectile qui copierait ce Pitch partirait vers le ciel.
+  </Etape>
+  <Etape lignes="20-24" titre="Les options de création">
+    `Owner` : l'acteur créé saura quel kart l'a lancé. Le piège s'en servira pour ne pas toucher son lanceur tout de suite. `AlwaysSpawn` : on crée l'acteur même s'il touche déjà quelque chose (un mur, le kart). Sinon Unreal pourrait le déplacer ou refuser de le créer, et l'objet serait gaspillé.
+  </Etape>
+  <Etape lignes="26-28" titre="SpawnActor">
+    <Terme id="spawnactor">SpawnActor</Terme> crée l'acteur dans le monde. Elle renvoie `nullptr` si la création échoue : dans ce cas, `Activate` renvoie `false` et l'objet n'est pas consommé.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">
+Ajouter un objet qui fait apparaître quelque chose (une flaque, une mine, un mur) ne demande plus de code dans le Data Asset : on crée l'acteur, puis un nouvel asset `UKartItemData_SpawnActor` qui le désigne.
+</Encadre>
+
+<Quiz />

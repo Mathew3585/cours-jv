@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atelier JV · plan et maquette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout : document de plan en une colonne, avec une maquette d'application à onglets en tête. */
+:root {
+  --bg: #F8F1E5;
+  --surface: #FFFCF6;
+  --ink: #2A1F16;
+  --muted: #7B6A58;
+  --line: #E7D9C4;
+  --accent: #E0691F;
+  --accent-ink: #B4500F;
+  --accent-soft: #FBE3CC;
+  --good: #3D8A57;
+  --good-soft: #DDEFE1;
+  --warn: #B8790F;
+  --warn-soft: #F7EACB;
+  --bad: #BE4234;
+  --bad-soft: #F6DCD7;
+  --code-bg: #2B211A;
+  --code-ink: #F1E4D3;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1A1410; --surface: #241C16; --ink: #F3E8DA; --muted: #B4A390; --line: #3A2D23;
+    --accent: #F08A45; --accent-ink: #F6A56C; --accent-soft: #3D2716;
+    --good: #6DBB86; --good-soft: #1E3326; --warn: #E0A84A; --warn-soft: #3A2C14;
+    --bad: #E6796B; --bad-soft: #3D1F1A; --code-bg: #120D0A; --code-ink: #F1E4D3;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1A1410; --surface: #241C16; --ink: #F3E8DA; --muted: #B4A390; --line: #3A2D23;
+  --accent: #F08A45; --accent-ink: #F6A56C; --accent-soft: #3D2716;
+  --good: #6DBB86; --good-soft: #1E3326; --warn: #E0A84A; --warn-soft: #3A2C14;
+  --bad: #E6796B; --bad-soft: #3D1F1A; --code-bg: #120D0A; --code-ink: #F1E4D3;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.55; }
+h1, h2, h3, h4 { font-family: var(--display); line-height: 1.15; text-wrap: balance; margin: 0; }
+a { color: var(--accent-ink); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+code, pre { font-family: var(--mono); }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+header.top { padding: 48px 0 28px; display: grid; gap: 14px; }
+header.top h1 { font-size: clamp(32px, 5vw, 52px); font-weight: 800; letter-spacing: -0.02em; }
+header.top p { max-width: 68ch; color: var(--muted); margin: 0; font-size: 17px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
+.chip b { color: var(--accent-ink); font-weight: 600; }
+
+/* ---------- Maquette ---------- */
+.mock-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; justify-content: space-between; margin: 12px 0 12px; }
+.mock-head h2 { font-size: 22px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; background: var(--surface); border: 1px solid var(--line); padding: 4px; border-radius: 12px; }
+.tabs button { font: 500 14px var(--body); color: var(--muted); background: none; border: 0; padding: 7px 12px; border-radius: 9px; cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
+.tabs button:hover:not([aria-selected="true"]) { color: var(--ink); background: var(--accent-soft); }
+
+.frame { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surface); box-shadow: 0 18px 40px -24px rgba(90, 50, 15, .35); }
+.frame-bar { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.url { margin-left: 10px; font: 12px var(--mono); color: var(--muted); background: var(--surface); border: 1px solid var(--line); padding: 3px 10px; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.screen { display: none; min-height: 560px; }
+.screen.on { display: grid; animation: rise .35s ease both; }
+@keyframes rise { from { opacity: .4; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.app { grid-template-columns: 220px 1fr; }
+.side { border-right: 1px solid var(--line); padding: 18px 14px; display: flex; flex-direction: column; gap: 4px; background: var(--bg); }
+.logo { font: 800 19px var(--display); display: flex; align-items: center; gap: 8px; margin: 0 6px 18px; }
+.logo i { width: 26px; height: 26px; border-radius: 8px; background: var(--accent); display: inline-block; position: relative; }
+.logo i::after { content: ""; position: absolute; inset: 7px; border: 2.5px solid #fff; border-radius: 3px; transform: rotate(45deg); }
+.nav { font-size: 14px; padding: 8px 10px; border-radius: 8px; color: var(--muted); display: flex; justify-content: space-between; }
+.nav.cur { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+.side .who { margin-top: auto; font-size: 13px; padding: 10px; border-top: 1px solid var(--line); color: var(--muted); }
+.side .who b { color: var(--ink); display: block; }
+.main { padding: 26px 30px; display: grid; gap: 20px; align-content: start; min-width: 0; }
+
+.crumbs { font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; }
+.crumbs span:not(:last-child)::after { content: "›"; margin-left: 6px; }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.good { background: var(--good-soft); color: var(--good); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.acc { background: var(--accent-soft); color: var(--accent-ink); }
+.pill.mute { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+.card { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: var(--surface); }
+.bar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transform-origin: left; animation: grow .9s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes grow { from { transform: scaleX(0); } }
+.btn { font: 600 14px var(--body); padding: 9px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:hover { filter: brightness(1.05); }
+.small { font-size: 13px; color: var(--muted); }
+
+/* Connexion */
+.login { place-items: center; background:
+  radial-gradient(circle at 15% 20%, var(--accent-soft) 0, transparent 40%),
+  radial-gradient(circle at 85% 80%, var(--accent-soft) 0, transparent 35%), var(--bg); padding: 30px 16px; }
+.login .card { width: min(380px, 100%); display: grid; gap: 14px; padding: 28px; }
+.login h3 { font-size: 26px; }
+.field { display: grid; gap: 5px; font-size: 13px; font-weight: 600; }
+.field input { font: 15px var(--body); padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); }
+
+/* Parcours */
+.hello h3 { font-size: 28px; }
+.resume { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; background: var(--ink); color: var(--bg); border: 0; }
+.resume .small { color: color-mix(in srgb, var(--bg) 70%, transparent); }
+.resume h4 { font-size: 21px; margin: 4px 0 10px; }
+.resume .bar { background: color-mix(in srgb, var(--bg) 22%, transparent); max-width: 380px; }
+.grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+.mods { display: grid; gap: 12px; }
+.mod { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center; font-size: 14px; }
+.mod .n { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font: 700 13px var(--display); background: var(--bg); border: 1px solid var(--line); }
+.mod.done .n { background: var(--good); color: #fff; border-color: var(--good); }
+.mod.now .n { background: var(--accent); color: #fff; border-color: var(--accent); }
+.mod .bar { margin-top: 5px; height: 5px; }
+.scores { display: grid; gap: 10px; font-size: 14px; }
+.score { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dashed var(--line); padding-bottom: 8px; }
+.score b { font-variant-numeric: tabular-nums; }
+
+/* Projet */
+.proj-head { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: end; }
+.proj-head h3 { font-size: 30px; }
+.filemap { display: flex; height: 34px; border-radius: 8px; overflow: hidden; font: 600 11px var(--mono); }
+.filemap span { display: grid; place-items: center; color: #fff; white-space: nowrap; overflow: hidden; padding: 0 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; }
+.timeline { display: grid; gap: 10px; }
+.tl { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 10px; }
+.tl-h { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
+.tl-h h4 { font-size: 17px; }
+.lessons { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.lessons li { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; font-size: 14px; padding: 6px 8px; border-radius: 8px; }
+.lessons li.cur { background: var(--accent-soft); }
+.ck { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); }
+.ck.y { background: var(--good); border-color: var(--good); position: relative; }
+.ck.y::after { content: ""; position: absolute; left: 4px; top: 1px; width: 5px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.ck.h { border-color: var(--accent); background: conic-gradient(var(--accent) 0 50%, transparent 50%); }
+
+/* Leçon */
+.lesson { grid-template-columns: 1fr 250px; }
+.lesson .main { padding-right: 24px; }
+.lesson h3 { font-size: 30px; }
+.prose { max-width: 66ch; display: grid; gap: 12px; }
+.prose p { margin: 0; }
+.term { border-bottom: 2px dotted var(--accent); cursor: help; position: relative; font-weight: 500; }
+.term code { font-size: .92em; }
+.tip { position: absolute; left: 0; top: calc(100% + 8px); width: 280px; z-index: 5; background: var(--ink); color: var(--bg); font-size: 13px; line-height: 1.45; font-weight: 400; padding: 12px 14px; border-radius: 10px; box-shadow: 0 10px 24px -10px rgba(0,0,0,.4); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: .18s; }
+.tip b { display: block; font-family: var(--display); font-size: 14px; margin-bottom: 3px; }
+.tip a { color: var(--accent-soft); }
+.term:hover .tip, .term:focus .tip, .term:focus-within .tip { opacity: 1; visibility: visible; transform: none; }
+.callout { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 10px 10px 0; font-size: 14px; }
+
+.walk { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.walk-code { background: var(--code-bg); color: var(--code-ink); overflow-x: auto; }
+.walk-code .fname { font: 12px var(--mono); padding: 8px 14px; color: #BFA98F; border-bottom: 1px solid rgba(255,255,255,.08); display: flex; justify-content: space-between; }
+.walk-code pre { margin: 0; padding: 10px 0; font-size: 12.5px; line-height: 1.65; counter-reset: ln; }
+.ln { display: block; padding: 0 14px 0 0; white-space: pre; transition: opacity .25s, background .25s; border-left: 3px solid transparent; }
+.ln::before { counter-increment: ln; content: counter(ln); display: inline-block; width: 34px; text-align: right; margin-right: 14px; color: #7C6A58; }
+.has-active .ln { opacity: .38; }
+.has-active .ln.on { opacity: 1; background: rgba(240, 138, 69, .16); border-left-color: var(--accent); }
+.p { color: #D59BE8; } .s { color: #B7D88B; } .k { color: #F0A35E; } .m { color: #7FC8E8; } .t { color: #F3D27A; } .c { color: #8C7B69; font-style: italic; }
+.walk-steps { padding: 14px; display: grid; gap: 6px; align-content: start; background: var(--surface); }
+.walk-steps .hd { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; padding: 0 4px 4px; }
+.step { text-align: left; font: inherit; color: inherit; background: none; border: 1px solid transparent; border-radius: 10px; padding: 9px 11px; cursor: pointer; display: grid; gap: 3px; }
+.step b { font-size: 14px; display: flex; gap: 8px; align-items: baseline; }
+.step b small { font: 11px var(--mono); color: var(--muted); font-weight: 400; }
+.step p { margin: 0; font-size: 13.5px; color: var(--muted); display: none; }
+.step[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.step[aria-pressed="true"] p { display: block; color: var(--ink); }
+.step:hover:not([aria-pressed="true"]) { background: var(--bg); }
+
+.quiz { border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 12px; background: var(--bg); }
+.quiz .q { font: 700 17px var(--display); }
+.opts { display: grid; gap: 8px; }
+.opt { text-align: left; font: 14px var(--body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; display: flex; gap: 10px; transition: .2s; }
+.opt span:first-child { font: 600 12px var(--mono); color: var(--muted); padding-top: 2px; }
+.opt:hover:not(:disabled) { border-color: var(--accent); }
+.opt.right { border-color: var(--good); background: var(--good-soft); }
+.opt.wrong { border-color: var(--bad); background: var(--bad-soft); }
+.opt:disabled { cursor: default; }
+.fb { font-size: 14px; display: none; }
+.fb.show { display: block; animation: rise .3s both; }
+.lesson-nav { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.rail { border-left: 1px solid var(--line); padding: 26px 18px; display: grid; gap: 16px; align-content: start; background: var(--bg); }
+.rail h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.rail .lessons li { font-size: 13px; padding: 5px 6px; }
+.dl { font-size: 13px; display: grid; gap: 2px; }
+
+/* Prof */
+.prof .side { background: var(--ink); color: var(--bg); }
+.prof .nav { color: color-mix(in srgb, var(--bg) 65%, transparent); }
+.prof .nav.cur { background: var(--accent); color: #fff; }
+.prof .side .who { border-color: color-mix(in srgb, var(--bg) 18%, transparent); color: color-mix(in srgb, var(--bg) 65%, transparent); }
+.prof .side .who b { color: var(--bg); }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.kpi { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.kpi b { font: 800 26px var(--display); display: block; font-variant-numeric: tabular-nums; }
+.kpi span { font-size: 13px; color: var(--muted); }
+.dead { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.dead div { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13px; display: grid; gap: 4px; }
+.dead div b { font-size: 14px; }
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 640px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; background: var(--bg); }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; }
+td .bar { width: 120px; display: inline-block; vertical-align: middle; margin-right: 8px; }
+
+/* ---------- Plan ---------- */
+.plan { padding: 56px 0 80px; display: grid; gap: 52px; }
+.sec { display: grid; grid-template-columns: 240px 1fr; gap: 28px; }
+.sec > .lab h2 { font-size: 26px; }
+.sec > .lab p { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
+.sec > .body { display: grid; gap: 16px; min-width: 0; }
+.sec .body > p { margin: 0; max-width: 70ch; }
+.hier { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface); }
+.hier div { padding: 14px; border-right: 1px solid var(--line); display: grid; gap: 4px; align-content: start; }
+.hier div:last-child { border-right: 0; }
+.hier b { font: 700 16px var(--display); }
+.hier span { font-size: 13px; color: var(--muted); }
+.hier em { font-style: normal; font-size: 13px; color: var(--accent-ink); font-weight: 600; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.tree { background: var(--code-bg); color: var(--code-ink); border-radius: 14px; padding: 16px 18px; font: 12.5px/1.7 var(--mono); overflow-x: auto; margin: 0; white-space: pre; }
+.stack { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.stack div { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--surface); display: grid; gap: 4px; align-content: start; }
+.stack b { font-family: var(--display); font-size: 16px; }
+.stack span { font-size: 13.5px; color: var(--muted); }
+.flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: f; }
+.flow li { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
+.flow li::before { counter-increment: f; content: counter(f); width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font: 700 14px var(--display); }
+.flow li p { margin: 4px 0 0; font-size: 14.5px; }
+.flow li b { display: block; }
+.dtable td:first-child { font-family: var(--mono); font-size: 13px; white-space: nowrap; color: var(--accent-ink); }
+.phases { display: grid; gap: 0; border-left: 2px solid var(--line); margin-left: 8px; }
+.ph { position: relative; padding: 0 0 20px 24px; }
+.ph::before { content: ""; position: absolute; left: -7px; top: 5px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); }
+.ph:first-child::before { background: var(--accent); }
+.ph h3 { font-size: 17px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ph p { margin: 4px 0 0; font-size: 14.5px; color: var(--muted); max-width: 72ch; }
+.props { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.props div { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: var(--surface); }
+.props b { display: block; font-family: var(--display); font-size: 16px; margin-bottom: 4px; }
+.props p { margin: 0; font-size: 14px; color: var(--muted); }
+.props .q { border-color: var(--accent); background: var(--accent-soft); }
+.props .q p { color: var(--ink); }
+
+@media (max-width: 900px) {
+  .app, .lesson { grid-template-columns: 1fr; }
+  .side { display: none; }
+  .rail { border-left: 0; border-top: 1px solid var(--line); }
+  .walk, .grid2, .cols, .props { grid-template-columns: 1fr; }
+  .kpis, .dead { grid-template-columns: repeat(2, 1fr); }
+  .stack { grid-template-columns: 1fr 1fr; }
+  .hier { grid-template-columns: 1fr; }
+  .hier div { border-right: 0; border-bottom: 1px solid var(--line); }
+  .sec { grid-template-columns: 1fr; gap: 14px; }
+  .main { padding: 20px 18px; }
+}
+@media (max-width: 480px) {
+  .stack, .kpis, .dead { grid-template-columns: 1fr; }
+  .resume { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Atelier JV : ta plateforme de cours</h1>
+    <p>Chaque élève se connecte avec le compte que tu lui crées, retrouve les projets de sa classe (JV1, JV2, JV3) et avance leçon par leçon dans le code : explications pas à pas, définitions au survol, quiz. Toi, tu ouvres les projets, fixes les deadlines et suis tout le monde. Les cours s'écrivent en fichiers MDX que Claude génère à partir de ton projet Unreal.</p>
+    <div class="chips">
+      <span class="chip"><b>Connexion</b> comptes créés par le prof</span>
+      <span class="chip"><b>Stack</b> Next.js + Supabase + Vercel</span>
+      <span class="chip"><b>Contenu</b> MDX dans le repo</span>
+      <span class="chip"><b>Progression</b> visible par l'élève seul</span>
+      <span class="chip"><b>Deadlines</b> fixées par toi</span>
+    </div>
+  </header>
+
+  <div class="mock-head">
+    <h2>Maquette interactive</h2>
+    <div class="tabs" role="tablist" aria-label="Écrans de la maquette">
+      <button role="tab" id="t-login" aria-controls="s-login" aria-selected="false">Connexion</button>
+      <button role="tab" id="t-home" aria-controls="s-home" aria-selected="false">Mon parcours</button>
+      <button role="tab" id="t-proj" aria-controls="s-proj" aria-selected="false">Projet</button>
+      <button role="tab" id="t-lesson" aria-controls="s-lesson" aria-selected="true">Leçon</button>
+      <button role="tab" id="t-prof" aria-controls="s-prof" aria-selected="false">Espace prof</button>
+    </div>
+  </div>
+
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url" id="url">atelier-jv.vercel.app/jv3/mario-kart/pawn-controller/header-kartpawn</span></div>
+
+    <!-- CONNEXION -->
+    <section class="screen login" id="s-login" role="tabpanel" aria-labelledby="t-login" data-url="atelier-jv.vercel.app/connexion">
+      <form class="card" onsubmit="event.preventDefault(); show('home');">
+        <div class="logo"><i></i>Atelier JV</div>
+        <h3>Content de te revoir</h3>
+        <p class="small" style="margin:0">Connecte-toi avec l'identifiant donné par ton prof.</p>
+        <label class="field" for="lg-id">Identifiant<input id="lg-id" value="ines.moreau" autocomplete="username"></label>
+        <label class="field" for="lg-pw">Mot de passe<input id="lg-pw" type="password" value="motdepasse" autocomplete="current-password"></label>
+        <button class="btn primary" type="submit">Se connecter</button>
+        <p class="small" style="margin:0">Mot de passe oublié ? Ton prof peut le réinitialiser depuis son espace.</p>
+      </form>
+    </section>
+
+    <!-- MON PARCOURS -->
+    <section class="screen app" id="s-home" role="tabpanel" aria-labelledby="t-home" data-url="atelier-jv.vercel.app/parcours">
+      <aside class="side">
+        <div class="logo"><i></i>Atelier JV</div>
+        <span class="nav cur">Mon parcours</span>
+        <span class="nav">Projets <span>3</span></span>
+        <span class="nav">Glossaire</span>
+        <span class="nav">Mes quiz</span>
+        <div class="who"><b>Inès Moreau</b>JV3 · 2026-2027</div>
+      </aside>
+      <div class="main">
+        <div class="hello"><span class="pill acc">JV3</span><h3 style="margin-top:8px">Salut Inès, on reprend ?</h3></div>
+        <div class="card resume">
+          <div>
+            <span class="small">Mario Kart · 1. Pawn Controller</span>
+            <h4>1.2 Le header KartPawn.h · étape 3 sur 6</h4>
+            <div class="bar"><i style="width:50%"></i></div>
+          </div>
+          <button class="btn primary" type="button" onclick="show('lesson')">Reprendre</button>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap">
+              <h4 style="font-size:18px">Mario Kart</h4><span class="small">38 % terminé</span>
+            </div>
+            <div class="mods">
+              <div class="mod now"><span class="n">1</span><div>Pawn Controller<div class="bar"><i style="width:30%"></i></div></div><span class="pill warn">avant le 7 nov.</span></div>
+              <div class="mod"><span class="n">2</span><div>Game Mode<div class="bar"><i style="width:0"></i></div></div><span class="pill mute">14 nov.</span></div>
+              <div class="mod"><span class="n">3</span><div>Compteur de tours<div class="bar"><i style="width:0"></i></div></div><span class="pill mute">21 nov.</span></div>
+              <div class="mod"><span class="n">4</span><div>Widgets HUD<div class="bar"><i style="width:0"></i></div></div><span class="pill mute">5 déc.</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h4 style="font-size:18px;margin-bottom:14px">Derniers quiz</h4>
+            <div class="scores">
+              <div class="score"><span>1.1 Qui fait quoi dans le Pawn</span><b>4/4</b></div>
+              <div class="score"><span>Quiz final · Course de base (JV2)</span><b>17/20</b></div>
+              <div class="score"><span>Blueprints vs C++</span><b>6/8</b></div>
+            </div>
+            <p class="small" style="margin:14px 0 0">Projets terminés : Pong (JV1), Course de base (JV2)</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROJET -->
+    <section class="screen app" id="s-proj" role="tabpanel" aria-labelledby="t-proj" data-url="atelier-jv.vercel.app/jv3/mario-kart">
+      <aside class="side">
+        <div class="logo"><i></i>Atelier JV</div>
+        <span class="nav">Mon parcours</span>
+        <span class="nav cur">Projets <span>3</span></span>
+        <span class="nav">Glossaire</span>
+        <span class="nav">Mes quiz</span>
+        <div class="who"><b>Inès Moreau</b>JV3 · 2026-2027</div>
+      </aside>
+      <div class="main">
+        <div class="crumbs"><span>JV3</span><span>Mario Kart</span></div>
+        <div class="proj-head">
+          <div><h3>Mario Kart</h3><p class="small" style="margin:4px 0 0">Unreal Engine 5 · C++ · 4 modules · 19 leçons · 8 quiz</p></div>
+          <button class="btn primary" type="button" onclick="show('lesson')">Continuer la leçon 1.2</button>
+        </div>
+        <div class="card">
+          <h4 style="font-size:16px;margin-bottom:10px">Carte de KartPawn.cpp · 712 lignes</h4>
+          <div class="filemap" aria-label="Répartition des 712 lignes de KartPawn.cpp par leçon">
+            <span style="flex:60;background:#9C8670">1.2</span>
+            <span style="flex:95;background:#C98A3D">1.3 Input</span>
+            <span style="flex:210;background:#E0691F">1.4 Physique et accélération</span>
+            <span style="flex:180;background:#B4500F">1.5 Drift et boost</span>
+            <span style="flex:110;background:#7E5A3C">1.6 Caméra</span>
+            <span style="flex:57;background:#5E4836">Debug</span>
+          </div>
+          <div class="legend"><span><i style="background:#9C8670"></i>Constructeur, l. 1-60</span><span><i style="background:#C98A3D"></i>Enhanced Input, l. 61-155</span><span><i style="background:#E0691F"></i>Physique, l. 156-365</span><span><i style="background:#B4500F"></i>Drift, l. 366-545</span><span><i style="background:#7E5A3C"></i>Caméra, l. 546-655</span><span><i style="background:#5E4836"></i>Debug, l. 656-712</span></div>
+        </div>
+        <div class="timeline">
+          <div class="tl">
+            <div class="tl-h"><h4>1. Pawn Controller</h4><span class="pill warn">deadline 7 nov.</span></div>
+            <ul class="lessons">
+              <li><span class="ck y"></span>1.1 Vue d'ensemble : qui fait quoi<span class="small">Quiz 4/4</span></li>
+              <li class="cur"><span class="ck h"></span><b>1.2 Le header KartPawn.h</b><span class="small">en cours</span></li>
+              <li><span class="ck"></span>1.3 Brancher l'Enhanced Input<span class="small">15 min</span></li>
+              <li><span class="ck"></span>1.4 Physique et accélération<span class="small">30 min</span></li>
+              <li><span class="ck"></span>1.5 Drift et boost<span class="small">25 min</span></li>
+              <li><span class="ck"></span>1.6 Caméra et bras à ressort<span class="small">15 min</span></li>
+              <li><span class="ck"></span>Quiz final du module<span class="small">10 questions</span></li>
+            </ul>
+          </div>
+          <div class="tl"><div class="tl-h"><h4>2. Game Mode</h4><span class="pill mute">14 nov. · 4 leçons</span></div></div>
+          <div class="tl"><div class="tl-h"><h4>3. Compteur de tours</h4><span class="pill mute">21 nov. · 4 leçons</span></div></div>
+          <div class="tl"><div class="tl-h"><h4>4. Widgets HUD</h4><span class="pill mute">5 déc. · 4 leçons</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LEÇON -->
+    <section class="screen app lesson on" id="s-lesson" role="tabpanel" aria-labelledby="t-lesson" data-url="atelier-jv.vercel.app/jv3/mario-kart/pawn-controller/header-kartpawn">
+      <div class="main">
+        <div class="crumbs"><span>JV3</span><span>Mario Kart</span><span>1. Pawn Controller</span><span>1.2 Le header</span></div>
+        <h3>Le header KartPawn.h</h3>
+        <div class="prose">
+          <p>Le fichier <code>.h</code> déclare ce que contient le kart : ses variables et ses fonctions. Le <code>.cpp</code> (712 lignes) dit comment elles marchent. On lit d'abord le header, parce que c'est le sommaire de la classe.</p>
+          <p>Tu vas croiser des macros comme
+            <span class="term" tabindex="0"><code>UPROPERTY</code><span class="tip" role="tooltip"><b>UPROPERTY</b>Macro qui déclare une variable au moteur : elle apparaît dans l'éditeur, peut être sauvegardée, et le ramasse-miettes d'Unreal suit les objets qu'elle pointe. <a href="https://dev.epicgames.com/documentation/en-us/unreal-engine/unreal-engine-uproperties">Doc Unreal ↗</a></span></span>
+            qui servent à la
+            <span class="term" tabindex="0">réflexion<span class="tip" role="tooltip"><b>Réflexion</b>Capacité du moteur à connaître tes classes pendant l'exécution : noms des variables, types, fonctions. C'est ce qui permet aux Blueprints de voir ton code C++.</span></span>.
+            Passe la souris sur les mots soulignés pour leur définition.</p>
+        </div>
+
+        <div class="walk" id="walk">
+          <div class="walk-code">
+            <div class="fname"><span>Source/MarioKart/KartPawn.h</span><span>28 lignes</span></div>
+<pre><code><span class="ln"><span class="p">#pragma once</span></span><span class="ln"> </span><span class="ln"><span class="p">#include</span> <span class="s">"CoreMinimal.h"</span></span><span class="ln"><span class="p">#include</span> <span class="s">"GameFramework/Pawn.h"</span></span><span class="ln"><span class="p">#include</span> <span class="s">"InputActionValue.h"</span></span><span class="ln"><span class="p">#include</span> <span class="s">"KartPawn.generated.h"</span></span><span class="ln"> </span><span class="ln"><span class="k">class</span> <span class="t">UInputMappingContext</span>;</span><span class="ln"><span class="k">class</span> <span class="t">UInputAction</span>;</span><span class="ln"> </span><span class="ln"><span class="m">UCLASS</span>()</span><span class="ln"><span class="k">class</span> <span class="m">MARIOKART_API</span> <span class="t">AKartPawn</span> : <span class="k">public</span> <span class="t">APawn</span></span><span class="ln">{</span><span class="ln">    <span class="m">GENERATED_BODY</span>()</span><span class="ln"> </span><span class="ln"><span class="k">public</span>:</span><span class="ln">    <span class="t">AKartPawn</span>();</span><span class="ln">    <span class="k">virtual void</span> Tick(<span class="k">float</span> DeltaTime) <span class="k">override</span>;</span><span class="ln"> </span><span class="ln"><span class="k">protected</span>:</span><span class="ln">    <span class="m">UPROPERTY</span>(EditAnywhere, Category = <span class="s">"Input"</span>)</span><span class="ln">    <span class="t">TObjectPtr</span>&lt;<span class="t">UInputMappingContext</span>&gt; KartMapping;</span><span class="ln"> </span><span class="ln">    <span class="m">UPROPERTY</span>(EditAnywhere, Category = <span class="s">"Input"</span>)</span><span class="ln">    <span class="t">TObjectPtr</span>&lt;<span class="t">UInputAction</span>&gt; AccelerateAction;</span><span class="ln"> </span><span class="ln">    <span class="k">void</span> Accelerate(<span class="k">const</span> <span class="t">FInputActionValue</span>&amp; Value);</span><span class="ln">};</span></code></pre>
+          </div>
+          <div class="walk-steps" id="steps">
+            <div class="hd"><span>Pas à pas</span><span id="stepcount">3 / 6</span></div>
+          </div>
+        </div>
+
+        <div class="callout"><b>À retenir :</b> <code>KartPawn.generated.h</code> doit toujours être le dernier include. L'outil de génération d'Unreal (UHT) refuse de compiler sinon.</div>
+
+        <div class="quiz" id="quiz">
+          <span class="small">Vérifie ta compréhension · question 1 sur 3</span>
+          <div class="q">Pourquoi <code>KartMapping</code> est-il précédé de <code>UPROPERTY(EditAnywhere)</code> ?</div>
+          <div class="opts">
+            <button class="opt" type="button" data-ok="0"><span>A</span><span>Pour que la variable soit plus rapide à lire</span></button>
+            <button class="opt" type="button" data-ok="1"><span>B</span><span>Pour pouvoir choisir l'asset dans l'éditeur, et qu'Unreal suive l'objet pointé</span></button>
+            <button class="opt" type="button" data-ok="0"><span>C</span><span>Parce que tout pointeur en C++ doit avoir cette macro</span></button>
+            <button class="opt" type="button" data-ok="0"><span>D</span><span>Pour rendre la variable publique</span></button>
+          </div>
+          <p class="fb" id="fb"></p>
+        </div>
+
+        <div class="lesson-nav">
+          <button class="btn" type="button" onclick="show('proj')">← 1.1 Vue d'ensemble</button>
+          <button class="btn primary" type="button">Valider et passer à 1.3 →</button>
+        </div>
+      </div>
+      <aside class="rail">
+        <div class="dl"><h4>Deadline du module</h4><span class="pill warn" style="justify-self:start;margin-top:6px">vendredi 7 nov.</span></div>
+        <div>
+          <h4 style="margin-bottom:8px">1. Pawn Controller</h4>
+          <ul class="lessons">
+            <li><span class="ck y"></span>1.1 Vue d'ensemble<span></span></li>
+            <li class="cur"><span class="ck h"></span><b>1.2 Le header</b><span></span></li>
+            <li><span class="ck"></span>1.3 Enhanced Input<span></span></li>
+            <li><span class="ck"></span>1.4 Physique<span></span></li>
+            <li><span class="ck"></span>1.5 Drift et boost<span></span></li>
+            <li><span class="ck"></span>1.6 Caméra<span></span></li>
+            <li><span class="ck"></span>Quiz final<span></span></li>
+          </ul>
+        </div>
+        <div class="dl"><h4>Ta progression</h4><div class="bar" style="margin-top:8px"><i style="width:30%"></i></div><span class="small">Module 30 % · projet 38 %</span></div>
+      </aside>
+    </section>
+
+    <!-- PROF -->
+    <section class="screen app prof" id="s-prof" role="tabpanel" aria-labelledby="t-prof" data-url="atelier-jv.vercel.app/prof/classes/jv3">
+      <aside class="side">
+        <div class="logo"><i></i>Atelier JV</div>
+        <span class="nav cur">JV3 <span>18</span></span>
+        <span class="nav">JV2 <span>22</span></span>
+        <span class="nav">JV1 <span>24</span></span>
+        <span class="nav">Comptes élèves</span>
+        <span class="nav">Réponses à corriger <span>5</span></span>
+        <div class="who"><b>Espace prof</b>Mathew Simon</div>
+      </aside>
+      <div class="main">
+        <div class="proj-head">
+          <div><span class="small">JV3 · projet ouvert</span><h3>Mario Kart</h3></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="button">Importer une liste CSV</button><button class="btn primary" type="button">Ouvrir un projet</button></div>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><b>18</b><span>élèves</span></div>
+          <div class="kpi"><b>41 %</b><span>progression moyenne</span></div>
+          <div class="kpi"><b>14,2</b><span>moyenne des quiz /20</span></div>
+          <div class="kpi"><b style="color:var(--bad)">3</b><span>en retard sur le module 1</span></div>
+        </div>
+        <div>
+          <h4 style="font-size:16px;margin-bottom:10px">Deadlines de la classe</h4>
+          <div class="dead">
+            <div><b>1. Pawn Controller</b><span class="small">ven. 7 nov.</span><span class="pill warn" style="justify-self:start">dans 5 jours</span></div>
+            <div><b>2. Game Mode</b><span class="small">ven. 14 nov.</span><span class="pill mute" style="justify-self:start">modifier</span></div>
+            <div><b>3. Compteur de tours</b><span class="small">ven. 21 nov.</span><span class="pill mute" style="justify-self:start">modifier</span></div>
+            <div><b>4. Widgets HUD</b><span class="small">ven. 5 déc.</span><span class="pill mute" style="justify-self:start">modifier</span></div>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Élève (exemples)</th><th>Leçon actuelle</th><th>Progression</th><th>Quiz</th><th>Activité</th><th>Statut</th></tr></thead>
+            <tbody>
+              <tr><td>Inès Moreau</td><td>1.2 Le header</td><td class="num"><span class="bar"><i style="width:38%"></i></span>38 %</td><td class="num">17,5</td><td>il y a 2 h</td><td><span class="pill good">à l'heure</span></td></tr>
+              <tr><td>Hugo Lefèvre</td><td>2.1 Rôle du Game Mode</td><td class="num"><span class="bar"><i style="width:57%"></i></span>57 %</td><td class="num">16,0</td><td>hier</td><td><span class="pill acc">en avance</span></td></tr>
+              <tr><td>Sarah Benali</td><td>1.4 Physique</td><td class="num"><span class="bar"><i style="width:44%"></i></span>44 %</td><td class="num">13,0</td><td>il y a 3 j</td><td><span class="pill good">à l'heure</span></td></tr>
+              <tr><td>Lucas Garnier</td><td>1.1 Vue d'ensemble</td><td class="num"><span class="bar"><i style="width:9%"></i></span>9 %</td><td class="num">9,5</td><td>il y a 9 j</td><td><span class="pill bad">en retard</span></td></tr>
+              <tr><td>Chloé Dubois</td><td>1.6 Caméra</td><td class="num"><span class="bar"><i style="width:49%"></i></span>49 %</td><td class="num">15,5</td><td>il y a 20 min</td><td><span class="pill good">à l'heure</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<main class="wrap plan">
+
+  <section class="sec">
+    <div class="lab"><h2>Organisation des cours</h2><p>Cinq niveaux, du plus large au plus fin.</p></div>
+    <div class="body">
+      <div class="hier">
+        <div><b>Niveau</b><span>La classe de l'élève, fixée par toi sur son compte.</span><em>JV3</em></div>
+        <div><b>Projet</b><span>Un jeu complet, ouvert à une ou plusieurs classes.</span><em>Mario Kart</em></div>
+        <div><b>Module</b><span>Une grosse brique du jeu, avec sa deadline.</span><em>1. Pawn Controller</em></div>
+        <div><b>Leçon</b><span>10 à 30 min de lecture, sauvegardée à l'étape près.</span><em>1.2 Le header</em></div>
+        <div><b>Blocs</b><span>Texte, code commenté pas à pas, définitions, quiz, encadrés.</span><em>Quiz 1 sur 3</em></div>
+      </div>
+      <p>Pour un fichier de 700 lignes comme le Pawn, chaque leçon couvre une tranche du fichier, et la page du projet affiche la carte du fichier pour que l'élève voie où il en est dans le code. Une leçon courte de 80 lignes tient en une seule leçon.</p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="lab"><h2>Les blocs MDX</h2><p>Ce que toi ou Claude écrivez dans chaque leçon.</p></div>
+    <div class="body">
+      <div class="cols">
+<pre class="tree"><span class="c">// content/jv3/mario-kart/01-pawn-controller/02-header.mdx</span>
+---
+titre: Le header KartPawn.h
+duree: 15
+---
+
+Le fichier <span class="t">.h</span> déclare ce que contient le kart…
+Une macro comme <span class="m">&lt;Term id="uproperty"&gt;</span>UPROPERTY<span class="m">&lt;/Term&gt;</span>…
+
+<span class="m">&lt;CodeWalkthrough</span> file=<span class="s">"code/KartPawn.h"</span><span class="m">&gt;</span>
+  <span class="m">&lt;Step</span> lines=<span class="s">"1-6"</span> title=<span class="s">"Les includes"</span><span class="m">&gt;</span>
+    Le .generated.h toujours en dernier…
+  <span class="m">&lt;/Step&gt;</span>
+<span class="m">&lt;/CodeWalkthrough&gt;</span>
+
+<span class="m">&lt;Quiz</span> id=<span class="s">"pawn-h-1"</span><span class="m">&gt;</span>
+  <span class="m">&lt;Choice</span> correct<span class="m">&gt;</span>Pour l'éditeur…<span class="m">&lt;/Choice&gt;</span>
+<span class="m">&lt;/Quiz&gt;</span></pre>
+        <div class="tbl-wrap">
+          <table class="dtable" style="min-width:0">
+            <thead><tr><th>Composant</th><th>Rôle</th></tr></thead>
+            <tbody>
+              <tr><td>&lt;CodeWalkthrough&gt;</td><td>Code coloré à gauche, étapes à droite qui surlignent des lignes.</td></tr>
+              <tr><td>&lt;Term&gt;</td><td>Mot souligné avec définition au survol, tirée du glossaire, et lien vers la doc.</td></tr>
+              <tr><td>&lt;Quiz&gt;</td><td>QCM, vrai/faux, code à trous, remise en ordre de lignes. Score enregistré.</td></tr>
+              <tr><td>&lt;OpenQuestion&gt;</td><td>Réponse libre que tu notes et commentes depuis ton espace.</td></tr>
+              <tr><td>&lt;Callout&gt;</td><td>Encadré « À retenir », « Piège classique », « Pour aller plus loin ».</td></tr>
+              <tr><td>&lt;Compare&gt;</td><td>Deux versions d'un code côte à côte (avant / après, Blueprint / C++).</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="lab"><h2>Arborescence</h2><p>Les cours vivent dans le repo, les comptes et la progression dans Supabase.</p></div>
+    <div class="body">
+<pre class="tree">content/
+├── glossaire/              <span class="c">une fiche par terme : uproperty.mdx, reflexion.mdx…</span>
+├── jv1/  pong/ …
+├── jv2/  course-de-base/ …
+└── jv3/
+    └── mario-kart/
+        ├── projet.yaml     <span class="c">titre, niveau, description, ordre des modules</span>
+        ├── code/           <span class="c">copies des .h / .cpp utilisés dans les leçons</span>
+        ├── 01-pawn-controller/
+        │   ├── module.yaml
+        │   ├── 01-vue-ensemble.mdx
+        │   ├── 02-header.mdx
+        │   ├── 03-enhanced-input.mdx
+        │   └── quiz-final.mdx
+        ├── 02-game-mode/
+        ├── 03-compteur-tours/
+        └── 04-widgets-hud/</pre>
+      <p>Les deadlines ne sont pas dans les fichiers : tu les fixes dans ton espace, par classe, sans redéployer le site. Le code est copié dans <code>code/</code> pour que le site ne dépende pas de ton projet Unreal.</p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="lab"><h2>Ajouter un cours avec Claude</h2><p>Un skill Claude Code rangé dans le repo du site.</p></div>
+    <div class="body">
+      <ol class="flow">
+        <li><div><b>Tu lances la commande</b><p>Dans le repo du site : <code>/ajouter-cours D:\Projets\MarioKart jv3</code>, en précisant les classes ou fichiers à couvrir.</p></div></li>
+        <li><div><b>Claude lit ton projet et propose un découpage</b><p>Il lit les .h et .cpp, découpe les gros fichiers en tranches logiques et te soumet la liste des modules et leçons. Tu valides ou corriges.</p></div></li>
+        <li><div><b>Il écrit les leçons</b><p>Explications adaptées au niveau, pas à pas sur le code, nouveaux termes du glossaire, 2 à 3 quiz par leçon et un quiz final par module.</p></div></li>
+        <li><div><b>Une vérification automatique</b><p><code>npm run check-content</code> contrôle que les numéros de ligne existent, que chaque quiz a une bonne réponse et que chaque terme a sa fiche.</p></div></li>
+        <li><div><b>Tu relis et publies</b><p>Aperçu en local, puis <code>git push</code> : Vercel met le site à jour. Dans ton espace, tu ouvres le projet à la classe et fixes les deadlines.</p></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="lab"><h2>Technique</h2><p>Gratuit pour quelques classes.</p></div>
+    <div class="body">
+      <div class="stack">
+        <div><b>Next.js (App Router)</b><span>Pages des cours générées à partir du MDX, espace prof en Server Actions.</span></div>
+        <div><b>Tailwind + Motion</b><span>Thème crème et orange, mode sombre, animations d'apparition et de progression.</span></div>
+        <div><b>Shiki</b><span>Coloration du C++ identique à VS Code / Rider, lignes surlignables.</span></div>
+        <div><b>Supabase Auth</b><span>Identifiant + mot de passe. Les comptes sont créés par toi uniquement, pas d'inscription libre.</span></div>
+        <div><b>Supabase Postgres</b><span>Progression, quiz, deadlines. Règles d'accès : un élève ne lit que ses propres lignes.</span></div>
+        <div><b>Vercel</b><span>Déploiement à chaque push, accessible en classe comme depuis chez soi.</span></div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="dtable">
+          <thead><tr><th>Table</th><th>Contenu</th></tr></thead>
+          <tbody>
+            <tr><td>profiles</td><td>identifiant, nom affiché, rôle (élève ou prof), classe</td></tr>
+            <tr><td>classes</td><td>nom (« JV3 2026-2027 »), niveau jv1, jv2 ou jv3</td></tr>
+            <tr><td>class_projects</td><td>quel projet est ouvert à quelle classe, et depuis quand</td></tr>
+            <tr><td>deadlines</td><td>classe, projet, module, date</td></tr>
+            <tr><td>lesson_progress</td><td>élève, leçon, statut, dernière étape vue, date</td></tr>
+            <tr><td>quiz_attempts</td><td>élève, quiz, score, réponses données, date</td></tr>
+            <tr><td>open_answers</td><td>réponses libres, ta note et ton commentaire</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="lab"><h2>Étapes de réalisation</h2><p>Chaque étape donne un site utilisable.</p></div>
+    <div class="body">
+      <div class="phases">
+        <div class="ph"><h3>1. Socle <span class="pill acc">on commence ici</span></h3><p>Projet Next.js, thème, connexion Supabase, création des comptes par toi (un par un ou import CSV), redirection selon le rôle.</p></div>
+        <div class="ph"><h3>2. Moteur de contenu</h3><p>Lecture du MDX, pages Niveau / Projet / Module / Leçon, composants CodeWalkthrough, Term, Callout, glossaire.</p></div>
+        <div class="ph"><h3>3. Progression et quiz</h3><p>Sauvegarde de l'étape, bouton Reprendre, quiz notés, page « Mes quiz », barre de progression par module et projet.</p></div>
+        <div class="ph"><h3>4. Espace prof</h3><p>Classes, ouverture des projets, deadlines, tableau de suivi, correction des réponses libres, réinitialisation des mots de passe.</p></div>
+        <div class="ph"><h3>5. Skill « ajouter-cours » et premier vrai cours</h3><p>Le skill Claude Code et le script de vérification, testés en générant le Mario Kart JV3 depuis ton projet.</p></div>
+        <div class="ph"><h3>6. Finitions</h3><p>Animations, mobile, accessibilité, mode présentation pour projeter une leçon en classe.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="lab"><h2>Propositions et questions</h2><p>À trancher avant ou pendant la construction.</p></div>
+    <div class="body">
+      <div class="props">
+        <div class="q"><b>Leçons bloquées ou libres ?</b><p>Ma proposition : tout est accessible, mais un module n'est « terminé » qu'avec au moins 70 % au quiz final. Autre option : débloquer la leçon suivante seulement après le quiz.</p></div>
+        <div class="q"><b>Notes visibles par l'élève ?</b><p>Il voit ses scores de quiz. Les notes des réponses libres : visibles tout de suite, ou seulement quand tu les publies ?</p></div>
+        <div><b>Défis de code</b><p>À la fin d'un module, un défi à faire dans Unreal (« ajoute un boost au départ ») que l'élève marque comme fait, avec une capture ou un lien.</p></div>
+        <div><b>Captures et vidéos de l'éditeur</b><p>Images et courtes vidéos de l'éditeur Unreal dans les leçons, stockées sur Supabase Storage.</p></div>
+        <div><b>Mode présentation</b><p>Une leçon en plein écran, étape par étape, pour la projeter pendant le cours.</p></div>
+        <div><b>Nom de la plateforme</b><p>« Atelier JV » est provisoire. Si tu as un nom (celui de l'école, de ta formation), on le met.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const steps = [
+  { from: 1, to: 6, title: "Les includes", body: "CoreMinimal apporte les types de base, Pawn.h la classe parente. KartPawn.generated.h est créé par Unreal et doit être le dernier include." },
+  { from: 8, to: 9, title: "Déclarations anticipées", body: "On annonce que ces classes existent sans inclure leur fichier. Le header reste léger et compile plus vite ; le vrai include se fait dans le .cpp." },
+  { from: 11, to: 14, title: "UCLASS et GENERATED_BODY", body: "UCLASS() rend la classe visible du moteur et des Blueprints. GENERATED_BODY() insère le code généré par Unreal. Le préfixe A indique un Actor ; un Pawn en est un." },
+  { from: 16, to: 18, title: "Ce qui est public", body: "Le constructeur règle les valeurs par défaut. Tick est appelé à chaque image : override signale qu'on remplace la version de APawn." },
+  { from: 20, to: 25, title: "Les variables d'input", body: "Le Mapping Context associe les touches aux actions, AccelerateAction est l'action « accélérer ». UPROPERTY(EditAnywhere) permet de choisir les assets dans l'éditeur." },
+  { from: 27, to: 27, title: "La fonction appelée par l'input", body: "Quand le joueur appuie, l'Enhanced Input appelle Accelerate avec une valeur entre 0 et 1 (gâchette) qu'on lira dans le .cpp, leçon 1.3." }
+];
+const stepsEl = document.getElementById("steps");
+const walk = document.getElementById("walk");
+const lines = walk.querySelectorAll(".ln");
+const count = document.getElementById("stepcount");
+const btns = steps.map((s, i) => {
+  const b = document.createElement("button");
+  b.className = "step"; b.type = "button"; b.id = "step-" + (i + 1);
+  b.setAttribute("aria-pressed", "false");
+  b.innerHTML = `<b>${i + 1}. ${s.title} <small>l. ${s.from}${s.to !== s.from ? "-" + s.to : ""}</small></b><p>${s.body}</p>`;
+  b.addEventListener("click", () => pick(i));
+  stepsEl.appendChild(b);
+  return b;
+});
+function pick(i) {
+  btns.forEach((b, j) => b.setAttribute("aria-pressed", String(i === j)));
+  walk.classList.add("has-active");
+  lines.forEach((l, n) => l.classList.toggle("on", n + 1 >= steps[i].from && n + 1 <= steps[i].to));
+  count.textContent = (i + 1) + " / " + steps.length;
+}
+pick(2);
+
+const fb = document.getElementById("fb");
+document.querySelectorAll("#quiz .opt").forEach(o => o.addEventListener("click", () => {
+  const ok = o.dataset.ok === "1";
+  document.querySelectorAll("#quiz .opt").forEach(x => { x.disabled = true; if (x.dataset.ok === "1") x.classList.add("right"); });
+  if (!ok) o.classList.add("wrong");
+  fb.innerHTML = ok
+    ? "<b style='color:var(--good)'>Bien vu.</b> EditAnywhere expose la variable dans l'éditeur, et UPROPERTY permet au ramasse-miettes de savoir que cet asset est utilisé. Score enregistré : 1/1."
+    : "<b style='color:var(--bad)'>Pas tout à fait.</b> Un pointeur C++ classique n'a pas besoin de macro. Ici, UPROPERTY sert à l'éditeur (EditAnywhere) et au ramasse-miettes d'Unreal. Relis l'étape 5 du pas à pas.";
+  fb.classList.add("show");
+}));
+
+const tabs = document.querySelectorAll('[role="tab"]');
+const url = document.getElementById("url");
+function show(key) {
+  tabs.forEach(t => t.setAttribute("aria-selected", String(t.id === "t-" + key)));
+  document.querySelectorAll(".screen").forEach(s => {
+    const on = s.id === "s-" + key;
+    s.classList.toggle("on", on);
+    if (on) url.textContent = s.dataset.url;
+  });
+}
+tabs.forEach(t => t.addEventListener("click", () => show(t.id.slice(2))));
+</script>
+</body>
+</html>

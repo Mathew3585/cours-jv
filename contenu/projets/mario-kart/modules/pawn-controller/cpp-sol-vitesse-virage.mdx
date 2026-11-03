@@ -1,0 +1,119 @@
+Lignes 305 à 415 : les trois premières étapes du Tick écrites dans le fichier. `UpdateGround` décide si le kart est au sol et applique la gravité. `UpdateSpeed` choisit la vitesse. `UpdateSteering` fait tourner le kart, y compris pendant un drift.
+
+Le kart range sa vitesse en deux nombres : `CurrentSpeed`, la vitesse **vers l'avant** (négative en marche arrière), et `VerticalSpeed`, la vitesse **vers le haut** (négative quand on tombe). L'accélérateur ne touche que la première, la gravité et le saut que la seconde. `MoveKart` les combinera.
+
+## Trois outils de maths
+
+Un <Terme id="vecteur">vecteur</Terme> (`FVector`) est une flèche décrite par X, Y, Z. Dans Unreal, X pointe vers l'avant, Y vers la droite, Z vers le haut, en centimètres. `GetActorUpVector()` donne la flèche « vers le toit du kart » : c'est un <Terme id="vecteur-unitaire">vecteur unitaire</Terme>, de longueur 1.
+
+La <Terme id="normale">normale</Terme> d'une surface est une flèche de longueur 1 perpendiculaire à elle, comme un bâton planté bien droit dans le sol. Sur du plat, elle pointe vers le ciel ; sur une pente, elle penche avec elle ; contre un mur, elle est horizontale.
+
+Le <Terme id="produit-scalaire">produit scalaire</Terme> `DotProduct(A, B)` de deux flèches de longueur 1 vaut 1 si elles vont dans le même sens, 0 si elles sont perpendiculaires, -1 si elles sont opposées. Normale du sol et haut du kart : 1 sur du plat, environ 0,7 sur une pente à 45 degrés, 0 contre un mur. C'est ce que teste `WalkableFloorZ`.
+
+## UpdateGround : au sol ou en l'air ?
+
+<CodePasAPas fichier="KartPawn.cpp" debut={305} fin={340}>
+  <Etape lignes="305-308" titre="Le bandeau et la signature">
+    Un bandeau annonce les étapes du Tick. `UpdateGround` est la première appelée par Tick.
+  </Etape>
+  <Etape lignes="309-314" titre="Lancer les rayons">
+    On appelle `TraceGroundUnderWheels`, écrite plus bas dans le fichier (leçon 7) : elle lance un rayon sous chaque roue. `GroundPoint` et `WheelsNormal` sont remplis par la fonction. Si au moins une roue touche, `bHitFloor` est vrai.
+  </Etape>
+  <Etape lignes="316-317" titre="Hauteur au-dessus du sol">
+    `GetActorLocation() - GroundPoint` est la flèche qui va du sol jusqu'au centre du kart. Son produit scalaire avec le haut du kart donne la longueur de cette flèche **le long de l'axe haut** : la hauteur, mesurée perpendiculairement au plancher du kart, même dans une pente.
+  </Etape>
+  <Etape lignes="319-321" titre="Au sol ou en l'air ?">
+    Trois conditions : voir un sol, être assez près de lui, et ne pas être en train de monter. La distance maximale dépend de l'état précédent : 45 + 30 = 75 cm si on était déjà au sol, 45 + 5 = 50 cm sinon (`GroundSnapTolerance`, ligne 17).
+  </Etape>
+  <Etape lignes="323-324" titre="La pente à suivre">
+    Si les rayons voient un sol, même un peu loin, on retient sa pente : le kart pourra commencer à s'y aligner avant d'atterrir. Sinon, la pente cible est « tout droit vers le ciel » : en l'air, le kart se remet à plat.
+  </Etape>
+  <Etape lignes="326-334" titre="Au sol : coller à la bonne hauteur">
+    On ne tombe plus : `VerticalSpeed` vaut 0. Puis on corrige l'écart avec la hauteur voulue. À 50 cm, l'erreur vaut +5 et on descend de 5 cm ; à 40 cm, l'erreur vaut -5 et le signe moins de `-GetActorUpVector()` fait remonter de 5 cm.
+  </Etape>
+  <Etape lignes="335-340" titre="En l'air : la gravité">
+    La gravité retire 2500 cm/s à la vitesse verticale **chaque seconde**, d'où le `* DeltaTime`. Après une demi-seconde de chute, le kart tombe à 1250 cm/s. Elle modifie une vitesse, elle ne déplace pas le kart : c'est `MoveKart` qui le fera.
+  </Etape>
+</CodePasAPas>
+
+Pourquoi deux distances ? Au sommet d'une bosse, la route « s'éloigne » vite sous le kart. Avec une seule limite de 50 cm, il se croirait en l'air et clignoterait entre « au sol » et « en l'air ». Une fois au sol, il y reste donc collé jusqu'à 75 cm ; pour **atterrir**, il faut descendre sous 50 cm. Deux seuils, un pour entrer et un pour sortir : c'est une <Terme id="hysteresis">hystérésis</Terme>.
+
+Et `VerticalSpeed <= 0` ? Au moment d'un saut, la route est encore juste sous les roues. Sans cette condition, le kart serait déclaré au sol dès l'image suivante et le saut serait annulé.
+
+## UpdateSpeed : une cible et un rythme
+
+L'idée tient en une phrase : on choisit une **vitesse cible**, puis on s'en rapproche à un certain **rythme**, sans jamais sauter d'un coup.
+
+<CodePasAPas fichier="KartPawn.cpp" debut={342} fin={378}>
+  <Etape lignes="342-343" titre="La signature">
+    Deuxième étape écrite dans le fichier, troisième appelée par le Tick (après `UpdateBoost`).
+  </Etape>
+  <Etape lignes="344-349" titre="Pendant un turbo">
+    Si un turbo est en cours, la vitesse est imposée : `BoostSpeed`, même sans toucher l'accélérateur. On sort de la fonction tout de suite avec `return`.
+  </Etape>
+  <Etape lignes="351-355" titre="En l'air, on garde sa vitesse">
+    Pas de sol, donc pas d'adhérence : ni accélérer ni freiner. Le kart conserve la vitesse qu'il avait en décollant.
+  </Etape>
+  <Etape lignes="357-358" titre="Par défaut : roue libre">
+    Si on ne touche à rien, la cible est 0 et le rythme est celui de la roue libre. Les deux `if` suivants changent ces valeurs si le joueur appuie.
+  </Etape>
+  <Etape lignes="360-365" titre="On accélère">
+    La cible est proportionnelle à l'input : gâchette à moitié enfoncée, moitié de la vitesse max. Le rythme se choisit avec un <Terme id="operateur-ternaire">opérateur ternaire</Terme> : si on reculait encore, on freine d'abord fort ; sinon on accélère normalement.
+  </Etape>
+  <Etape lignes="366-371" titre="On freine ou on recule">
+    `ThrottleInput` est négatif, donc la cible aussi : -800 cm/s à fond. Tant que le kart avance encore, on freine fort ; une fois arrêté, il accélère en marche arrière.
+  </Etape>
+  <Etape lignes="373-378" titre="Se rapprocher de la cible">
+    <Terme id="finterpconstantto">FInterpConstantTo</Terme> fait avancer `CurrentSpeed` vers la cible d'au plus `Rate × DeltaTime` pendant cette image, et s'arrête pile sur la cible.
+  </Etape>
+</CodePasAPas>
+
+Kart à l'arrêt, accélérateur à fond : la cible est 2500 cm/s, le rythme 1500 cm/s par seconde. À 60 images par seconde, chaque image ajoute 25 cm/s : 0, 25, 50, 75... Le kart atteint sa vitesse max en 2500 / 1500 ≈ 1,7 seconde, sans jamais la dépasser. Un pas **constant**, c'est ce qu'on attend d'un moteur : il pousse toujours autant.
+
+De 2500 à 0, il faut environ 3,1 secondes en roue libre (800 par seconde) et 0,8 seconde au frein (3000 par seconde). Lâcher l'accélérateur avant un virage ne suffit pas, il faut freiner.
+
+## UpdateSteering : tourner
+
+Pendant un drift, le virage change. Le drift en bref : le joueur roule assez vite, tourne d'un côté et appuie sur drift. Le kart glisse alors de ce côté, entre progressivement dans la glissade en 0,4 seconde, et charge un turbo. On verra le démarrage et la fin du drift tout en bas du fichier (leçon 8).
+
+<CodePasAPas fichier="KartPawn.cpp" debut={380} fin={415}>
+  <Etape lignes="380-381" titre="La signature">
+    Troisième fonction du fichier, quatrième étape du Tick.
+  </Etape>
+  <Etape lignes="382-386" titre="Pas de virage en l'air ou à l'arrêt">
+    Comme une vraie voiture, le kart ne pivote pas sur place : en dessous de 50 cm/s, ou en l'air, on ne tourne pas. `FMath::Abs` donne la valeur sans le signe : la règle vaut aussi en marche arrière.
+  </Etape>
+  <Etape lignes="388-389" titre="Les valeurs normales">
+    Par défaut, la force du virage est l'input du joueur (-1 à 1) et la vitesse de rotation est `TurnRate`, 100 degrés par seconde.
+  </Etape>
+  <Etape lignes="391-395" titre="Drift : le volant vu depuis le drift">
+    En drift, le kart tourne **toujours** du côté du drift. `SteerInput × DriftDirection` vaut +1 si le volant va dans le sens du drift, -1 s'il va à l'opposé, 0 au centre.
+  </Etape>
+  <Etape lignes="397-400" titre="Convertir une plage en une autre">
+    `GetMappedRangeValueClamped` transforme -1..1 en 0,5..1 : volant à l'opposé = 0,5 (virage large), centre = 0,75, volant dans le sens du drift = 1 (virage serré). On remultiplie par `DriftDirection` pour retrouver le bon côté.
+  </Etape>
+  <Etape lignes="402-406" titre="Passer en douceur au virage de drift">
+    <Terme id="smoothstep">SmoothStep</Terme> passe `DriftBlend` dans une courbe en S. <Terme id="lerp">Lerp</Terme> mélange le virage normal et le virage de drift selon `Blend` : au début du drift, c'est encore le virage normal ; après 0,4 seconde, c'est entièrement le virage de drift.
+  </Etape>
+  <Etape lignes="407-408" titre="Tourner plus vite">
+    La vitesse de rotation est multipliée par un nombre qui va de 1 à 1,4 au fil de l'entrée en drift : jusqu'à 140 degrés par seconde au lieu de 100. L'accolade ferme le bloc du drift.
+  </Etape>
+  <Etape lignes="410-411" titre="La marche arrière inverse le volant">
+    En reculant, tourner le volant à droite fait partir l'avant à gauche. On multiplie donc par -1 quand la vitesse est négative.
+  </Etape>
+  <Etape lignes="413-415" titre="L'angle de cette image">
+    Force × degrés par seconde × sens × secondes écoulées = degrés à tourner pendant cette image. `AddActorLocalRotation` l'ajoute en Yaw dans le <Terme id="repere-local">repère local</Terme> du kart : dans une pente, il tourne autour de **son** axe haut et reste posé sur la route.
+  </Etape>
+</CodePasAPas>
+
+`Lerp(A, B, Alpha)` calcule `A + (B - A) × Alpha` : un curseur sur une règle de A à B. Exemple : `Lerp(1, 1.4, 0.5)` = 1,2. SmoothStep transforme 0, 0,25, 0,5, 0,75, 1 en environ 0, 0,16, 0,5, 0,84, 1 : le kart ne « claque » pas en entrant en drift.
+
+Exemple complet : drift à droite entièrement engagé, volant au centre. Force 0,75, rotation 140 degrés par seconde : le kart tourne à droite à 105 degrés par seconde. Volant à fond à gauche : 0,5 × 140 = 70 degrés par seconde, toujours à droite.
+
+<Encadre type="retenir">
+**Sol** : deux seuils pour ne pas clignoter, gravité quand on est en l'air. **Vitesse** : une cible et un rythme, avec FInterpConstantTo. **Virage** : degrés par seconde × DeltaTime, inversé en marche arrière, impossible en l'air ou à l'arrêt, toujours du côté du drift pendant un drift.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/pawn-controller/cpp-sol-vitesse-virage/roue-libre" />

@@ -1,0 +1,118 @@
+On a un objet qui tourne (`ARotatingObject`), des objets (les Data Assets) et une poche (le composant). Il reste la boîte posée sur la piste. Bonne nouvelle : elle tourne et flotte **déjà**, puisqu'elle hérite de `ARotatingObject`. Cette classe n'écrit que ce qui est propre à une boîte : détecter le kart, lui donner un objet, disparaître puis revenir.
+
+La détection fonctionne comme les zones de tour du module 3 : un <Terme id="overlap">overlap</Terme> sur un profil « Trigger ».
+
+## Le header KartItemBox.h
+
+<CodePasAPas fichier="KartItemBox.h" debut={1} fin={19}>
+  <Etape lignes="1-5" titre="Les includes">
+    On inclut le header de **notre** classe parente, `World/RotatingObject.h`. Pour hériter d'une classe, il faut son header complet, qu'elle vienne d'Unreal ou de nous.
+  </Etape>
+  <Etape lignes="7-11" titre="Déclarations anticipées">
+    La sphère, le mesh, la table, et les deux types utilisés par la fonction d'overlap (comme dans `LapZone.h`).
+  </Etape>
+  <Etape lignes="13-15" titre="Ce que la boîte ajoute">
+    Le commentaire insiste : aucune ligne de code de rotation ici. C'est tout l'intérêt de l'<Terme id="heritage">héritage</Terme>.
+  </Etape>
+  <Etape lignes="16-19" titre="Hériter de ARotatingObject">
+    `public ARotatingObject` au lieu de `public AActor`. La boîte **est un** objet qui tourne, qui lui-même **est un** acteur. Elle a donc `Root`, `AnimatedRoot`, `RotationSpeed`, le Tick qui anime, et tout ce qu'a un acteur.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemBox.h" debut={21} fin={49}>
+  <Etape lignes="21-25" titre="Constructeur et BeginPlay">
+    On redéfinit `BeginPlay` pour brancher l'overlap. Pas de Tick à redéfinir : celui du parent anime la boîte.
+  </Etape>
+  <Etape lignes="27-31" titre="La zone de détection">
+    Elle sera accrochée à `Root`, la racine **fixe** : la zone ne tourne pas avec le cube. Une sphère détecte pareil dans toutes les directions, pratique pour un objet qu'on peut prendre de n'importe quel côté.
+  </Etape>
+  <Etape lignes="33-35" titre="Le cube">
+    Accroché à `AnimatedRoot`, le point **animé** du parent : c'est lui qui culbute.
+  </Etape>
+  <Etape lignes="37-41" titre="La table de tirage">
+    Chaque boîte choisit sa table. Toutes peuvent utiliser `DA_ItemPool_Default`, ou une boîte « spéciale » peut ne donner que des turbos.
+  </Etape>
+  <Etape lignes="43-45" titre="Le délai de réapparition">
+    3 secondes par défaut. Le minimum est 0,1 : un <Terme id="timer">timer</Terme> de 0 seconde ne se lance pas, et la boîte ne reviendrait jamais.
+  </Etape>
+  <Etape lignes="47-49" titre="Un event pour le Blueprint">
+    <Terme id="blueprintimplementableevent">BlueprintImplementableEvent</Terme> : on l'appelle en C++, mais c'est le Blueprint qui écrit ce qu'il fait. Un son ou des particules quand la boîte casse, sans recompiler.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemBox.h" debut={51} fin={63}>
+  <Etape lignes="51-54" titre="La fonction d'overlap">
+    Exactement la signature imposée par `OnComponentBeginOverlap`, comme dans `ALapZone`. <Terme id="ufunction">UFUNCTION()</Terme> est obligatoire pour pouvoir la brancher avec `AddDynamic`.
+  </Etape>
+  <Etape lignes="56-57" titre="Montrer ou cacher la boîte">
+    Une seule fonction pour les deux états : visible, détectable et animée, ou rien de tout ça.
+  </Etape>
+  <Etape lignes="59-63" titre="La réapparition">
+    `Respawn` sera appelée par le timer `RespawnTimer`.
+  </Etape>
+</CodePasAPas>
+
+## Le fichier KartItemBox.cpp
+
+<CodePasAPas fichier="KartItemBox.cpp" debut={1} fin={26}>
+  <Etape lignes="1-6" titre="Les includes">
+    La sphère, le mesh, la poche à objets (qu'on va chercher sur le kart) et les timers.
+  </Etape>
+  <Etape lignes="8-11" titre="Le constructeur du parent passe d'abord">
+    En C++, quand on crée une boîte, le constructeur de `ARotatingObject` s'exécute **avant** celui de `AKartItemBox`. `Root` et `AnimatedRoot` existent donc déjà quand on arrive ici.
+  </Etape>
+  <Etape lignes="13-16" titre="La sphère, sur la racine fixe">
+    80 cm de rayon : assez large pour qu'on ne rate pas la boîte en passant à côté.
+  </Etape>
+  <Etape lignes="18-20" titre="Profil Trigger">
+    Comme pour une zone de tour : le <Terme id="profil-collision">profil</Terme> Trigger ne bloque rien, il signale seulement ce qui entre. On active les events d'overlap.
+  </Etape>
+  <Etape lignes="22-26" titre="Le cube, sur le point animé">
+    Il tourne avec `AnimatedRoot`. Pas de collision : c'est la sphère qui détecte, et le kart ne doit pas taper dedans.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemBox.cpp" debut={28} fin={34}>
+  <Etape lignes="28-31" titre="Super::BeginPlay, encore plus important">
+    `Super::BeginPlay()` appelle le `BeginPlay` de `ARotatingObject` : il retient la position de départ et choisit un départ au hasard. Si on l'oubliait, la boîte flotterait autour de la mauvaise position.
+  </Etape>
+  <Etape lignes="33-34" titre="Brancher l'overlap">
+    On abonne `HandleBeginOverlap` à l'event de la sphère avec <Terme id="adddynamic">AddDynamic</Terme>.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemBox.cpp" debut={36} fin={55}>
+  <Etape lignes="36-38" titre="La signature">
+    Les mêmes paramètres que dans le header. On n'utilise que `OtherActor`, l'acteur qui vient d'entrer.
+  </Etape>
+  <Etape lignes="39-46" titre="Chercher une poche, pas un kart">
+    Dans `ALapZone`, on faisait un `Cast` vers `AKartPawn`. Ici on demande plutôt à l'acteur s'il a une poche, avec <Terme id="findcomponentbyclass">FindComponentByClass</Terme>. La boîte ne dépend donc pas du kart. Pas de poche (un rocher, un projectile) : on ignore.
+  </Etape>
+  <Etape lignes="48-49" titre="Donner un objet">
+    On demande à la poche de tirer un objet dans notre table. Si le kart a déjà un objet, `TryGiveRandomItem` refuse, mais la boîte casse quand même : c'est le comportement habituel de ce genre de jeu.
+  </Etape>
+  <Etape lignes="51-55" titre="Disparaître, puis revenir">
+    On cache la boîte, on prévient le Blueprint (pour le son ou l'effet), et on lance le timer de réapparition. `GetWorldTimerManager()` est un raccourci d'AActor pour `GetWorld()->GetTimerManager()`.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartItemBox.cpp" debut={57} fin={72}>
+  <Etape lignes="57-60" titre="Cacher le cube">
+    `SetVisibility(bActive, true)` : le `true` cache aussi les enfants du cube (une lumière, des particules accrochées dessus).
+  </Etape>
+  <Etape lignes="62-63" titre="Couper la détection">
+    Une boîte cachée ne doit pas pouvoir être prise. `QueryOnly` détecte sans physique, `NoCollision` ne détecte plus rien. L'<Terme id="operateur-ternaire">opérateur ternaire</Terme> choisit entre les deux.
+  </Etape>
+  <Etape lignes="65-67" titre="Une fonction héritée">
+    `SetAnimationEnabled` n'est pas écrite dans cette classe : elle vient du parent. On l'appelle comme si elle était à nous.
+  </Etape>
+  <Etape lignes="69-72" titre="Respawn">
+    La boîte revient : visible, détectable, animée.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">Une classe enfant peut appeler les fonctions `public` et `protected` de son parent, et utiliser ses composants `protected`. C'est pour ça que `Root` et `AnimatedRoot` étaient en `protected` dans `ARotatingObject`.</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/objets-bonus/item-box/heritage" />

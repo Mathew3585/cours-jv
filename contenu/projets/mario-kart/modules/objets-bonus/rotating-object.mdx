@@ -1,0 +1,122 @@
+Avant de parler d'objets bonus, il faut une boîte à ramasser sur la piste. Elle tourne sur elle-même dans tous les sens et flotte doucement de haut en bas. Ce mouvement pourrait servir ailleurs : une pièce, un panneau, une décoration. On l'écrit donc dans une classe **à part**, `ARotatingObject`, qui ne fait que ça. La boîte à bonus en <Terme id="heritage">héritera</Terme> plus tard dans ce module.
+
+Le fichier est rangé dans un sous-dossier `World/`, et les objets bonus dans `Items/`. Pour que `#include "World/RotatingObject.h"` marche, on a ajouté une ligne dans `KartGames.Build.cs`, qui dit à Unreal de chercher les includes à partir du dossier du module :
+
+```csharp
+PublicIncludePaths.Add(ModuleDirectory);
+```
+
+Sans elle, la compilation échoue avec « Impossible d'ouvrir le fichier include ».
+
+## Le header RotatingObject.h
+
+<CodePasAPas fichier="RotatingObject.h" debut={1} fin={20}>
+  <Etape lignes="1-5" titre="Les includes">
+    Comme pour tout header : `#pragma once`, `CoreMinimal.h`, puis la classe parente. Ici c'est `Actor.h` : un objet qui tourne est un simple <Terme id="actor">Actor</Terme> posé dans le niveau, pas un Pawn. Le `.generated.h` reste le dernier include.
+  </Etape>
+  <Etape lignes="7" titre="Une déclaration anticipée">
+    Le header n'utilise que des pointeurs vers `USceneComponent` : une <Terme id="declaration-anticipee">déclaration anticipée</Terme> suffit.
+  </Etape>
+  <Etape lignes="9-11" titre="Le rôle de la classe">
+    Trois lignes qui disent l'essentiel : la classe ne fait **que** l'animation, et les enfants accrochent leurs meshes sur `AnimatedRoot`. C'est la règle à retenir pour s'en servir.
+  </Etape>
+  <Etape lignes="12-15" titre="UCLASS et la classe parente">
+    `public AActor` : notre objet est un acteur. Pas de `Abstract` ici, on peut poser un `ARotatingObject` tel quel dans le niveau.
+  </Etape>
+  <Etape lignes="17-20" titre="Le constructeur et le Tick">
+    L'animation change à chaque image, donc on <Terme id="override">remplace</Terme> le <Terme id="tick">Tick</Terme> d'AActor.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="RotatingObject.h" debut={22} fin={41}>
+  <Etape lignes="22-27" titre="Mettre l'animation en pause">
+    `SetAnimationEnabled` coupe ou relance l'animation, `IsAnimationEnabled` dit si elle tourne. La boîte à bonus s'en servira quand elle est cachée : inutile d'animer ce que personne ne voit.
+  </Etape>
+  <Etape lignes="29-30" titre="protected et BeginPlay">
+    `protected:` : ce qui suit est visible par la classe et ses **enfants**. C'est important ici, car `AKartItemBox` devra accéder à `Root` et `AnimatedRoot`. Avec `private:`, elle ne pourrait pas.
+  </Etape>
+  <Etape lignes="32-36" titre="La racine fixe">
+    `Root` est la position où on a posé l'objet. Elle ne bouge jamais.
+  </Etape>
+  <Etape lignes="38-41" titre="Le point animé">
+    `AnimatedRoot` est accroché à `Root`. C'est **lui** qui tourne et flotte, et tout ce qu'on attache dessus bouge avec lui.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">Pourquoi deux racines ? Si on faisait tourner l'acteur entier, sa position dans le niveau changerait à chaque image. Une zone de détection accrochée à l'acteur tournerait et flotterait aussi. Avec une racine fixe et une racine animée, on choisit ce qui bouge et ce qui reste en place.</Encadre>
+
+<CodePasAPas fichier="RotatingObject.h" debut={43} fin={80}>
+  <Etape lignes="43-48" titre="La vitesse de rotation">
+    Un <Terme id="frotator">FRotator</Terme> contient trois angles : Pitch (basculer avant / arrière), Yaw (tourner comme une toupie), Roll (rouler sur le côté). Ici on s'en sert comme d'une **vitesse** : des degrés par seconde sur chaque axe. Avec `(30, 90, 45)`, la boîte culbute dans tous les sens.
+  </Etape>
+  <Etape lignes="50-53" titre="Activer le flottement">
+    Une case à cocher : on peut avoir un objet qui tourne sans flotter.
+  </Etape>
+  <Etape lignes="55-61" titre="Hauteur et fréquence">
+    `BobHeight` : de combien l'objet monte et descend autour de sa position. `BobFrequency` : combien d'allers-retours par seconde (0,5 = un aller-retour toutes les 2 secondes). `ClampMin = "0.01"` empêche de mettre 0 : on divisera par cette valeur dans le `.cpp`.
+  </Etape>
+  <Etape lignes="63-68" titre="Un départ au hasard">
+    Si dix boîtes sont posées en rangée, elles bougeraient toutes exactement en même temps. Avec un départ au hasard, chacune a son propre rythme.
+  </Etape>
+  <Etape lignes="70-72" titre="Animer ou non">
+    L'interrupteur général lu par `IsAnimationEnabled` et changé par `SetAnimationEnabled`.
+  </Etape>
+  <Etape lignes="74-80" titre="Ce que la classe retient">
+    `AnimationTime` est le temps écoulé depuis le début de l'animation : le flottement en a besoin. `AnimatedRootBaseLocation` est la position d'`AnimatedRoot` réglée dans le Blueprint : on flotte autour de ce point. Elles sont `private` : les enfants n'ont pas à y toucher.
+  </Etape>
+</CodePasAPas>
+
+## Le fichier RotatingObject.cpp
+
+<CodePasAPas fichier="RotatingObject.cpp" debut={1} fin={17}>
+  <Etape lignes="1-3" titre="Les includes">
+    Le header de la classe (avec son chemin `World/`), puis `SceneComponent.h` pour créer les deux racines.
+  </Etape>
+  <Etape lignes="5-8" titre="Le constructeur allume le Tick">
+    Sans `bCanEverTick = true`, Unreal n'appellerait jamais notre Tick.
+  </Etape>
+  <Etape lignes="10-12" titre="La racine fixe">
+    Un `USceneComponent` est un simple point dans l'espace : pas de forme, pas de collision. On le crée avec <Terme id="createdefaultsubobject">CreateDefaultSubobject</Terme> et il devient le <Terme id="rootcomponent">RootComponent</Terme>.
+  </Etape>
+  <Etape lignes="14-17" titre="Le point animé">
+    Il est attaché à `Root` avec <Terme id="setupattachment">SetupAttachment</Terme>. Sa position et sa rotation sont donc **relatives** à la racine : 0 veut dire « au même endroit que la racine ».
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="RotatingObject.cpp" debut={19} fin={33}>
+  <Etape lignes="19-21" titre="BeginPlay">
+    On commence toujours par <Terme id="super">Super::BeginPlay()</Terme> pour laisser AActor faire son travail.
+  </Etape>
+  <Etape lignes="23-24" titre="Retenir la position de départ">
+    Si le Blueprint a placé `AnimatedRoot` 50 cm au-dessus du sol, on flottera autour de ces 50 cm, pas autour de 0.
+  </Etape>
+  <Etape lignes="26-33" titre="Faire comme si l'animation avait déjà commencé">
+    <Terme id="frandrange">FRandRange</Terme> tire un temps au hasard entre 0 et la durée d'un aller-retour (`1 / BobFrequency`). On tourne la boîte d'autant, comme si elle tournait depuis ce temps-là. La rotation et le flottement commencent donc à un moment différent pour chaque boîte.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="RotatingObject.cpp" debut={35} fin={63}>
+  <Etape lignes="35-42" titre="Le Tick, et l'interrupteur">
+    Si l'animation est coupée, on sort tout de suite : rien ne bouge.
+  </Etape>
+  <Etape lignes="44" titre="Faire avancer le temps">
+    <Terme id="deltatime">DeltaTime</Terme> est la durée de l'image. En l'additionnant à chaque image, on obtient le temps écoulé.
+  </Etape>
+  <Etape lignes="46-49" titre="La rotation">
+    Vitesse × durée de l'image = angle à ajouter, exactement comme une distance pour un déplacement. <Terme id="addlocalrotation">AddLocalRotation</Terme> tourne autour des axes **de l'objet lui-même**. Après un peu de Pitch, l'axe du Yaw est penché, et la boîte culbute au lieu de tourner sagement comme une toupie.
+  </Etape>
+  <Etape lignes="51-58" titre="Le flottement avec un sinus">
+    Le <Terme id="sinus">sinus</Terme> oscille sans fin entre -1 et 1, en douceur. Multiplié par `BobHeight`, il donne un décalage entre -20 et +20 cm. `2 × PI` correspond à un tour complet du sinus : multiplier le temps par `Fréquence × 2 × PI` donne exactement `BobFrequency` allers-retours par seconde. On ajoute ce décalage en Z à la position de départ.
+  </Etape>
+  <Etape lignes="60-63" titre="SetAnimationEnabled">
+    Elle change juste l'interrupteur. Le Tick fait le reste.
+  </Etape>
+</CodePasAPas>
+
+## Dans l'éditeur
+
+Pour tester tout de suite, glisse un `RotatingObject` dans le niveau depuis le panneau Place Actors (ou crée un Blueprint qui en hérite). Ajoute un Static Mesh (un cube) **sous AnimatedRoot**, puis lance le jeu : le cube culbute et flotte. Change `RotationSpeed` à `(0, 90, 0)` pour voir la différence avec une simple toupie.
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/objets-bonus/rotating-object/deux-racines" />

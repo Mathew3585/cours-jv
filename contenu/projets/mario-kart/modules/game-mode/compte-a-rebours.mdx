@@ -1,0 +1,85 @@
+Le compte à rebours, c'est quatre fonctions qui se passent le relais : `StartCountdown` prépare la grille, `BeginCountdown` affiche le « 3 », `CountdownStep` fait défiler les chiffres, `StartRace` donne le GO. Le lien entre elles, c'est un <Terme id="timer">timer</Terme>.
+
+## Pourquoi un timer ?
+
+En C++, une fonction ne peut pas « attendre une seconde » au milieu de son code. Si elle bloquait, tout le jeu se figerait : plus d'image, plus de son, plus rien.
+
+On fait donc comme en cuisine : on règle un **minuteur** et on passe à autre chose. Quand il sonne, Unreal appelle la fonction qu'on lui a donnée. Entre deux sonneries, le jeu continue de tourner normalement.
+
+On pourrait aussi compter le temps nous-mêmes dans le <Terme id="tick">Tick</Terme>, image par image. Mais il faudrait une variable de plus, un test à chaque image, et le code du compte à rebours serait mélangé avec le reste. Le timer dit simplement : « appelle cette fonction dans une seconde ».
+
+```cpp
+GetWorldTimerManager().SetTimer(MonTicket, this, &AMaClasse::MaFonction, 1.f, true);
+//                              ticket     objet  fonction à appeler      délai boucle ?
+```
+
+## Préparer la grille et lancer le décompte
+
+<CodePasAPas fichier="KartGameMode.cpp" debut={48} fin={90}>
+  <Etape lignes="48-52" titre="Remettre l'état à zéro">
+    Après la signature `AKartGameMode::StartCountdown()` et son accolade, la course n'est plus lancée, aucun chiffre n'est affiché, et tous les karts sont bloqués avec `SetAllKartsCanMove(false)`. Un kart bloqué ignore les touches : le joueur peut garder l'accélérateur enfoncé, rien ne bouge avant le GO.
+  </Etape>
+  <Etape lignes="54-57" titre="Remettre les karts au tour 1">
+    Une boucle sur tous les karts du niveau, avec <Terme id="tactoriterator">TActorIterator</Terme>, appelle `ResetRaceProgress` sur chacun : tour 1, course pas finie. Utile quand on relance une course qui avait déjà commencé.
+  </Etape>
+  <Etape lignes="59-67" titre="Attendre StartDelay, ou pas">
+    Si `StartDelay` est positif, on règle un timer qui appellera `BeginCountdown` dans `StartDelay` secondes, **une seule fois** (`false` à la fin). S'il vaut 0, on appelle `BeginCountdown` tout de suite. `&AKartGameMode::BeginCountdown` désigne la fonction à appeler, sans l'appeler maintenant. La dernière accolade ferme `StartCountdown`.
+  </Etape>
+  <Etape lignes="69-73" titre="Le premier chiffre">
+    `BeginCountdown` commence. `CountdownNumber` prend la valeur du réglage (3). On l'affiche en debug, puis on fait <Terme id="broadcast">Broadcast</Terme> : tous les abonnés de `OnCountdownTick` reçoivent le 3.
+  </Etape>
+  <Etape lignes="75-76" titre="Un timer qui tourne en boucle">
+    Nouveau timer, cette fois **en boucle** (`true`) toutes les secondes, vers `CountdownStep`. Il utilise le même ticket `CountdownTimer` : il remplace donc l'ancien au lieu de s'y ajouter. L'accolade ferme `BeginCountdown`.
+  </Etape>
+  <Etape lignes="78-86" titre="Un chiffre de moins">
+    `CountdownStep` est la fonction que le timer appelle chaque seconde. On enlève 1. Si on arrive à 0, c'est le GO : on appelle `StartRace` et `return` arrête la fonction ici.
+  </Etape>
+  <Etape lignes="88-90" titre="Sinon, afficher le chiffre">
+    Le 2, puis le 1 : même affichage et même Broadcast que pour le premier chiffre. L'accolade ferme `CountdownStep`.
+  </Etape>
+</CodePasAPas>
+
+Avec les réglages par défaut (`StartDelay` = 1, `CountdownSeconds` = 3), voici la ligne du temps :
+
+- **0 s** : `StartCountdown` (appelée par BeginPlay). Karts bloqués, timer d'une seconde.
+- **1 s** : `BeginCountdown`. On affiche « 3 » et le timer en boucle démarre.
+- **2 s** : `CountdownStep`. On affiche « 2 ».
+- **3 s** : `CountdownStep`. On affiche « 1 ».
+- **4 s** : `CountdownStep`, qui appelle `StartRace`. GO, les karts sont débloqués.
+
+Le GO arrive donc 4 secondes après le lancement du niveau : `StartDelay` plus les trois chiffres.
+
+## Le GO
+
+<CodePasAPas fichier="KartGameMode.cpp" debut={92} fin={109}>
+  <Etape lignes="92-94" titre="Arrêter le minuteur">
+    `StartRace` commence par `ClearTimer`, qui coupe le timer en boucle. Sans cette ligne, `CountdownStep` continuerait d'être appelé chaque seconde : le chiffre passerait à -1, la condition `<= 0` serait vraie, et `StartRace` serait relancé chaque seconde : nouveau « GO! » et chrono remis à zéro.
+  </Etape>
+  <Etape lignes="96-98" titre="La course est lancée">
+    Plus de chiffre à afficher, `bRaceStarted` passe à vrai, et tous les karts sont débloqués d'un coup, à la même image.
+  </Etape>
+  <Etape lignes="100-104" titre="Noter l'heure du départ">
+    `RaceStartTime` retient l'heure du GO, donnée par <Terme id="gettimeseconds">GetTimeSeconds</Terme>. C'est du temps de **jeu** : il s'arrête pendant la pause, ce qu'on veut pour un chrono de course.
+  </Etape>
+  <Etape lignes="106-109" titre="Prévenir tout le monde">
+    On affiche « GO! » en vert, on envoie 0 à `OnCountdownTick` (le widget affiche GO), puis on déclenche `OnRaceStarted` (par exemple pour faire apparaître le chrono). L'accolade ferme `StartRace`.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="piege">
+Un timer qui tourne en boucle ne s'arrête **jamais tout seul**. Dès que tu écris `true` en dernier paramètre de `SetTimer`, demande-toi où se trouve le `ClearTimer` correspondant.
+</Encadre>
+
+## Relancer une course
+
+`StartCountdown` est `BlueprintCallable` : un bouton « Recommencer » peut l'appeler. Elle bloque les karts, les remet au tour 1 et relance le décompte. Comme elle réutilise le même ticket `CountdownTimer`, un décompte déjà en cours est remplacé, pas doublé.
+
+Attention à ce qu'elle **ne fait pas** : elle ne replace pas les karts sur la ligne de départ. `ResetRaceProgress` ne remet à zéro que les compteurs de tours. Pour un vrai redémarrage, il faudrait aussi téléporter chaque kart à sa position de départ.
+
+<Encadre type="retenir">
+Le compte à rebours est une **chaîne de timers** : un timer unique pour `StartDelay`, puis un timer en boucle d'une seconde, arrêté au GO. À chaque étape, le GameMode fait `Broadcast` : il ne sait pas qui affiche le chiffre, il prévient juste.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/game-mode/compte-a-rebours/clear-timer" />

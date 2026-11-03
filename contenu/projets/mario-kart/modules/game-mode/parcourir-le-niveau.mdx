@@ -1,0 +1,77 @@
+Le GameMode n'a pas de liste des karts ni des zones de tour : personne ne les lui a donnés. Quand il en a besoin, il fait **l'appel** dans le niveau avec <Terme id="tactoriterator">TActorIterator</Terme>. Cette leçon regarde les deux fonctions qui s'en servent : bloquer tous les karts, et compter les checkpoints au démarrage.
+
+## TActorIterator : faire l'appel
+
+Imagine un professeur qui entre en classe et dit « tous les élèves en kart, levez la main ». `TActorIterator<AKartPawn>` fait pareil : il passe en revue tous les acteurs du monde qui sont des `AKartPawn`, un par un.
+
+La boucle a toujours la même forme :
+
+```cpp
+for (TActorIterator<AKartPawn> It(GetWorld()); It; ++It)
+{
+    It->FaireQuelqueChose();
+}
+```
+
+`It(GetWorld())` commence l'appel dans le monde actuel. La condition `It` reste vraie tant qu'il reste un acteur à visiter. `++It` passe au suivant. Et `It->` s'utilise comme un pointeur vers l'acteur en cours.
+
+## Bloquer ou débloquer tous les karts
+
+<CodePasAPas fichier="KartGameMode.cpp" debut={155} fin={161}>
+  <Etape lignes="155-156" titre="Une fonction const">
+    `SetAllKartsCanMove` est `const`, alors qu'elle change les karts. Ce n'est pas une contradiction : `const` promet de ne pas modifier le **GameMode**. Les karts sont d'autres objets.
+  </Etape>
+  <Etape lignes="157-158" titre="L'appel des karts">
+    La boucle visite tous les `AKartPawn` du monde. Qu'il y ait un kart ou huit, le code est le même : pas besoin de les compter ni de les ranger dans un tableau.
+  </Etape>
+  <Etape lignes="159-161" titre="Un ordre pour chacun">
+    Chaque kart reçoit `SetCanMove` avec la valeur demandée. Le GameMode ne touche pas aux variables du kart : il passe par sa fonction publique. Les deux accolades ferment la boucle, puis la fonction.
+  </Etape>
+</CodePasAPas>
+
+C'est ce qui permet au GO de débloquer tous les karts **à la même image** : un seul appel à `SetAllKartsCanMove(true)` dans `StartRace`, et tout le monde part ensemble.
+
+## Compter les checkpoints au démarrage
+
+Sur le circuit, on pose des `ALapZone`. Chacune a un numéro `ZoneIndex` : 0 pour la ligne d'arrivée, puis 1, 2, 3… pour les checkpoints, dans l'ordre. Le kart doit passer tous les checkpoints avant que la ligne d'arrivée compte un tour. Pour ça, il demande au GameMode combien il y en a, avec `GetCheckpointCount`.
+
+<CodePasAPas fichier="KartGameMode.cpp" debut={163} fin={191}>
+  <Etape lignes="163-166" titre="Repartir de zéro">
+    `CountCheckpoints` n'est pas `const` : elle modifie `CheckpointCount`, une variable du GameMode. Le compteur commence à 0, et on suppose qu'il n'y a pas encore de ligne d'arrivée.
+  </Etape>
+  <Etape lignes="168-171" titre="L'appel des zones">
+    Cette fois l'appel concerne les `ALapZone`. Pour chacune, on lit son numéro avec `GetZoneIndex`.
+  </Etape>
+  <Etape lignes="173-176" titre="La ligne d'arrivée est-elle là ?">
+    Une zone numéro 0, c'est la ligne d'arrivée. Il en faut au moins une.
+  </Etape>
+  <Etape lignes="178-180" titre="Le plus grand numéro">
+    Les checkpoints sont numérotés 1, 2, 3… Le plus grand numéro est donc leur nombre. `FMath::Max` garde le plus grand vu jusqu'ici : pas besoin de les trier. L'accolade ferme la boucle.
+  </Etape>
+  <Etape lignes="182-186" titre="Pas de ligne d'arrivée">
+    Si le circuit est mal monté, <Terme id="ue-log">UE_LOG</Terme> écrit un avertissement jaune dans l'Output Log. Premier cas : aucune zone numéro 0, donc les tours ne seront jamais comptés.
+  </Etape>
+  <Etape lignes="187-191" titre="Pas de checkpoint">
+    Deuxième cas, testé seulement s'il y a une ligne d'arrivée : aucun checkpoint. On pourrait alors valider des tours en faisant des allers-retours sur la ligne. La dernière accolade ferme `CountCheckpoints`.
+  </Etape>
+</CodePasAPas>
+
+## Pourquoi le faire une fois, au BeginPlay ?
+
+Les zones sont posées dans le niveau par le level designer. Elles ne bougent pas et ne changent pas de numéro pendant la course. Les compter **une fois**, au début, suffit.
+
+L'autre solution serait de refaire l'appel chaque fois qu'un kart passe la ligne. Ça marcherait, mais on referait le même travail à chaque tour, pour chaque kart, pour trouver le même résultat. C'est comme un arbitre qui ferait le tour du circuit pour compter les panneaux avant chaque passage : il vaut mieux les compter avant le départ et noter le nombre.
+
+C'est aussi pour ça que `CountCheckpoints` est appelée en **premier** dans `BeginPlay`, avant le compte à rebours : quand la course commence, le nombre est déjà connu.
+
+<Encadre type="piege">
+Le compte prend le **plus grand** numéro. Si tu numérotes tes checkpoints 1, 3, 7, le GameMode croit qu'il y en a 7. Le kart attendra le 2 qui n'existe pas, et le tour ne sera jamais validé. Numérote toujours sans trou : 1, 2, 3.
+</Encadre>
+
+<Encadre type="plus-loin">
+En Blueprint, le nœud **Get All Actors Of Class** fait le même travail que `TActorIterator`. Les deux parcourent tout le niveau : c'est rapide pour quelques dizaines d'acteurs, mais on évite de le faire à chaque image. Ici on ne l'utilise qu'au démarrage, au GO et quand un compte à rebours commence.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/game-mode/parcourir-le-niveau/beginplay" />

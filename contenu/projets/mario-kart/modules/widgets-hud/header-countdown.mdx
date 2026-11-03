@@ -1,0 +1,91 @@
+Chaque widget du jeu existe en **deux morceaux** : une classe C++ et un <Terme id="widget-blueprint">Widget Blueprint</Terme>. La classe C++ contient la logique : quand se montrer, quel texte écrire. Le Widget Blueprint contient l'apparence : la police, la taille, la couleur, la place à l'écran. Le Blueprint **hérite** de la classe C++, exactement comme `BP_KartPlayerController` hérite de `AKartPlayerController`.
+
+Ce partage est pratique : on peut refaire tout le look dans l'éditeur sans toucher au C++. Mais le C++ et le Blueprint doivent être **d'accord** sur les noms. On écrit d'abord le header du compte à rebours, `KartCountdownWidget.h`, de la ligne 1 à la ligne 43, puis on crée son Widget Blueprint.
+
+## Le début du fichier
+
+<CodePasAPas fichier="KartCountdownWidget.h" debut={1} fin={14}>
+  <Etape lignes="1" titre="#pragma once">
+    Le même début que tous les headers : <Terme id="pragma-once">#pragma once</Terme>.
+  </Etape>
+  <Etape lignes="3-5" titre="Les includes">
+    `Blueprint/UserWidget.h` apporte <Terme id="uuserwidget">UUserWidget</Terme>, la classe de base de tous les widgets. Elle vient du module UMG, ajouté pour cela dans `KartGames.Build.cs` (ligne 11). Le `.generated.h` reste le dernier include.
+  </Etape>
+  <Etape lignes="7" titre="UTextBlock, annoncé">
+    Une déclaration anticipée pour `UTextBlock`, le texte qu'on affichera. Le header n'en garde qu'un pointeur ; son include sera dans le `.cpp`.
+  </Etape>
+  <Etape lignes="9-10" titre="Le mode d'emploi">
+    Deux lignes de commentaire qui disent tout : le widget écoute le GameMode, et `WBP_Countdown` doit hériter de cette classe et contenir un texte nommé `CountdownText`. On s'en servira dans l'éditeur.
+  </Etape>
+  <Etape lignes="11-14" titre="Une classe qui hérite de UUserWidget">
+    Le préfixe **U** de `UKartCountdownWidget` signale un objet Unreal qui n'est pas un Actor : un widget n'est pas posé dans le niveau. Il hérite de `UUserWidget`, puis vient <Terme id="generated-body">GENERATED_BODY()</Terme>.
+  </Etape>
+</CodePasAPas>
+
+## Construct, Destruct et BindWidget
+
+<CodePasAPas fichier="KartCountdownWidget.h" debut={16} fin={22}>
+  <Etape lignes="16-18" titre="NativeConstruct et NativeDestruct">
+    <Terme id="nativeconstruct">NativeConstruct</Terme> est appelé quand le widget est construit : c'est son BeginPlay. <Terme id="nativedestruct">NativeDestruct</Terme> est appelé quand il est retiré : on y fait le ménage. Ce sont les versions C++ des events Construct et Destruct que tu connais en Blueprint.
+  </Etape>
+  <Etape lignes="20-22" titre="BindWidget">
+    Le cœur du lien C++ / Blueprint. Avec `meta = (BindWidget)`, ce pointeur n'est pas rempli par le code : Unreal le remplit tout seul avec l'élément du Widget Blueprint qui s'appelle **exactement** `CountdownText`. C'est un <Terme id="utextblock">UTextBlock</Terme>, le widget « Text » de la palette.
+  </Etape>
+</CodePasAPas>
+
+## Les réglages et l'event pour le Blueprint
+
+<CodePasAPas fichier="KartCountdownWidget.h" debut={24} fin={34}>
+  <Etape lignes="24-26" titre="GoText">
+    Le texte du départ. Son type est <Terme id="ftext">FText</Terme>, le texte destiné au joueur, et sa valeur par défaut est créée avec <Terme id="nsloctext">NSLOCTEXT</Terme> pour pouvoir être traduite. `EditAnywhere` permet de le changer dans le WBP, `BlueprintReadOnly` de le lire dans son Graph.
+  </Etape>
+  <Etape lignes="28-30" titre="GoDisplayTime">
+    Combien de secondes « GO! » reste affiché : 1 par défaut. `ClampMin = "0"` empêche de taper une durée négative dans l'éditeur.
+  </Etape>
+  <Etape lignes="32-34" titre="Un event pour le Blueprint">
+    <Terme id="blueprintimplementableevent">BlueprintImplementableEvent</Terme> : la fonction n'a pas de code en C++. Le C++ l'appellera à chaque chiffre, et c'est le WBP qui décide quoi faire : jouer une animation, un son. Si le WBP ne fait rien, l'appel ne fait rien non plus.
+  </Etape>
+</CodePasAPas>
+
+Remarque les deux sens du lien. `CountdownText` vient **du Blueprint vers le C++** : le C++ s'attend à le trouver dans le WBP. `GoText` et `GoDisplayTime` vont **du C++ vers le Blueprint** : le C++ propose une valeur, le WBP peut la changer.
+
+## La partie privée
+
+<CodePasAPas fichier="KartCountdownWidget.h" debut={36} fin={43}>
+  <Etape lignes="36-38" titre="HandleCountdownTick">
+    Cette fonction sera abonnée à un event du GameMode, qui lui enverra le chiffre en cours. C'est pour ça qu'elle a un `UFUNCTION()` : un event de ce type retrouve la fonction par son nom, grâce à la <Terme id="reflexion">réflexion</Terme> d'Unreal.
+  </Etape>
+  <Etape lignes="40-43" titre="HideCountdown, HideTimer et la fin">
+    `HideCountdown` cachera le widget après le « GO! ». `HideTimer` est la poignée du <Terme id="timer">timer</Terme> qui l'appellera plus tard (un `FTimerHandle`). Le `};` termine la classe. On écrit le code de tout ça dans la leçon suivante.
+  </Etape>
+</CodePasAPas>
+
+## Dans l'éditeur : créer WBP_Countdown
+
+Recompile d'abord le C++ : tant que ce n'est pas fait, l'éditeur ne connaît pas `KartCountdownWidget`.
+
+Dans le Content Browser, clic droit > User Interface > Widget Blueprint. Dans la fenêtre qui demande la <Terme id="classe-parente">classe parente</Terme>, ouvre All Classes et choisis `KartCountdownWidget`. Nomme l'asset `WBP_Countdown`. Si le WBP existe déjà avec `UserWidget` comme parent, ouvre-le, va dans l'onglet Graph, clique sur **Class Settings** et change **Parent Class** dans le panneau Details.
+
+## Le texte CountdownText
+
+Dans l'onglet Designer, place un Canvas Panel puis un widget **Text** dedans. Dans la hiérarchie (ou en haut du panneau Details), renomme-le `CountdownText`, lettre pour lettre, comme à la ligne 22 du header. Le type compte aussi : ce doit être un Text, pas une Image ni un Rich Text.
+
+Compile le WBP. Si le nom ou le type ne correspond pas, le compilateur du Blueprint affiche une erreur qui dit qu'un widget requis par la classe parente est introuvable. C'est voulu : <Terme id="bindwidget">BindWidget</Terme> transforme une faute de frappe en erreur visible, au lieu d'un pointeur vide qui ferait planter le jeu.
+
+## Style, Class Defaults et event
+
+Police, taille et ancrage du texte se règlent dans le Designer. `Go Text` et `Go Display Time` sont dans **Class Defaults**, catégorie Kart > Countdown : c'est là que tu changes « GO! » ou sa durée, sans recompiler.
+
+Optionnel : dans le Graph, ajoute l'event **On Countdown Number Shown** pour jouer une animation ou un son à chaque chiffre. Enfin, ouvre `BP_KartPlayerController` et choisis `WBP_Countdown` dans la case `Countdown Widget Class`.
+
+<Encadre type="piege">
+Les trois erreurs classiques : le WBP a encore `UserWidget` comme classe parente (il n'apparaît pas dans la case du PlayerController) ; le texte s'appelle `TextBlock_0` ou `Countdown_Text` au lieu de `CountdownText` (le WBP ne compile plus) ; tu as modifié le header puis oublié de recompiler le C++ avant d'ouvrir le WBP (l'éditeur ne connaît pas encore la nouvelle variable).
+</Encadre>
+
+<Encadre type="plus-loin">
+Il existe aussi `meta = (BindWidgetOptional)` : Unreal remplit le pointeur si l'élément existe, sinon il le laisse à `nullptr` sans erreur. C'est utile pour un élément facultatif, mais il faut alors vérifier le pointeur avant chaque usage. Notre projet n'utilise que `BindWidget` : chaque texte est obligatoire.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/widgets-hud/header-countdown/deux-sens" />

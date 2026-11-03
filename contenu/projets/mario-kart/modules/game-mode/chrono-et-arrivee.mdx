@@ -1,0 +1,61 @@
+Une fois le GO donné, le GameMode tient le chrono. Quand un kart termine son dernier tour, il prévient le GameMode, qui le bloque et fait passer la nouvelle. Enfin, une petite fonction transforme les secondes en un temps lisible comme « 01:23.500 ».
+
+## Le chrono : une soustraction
+
+Pour chronométrer une course, tu n'as pas besoin de compter « 1, 2, 3… » dans ta tête. Il suffit de **noter l'heure du départ**, puis de regarder l'horloge à l'arrivée et de faire la différence. C'est exactement ce que fait le GameMode.
+
+<CodePasAPas fichier="KartGameMode.cpp" debut={111} fin={131}>
+  <Etape lignes="111-112" titre="Signature de GetRaceTime">
+    La fonction renvoie un `float` (des secondes). Le `const` est recopié du header : il fait partie de la signature, et il promet que le chrono se lit sans rien modifier.
+  </Etape>
+  <Etape lignes="113-117" titre="Avant le GO : zéro">
+    Tant que `IsRaceStarted()` est faux, le chrono renvoie 0. Le widget peut donc l'afficher dès le début sans montrer un temps absurde.
+  </Etape>
+  <Etape lignes="119-122" titre="Maintenant moins le départ">
+    Le temps de course est l'heure actuelle du jeu moins l'heure du GO, notée dans `StartRace`. On ne stocke **aucun** compteur qui grandit à chaque image. L'accolade ferme la fonction.
+  </Etape>
+  <Etape lignes="124-127" titre="Un kart a fini">
+    Le kart appelle `NotifyKartFinished` en se passant lui-même quand il termine son dernier tour. Le GameMode le bloque avec `SetCanMove(false)` : il ne répond plus aux touches et ralentit jusqu'à l'arrêt.
+  </Etape>
+  <Etape lignes="129-131" titre="Prévenir les abonnés">
+    `OnKartFinished` est diffusé avec le kart concerné. Un écran de fin ou un son peut s'y abonner. Dans le code C++ du projet, personne ne l'écoute encore : l'event est prêt pour la suite.
+  </Etape>
+</CodePasAPas>
+
+Pourquoi ne pas ajouter <Terme id="deltatime">DeltaTime</Terme> à une variable dans le Tick ? Ça marcherait, mais chaque addition de nombres à virgule fait une toute petite erreur d'arrondi. Après des milliers d'images, ces erreurs s'additionnent. Une seule soustraction n'en fait qu'une. Et il n'y a rien à mettre à jour : le chrono se calcule seulement quand quelqu'un le demande.
+
+Remarque aussi que le GameMode n'arrête **pas** le chrono quand un kart finit. Chaque kart retient son propre temps d'arrivée (`FinishTime`), au moment où il passe la ligne. C'est logique : dans une course à plusieurs, le chrono général continue pour ceux qui roulent encore.
+
+<Encadre type="info">
+`NotifyKartFinished` utilise `Kart` sans vérifier qu'il n'est pas <Terme id="nullptr">nullptr</Terme>. Ici c'est sans risque, car c'est toujours le kart lui-même qui s'envoie (`this`). Si un jour une autre classe l'appelle, un test serait plus prudent.
+</Encadre>
+
+## Formater le temps
+
+`FormatRaceTime` reçoit des secondes (par exemple 83.5) et renvoie le texte « 01:23.500 ». C'est une <Terme id="fonction-static">fonction static</Terme> : elle n'utilise aucune variable du GameMode, seulement son paramètre.
+
+<CodePasAPas fichier="KartGameMode.cpp" debut={133} fin={153}>
+  <Etape lignes="133-136" titre="Pas de temps négatif">
+    Dans le `.cpp`, le mot `static` ne se répète pas : il reste seulement dans le header. `FMath::Max` garde la plus grande des deux valeurs : un temps négatif devient 0.
+  </Etape>
+  <Etape lignes="138-140" titre="Les minutes">
+    83.5 / 60 = 1.39. `FloorToInt` arrondit **vers le bas** : 1 minute. Un arrondi au plus proche donnerait 2 pour 1.6 minute, alors que la 2e minute n'est pas finie.
+  </Etape>
+  <Etape lignes="142-144" titre="Ce qui reste dans la minute">
+    `Fmod` donne le reste d'une division, comme `%`, mais pour les nombres à virgule : 83.5 Fmod 60 = 23.5. Avec `%`, qui ne marche qu'avec des entiers, on perdrait le 0.5.
+  </Etape>
+  <Etape lignes="146-148" titre="Secondes et millisecondes">
+    23.5 donne 23 secondes entières. Ce qui reste (0.5) est multiplié par 1000 : 500 millisecondes.
+  </Etape>
+  <Etape lignes="150-153" titre="Construire le texte">
+    <Terme id="printf">Printf</Terme> remplit le modèle `%02d:%02d.%03d`. `%02d` écrit un entier sur 2 chiffres en complétant par des 0 (5 devient « 05 »). Le résultat est converti en `FText`, le type de texte qu'affichent les widgets.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="retenir">
+Un chrono, c'est **maintenant moins le départ**, pas un compteur qu'on augmente. Et un formatage de temps, c'est trois opérations : division arrondie vers le bas pour les minutes, reste (`Fmod`) pour les secondes, partie après la virgule fois 1000 pour les millisecondes.
+</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/game-mode/chrono-et-arrivee/soustraction" />
