@@ -1,0 +1,88 @@
+Dernière étape : brancher dans l'éditeur le piège, le projectile et la case d'objet du HUD. On part de ce qui a été créé au module précédent (la touche, `DA_ItemPool_Default`, les boîtes posées sur la piste). Comme d'habitude, le C++ ne change plus : tout se règle dans des Blueprints et des Data Assets.
+
+## 1. Le piège : un Blueprint
+
+Clic droit > **Blueprint Class** > **All Classes**, cherche **KartItemHazard**, nomme-le `BP_ItemTrap` (dans `Items/Blueprints`). Dans **Class Defaults**, règle le composant **Mesh** :
+
+- un **Static Mesh** plat : le cylindre de base, à l'échelle (0,9 ; 0,9 ; 0,08), fait un disque ;
+- **Location Z = -40** : la sphère de collision flotte à 45 cm au-dessus du sol (`HoverHeight`), le disque doit descendre pour toucher la route ;
+- un matériau de couleur, pour le voir de loin.
+
+<Capture src="/cours/mario-kart/objets/bp-itemtrap.png" legende="BP_ItemTrap : un cylindre aplati, descendu de 40 cm, avec son matériau. La catégorie Kart > Hazard contient la durée du tête-à-queue." />
+
+La catégorie **Kart > Hazard** contient `SpinOutDuration`, `HoverHeight` et `OwnerSafeTime` : les valeurs par défaut du C++ conviennent.
+
+## 2. Le projectile : un Blueprint enfant
+
+Même chose avec la classe **KartItemProjectile** : `BP_ItemProjectile`. Donne à **Mesh** une sphère à l'échelle 0,6 et un matériau rouge. Tu retrouves les mêmes composants et la même catégorie Hazard que le piège (c'est l'héritage), plus une catégorie **Kart > Projectile** pour la vitesse et le nombre de rebonds.
+
+## 3. Les deux objets : des Data Assets SpawnActor
+
+Clic droit > **Miscellaneous > Data Asset**, classe **Kart Item Data Spawn Actor**, nom `DA_Item_Trap`. Remplis le nom et l'icône, puis ouvre la catégorie **Spawn** :
+
+- **Actor Class** : `BP_ItemTrap` ;
+- **Spawn Offset** : (-150, 0, 0), soit 1,5 m derrière le kart.
+
+<Capture src="/cours/mario-kart/objets/da-item-trap.png" legende="DA_Item_Trap : nom, icône et une utilisation. Ouvre Spawn pour choisir BP_ItemTrap et le décalage (-150, 0, 0)." />
+
+Duplique-le en `DA_Item_Projectile`, puis change **Actor Class** pour `BP_ItemProjectile` et **Spawn Offset** pour (150, 0, 0) : devant le kart. Les deux objets utilisent **la même classe C++** : seules les données changent.
+
+Ouvre enfin `DA_ItemPool_Default` et ajoute les deux lignes. Exemple de poids : turbo 4, triple turbo 1, piège 3, projectile 2.
+
+## 4. La case d'objet : le Widget Blueprint
+
+Clic droit > **User Interface > Widget Blueprint**, choisis **KartItemWidget** comme classe parente (ou change-la ensuite dans **Graph > Class Settings > Parent Class**). Nomme-le `WBP_ItemSlot`.
+
+<Capture src="/cours/mario-kart/objets/wbp-itemslot.png" legende="WBP_ItemSlot juste après sa création : vide, avec Kart Item Widget comme classe parente (en haut à droite)." />
+
+Le widget est vide, et il ne compile pas encore : c'est le `BindWidget` du C++, qui exige deux éléments. On les range dans un **Overlay**, un panneau qui empile ses enfants les uns sur les autres : le texte reste collé sur l'image, même si on déplace la case. Dans l'onglet **Designer** :
+
+1. Depuis la Palette, glisse un **Canvas Panel** dans la Hierarchy : il sert de racine et couvre tout l'écran.
+2. Glisse un **Overlay** dans le Canvas Panel. Dans son slot (panneau Details), donne-lui une position (par exemple sous le chrono), **Size X = 128**, **Size Y = 128**, et décoche **Size To Content**.
+3. Glisse une **Image** dans l'Overlay et renomme-la exactement `ItemIcon`. Mets ses deux alignements (**Horizontal** et **Vertical Alignment**) sur **Fill** : elle remplit les 128 × 128.
+4. Glisse un **Text** dans l'Overlay, **après** l'image, et renomme-le exactement `UsesText`. Dans un Overlay, le dernier enfant est dessiné par-dessus les autres : le texte passe devant l'image. Mets **Horizontal Alignment** sur **Right** et **Vertical Alignment** sur **Bottom** : il se cale en bas à droite de l'icône.
+5. Pour qu'il soit lisible sur n'importe quelle icône : couleur **blanche** (Color and Opacity), une police assez grosse, et un contour noir (**Font > Outline Settings > Outline Size** = 2).
+6. **Compile** : les erreurs disparaissent.
+
+La Hierarchy doit ressembler à ça :
+
+```
+[WBP_ItemSlot]
+└─ Canvas Panel
+   └─ Overlay
+      ├─ ItemIcon
+      └─ UsesText
+```
+
+Tu peux écrire « x3 » dans **Content > Text** pour voir le rendu dans le Designer : en jeu, le C++ vide le texte au démarrage puis le remplit selon l'objet en main.
+
+<Encadre type="info">Sans Overlay, on peut aussi poser l'image et le texte directement dans le Canvas Panel. Mais il faut alors recalculer la position du texte chaque fois qu'on déplace l'image, et régler son **ZOrder** pour qu'il reste devant.</Encadre>
+
+C'est **toi** qui choisis la place, la taille et le style de la case : le C++ ne s'occupe que de ce qu'elle affiche.
+
+Pour finir, ouvre `BP_Kart_Controller` et mets `WBP_ItemSlot` dans **Item Widget Class** (catégorie Kart > UI), à côté des deux autres widgets.
+
+<Encadre type="piege">Un nom mal écrit (`Itemicon`, `Icon`, `UseText`…) et le Widget Blueprint refuse de compiler : le nom de l'élément doit être exactement celui de la variable C++.</Encadre>
+
+## 5. Tester
+
+Lance le jeu et roule dans une boîte : les icônes de la table défilent dans ta case pendant 2 secondes.
+
+<Capture src="/cours/mario-kart/objets/jeu-roulette.jpg" legende="Pendant la roulette, les icônes défilent dans la case d'objet." />
+
+Puis l'objet tiré s'affiche. Pour un objet à plusieurs utilisations, le texte indique ce qu'il reste.
+
+<Capture src="/cours/mario-kart/objets/jeu-objet.jpg" legende="Un triple turbo en main : l'icône et « x3 ». Après une utilisation, la case affichera « x2 »." />
+
+Teste aussi le piège : pose-le, fais demi-tour et roule dessus. Le châssis fait deux tours, le kart freine, et les touches ne répondent plus pendant 1,5 seconde. Le projectile, lui, file devant toi et rebondit sur les murs.
+
+| Symptôme | Cause probable |
+|---|---|
+| La case n'apparaît pas | `Item Widget Class` est vide dans `BP_Kart_Controller`. |
+| `WBP_ItemSlot` refuse de compiler | Il manque `ItemIcon` ou `UsesText`, ou leur nom est mal écrit. |
+| Le piège apparaît mais flotte en l'air | Le mesh n'est pas descendu (Location Z du Mesh), ou il n'y a pas de sol sous le kart. |
+| Rien n'apparaît quand on utilise le piège | `Actor Class` est vide dans `DA_Item_Trap`. |
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/objets-attaque/mise-en-place/nouvel-objet" />

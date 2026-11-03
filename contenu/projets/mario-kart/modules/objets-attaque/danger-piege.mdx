@@ -127,11 +127,7 @@ Entre deux objets, c'est la réponse la plus faible qui gagne. Le kart bloque le
   </Etape>
 </CodePasAPas>
 
-## Dans l'éditeur : le piège
-
-1. Crée un Blueprint dont la classe parente est `KartItemHazard`, nomme-le `BP_ItemTrap`. Dans son composant `Mesh`, choisis un mesh plat (un disque, une flaque).
-2. Crée un Data Asset de classe `KartItemData_SpawnActor`, nomme-le `DA_Item_Trap`. Remplis `DisplayName` et `Icon`, mets `ActorClass` sur `BP_ItemTrap` et laisse `SpawnOffset` à (-150, 0, 0) : derrière le kart.
-3. Ouvre `DA_ItemPool_Default` et ajoute une ligne avec `DA_Item_Trap` et un poids, par exemple 30.
+Les réglages dans l'éditeur pour le piège (son Blueprint et son Data Asset) sont regroupés dans la dernière leçon du module, « Mise en place dans l'éditeur », avec des captures.
 
 <Quiz />
 

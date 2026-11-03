@@ -80,17 +80,7 @@ Dans cette leçon, on ne voit que les lignes **ajoutées** pour les objets bonus
 
 <Encadre type="retenir">Une quarantaine de lignes ajoutées au kart, commentaires compris, pour tout un système d'objets. Le reste est dans des classes à part. Si demain on ajoute dix objets, le kart ne bouge plus.</Encadre>
 
-## Dans l'éditeur
-
-Le code est prêt, il faut maintenant créer les assets. Range-les dans un dossier `Content/Game/Items/`.
-
-1. **La touche.** Clic droit > Input > Input Action : `IA_UseItem` (type Digital/bool). Dans `IMC_Default`, ajoute `IA_UseItem` avec une touche (par exemple **E** ou un bouton de la manette). Dans `BP_Kart`, mets `IA_UseItem` dans **Use Item Action**.
-2. **Le turbo.** Clic droit > Miscellaneous > Data Asset, choisis la classe **Kart Item Data Boost** : `DA_Item_Turbo`. Remplis `Display Name`, une icône, `Uses = 1`.
-3. **Le triple turbo.** Duplique `DA_Item_Turbo` en `DA_Item_TripleTurbo` et mets `Uses = 3`. Aucun code en plus.
-4. **La table.** Data Asset de classe **Kart Item Pool Data** : `DA_ItemPool_Default`. Ajoute deux lignes : le turbo (poids 3) et le triple turbo (poids 1).
-5. **La boîte.** Blueprint Class qui hérite de **Kart Item Box** : `BP_ItemBox`. Choisis un cube pour `BoxMesh` et `DA_ItemPool_Default` pour `Item Pool`. Pose plusieurs boîtes sur le circuit.
-
-Lance le jeu et roule dans une boîte : après 2 secondes, le texte de debug affiche l'objet reçu. Appuie sur la touche : turbo.
+Les réglages dans l'éditeur pour la touche, les objets, la table et la boîte sont regroupés dans la dernière leçon du module, « Mise en place dans l'éditeur », avec des captures.
 
 <Quiz />
 

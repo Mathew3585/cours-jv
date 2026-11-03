@@ -1,0 +1,71 @@
+Le code est écrit, mais le jeu ne sait pas encore quels objets existent ni où sont les boîtes. Tout ça se règle **dans l'éditeur**, sans recompiler : c'est tout l'intérêt des Data Assets et des Blueprints. Dans cette leçon, on crée les assets un par un, dans l'ordre, puis on teste.
+
+Range tout dans un dossier `Content/Game/Items/`, avec trois sous-dossiers : `Data` (les Data Assets), `Blueprints` et `Icons`.
+
+## 1. La touche « utiliser l'objet »
+
+Dans le Content Browser, clic droit > **Input > Input Action**, nomme-la `IA_UseItem`. Ouvre-la : un simple bouton suffit, donc **Value Type** reste sur **Digital (bool)**.
+
+<Capture src="/cours/mario-kart/objets/ia-useitem.png" legende="IA_UseItem : un bouton, Value Type sur Digital (bool)." />
+
+Ouvre `IMC_Default` et ajoute une ligne avec le **+** de **Mappings**. Choisis `IA_UseItem`, puis une touche : **E** au clavier. Avec un deuxième **+**, ajoute un bouton de manette (par exemple **Gamepad Face Button Left**).
+
+<Capture src="/cours/mario-kart/objets/imc-default.png" legende="IMC_Default : IA_UseItem ajoutée en dernier, sous les quatre touches du kart." />
+
+Enfin, ouvre `BP_Kart`, cherche **Use Item Action** dans le panneau Details (catégorie Kart > Input) et mets `IA_UseItem` dedans. Sans cette étape, `BindAction` reçoit une action vide et la touche ne fait rien.
+
+## 2. Les icônes
+
+Glisse tes images (PNG de 128 × 128, fond transparent) dans `Items/Icons`. Pour une image d'interface, ouvre-la et règle **Compression Settings** sur **UserInterface2D** et **Texture Group** sur **UI** : l'icône reste nette, sans flou de compression.
+
+## 3. Les objets : des Data Assets
+
+Clic droit > **Miscellaneous > Data Asset**. Unreal demande la classe : choisis **Kart Item Data Boost**. Tu remarqueras que **Kart Item Data** n'apparaît pas dans la liste : c'est le `Abstract` du parent. Nomme l'asset `DA_Item_Turbo`.
+
+<Capture src="/cours/mario-kart/objets/da-item-turbo.png" legende="DA_Item_Turbo : le nom affiché, l'icône et Uses = 1. Ouvre la catégorie Boost pour régler la durée (1,5 s)." />
+
+Pour le triple turbo, pas de nouvelle classe : clic droit sur `DA_Item_Turbo` > **Duplicate**, nomme la copie `DA_Item_TripleTurbo`, change le nom affiché, l'icône, et mets **Uses = 3**.
+
+<Capture src="/cours/mario-kart/objets/da-item-tripleturbo.png" legende="DA_Item_TripleTurbo : même classe que le turbo, seul Uses change (3)." />
+
+## 4. La table de tirage
+
+Clic droit > **Miscellaneous > Data Asset**, classe **Kart Item Pool Data**, nom `DA_ItemPool_Default`. Dans **Entries**, ajoute une ligne par objet avec le **+**, et choisis pour chacune un **Item** et un **Weight**. Par exemple : turbo 4, triple turbo 1. Le triple sort alors 1 fois sur 5.
+
+## 5. La boîte
+
+Clic droit > **Blueprint Class**, ouvre **All Classes** et cherche **KartItemBox**. Nomme-la `BP_ItemBox`. Dans **Class Defaults** :
+
+- **AnimatedRoot** : Location Z = 80, pour que le cube flotte au-dessus de la route ;
+- **DetectionSphere** : Location Z = 60, pour qu'elle entoure le kart qui passe ;
+- **BoxMesh** : un **Static Mesh** (le cube de base suffit), une échelle de 0,7 et un matériau de couleur ;
+- **Item Pool** (catégorie Kart > ItemBox) : `DA_ItemPool_Default`.
+
+<Capture src="/cours/mario-kart/objets/bp-itembox.png" legende="BP_ItemBox : DetectionSphere à 60 cm, AnimatedRoot à 80 cm, le cube à l'échelle 0,7 avec son matériau." />
+
+La rotation et le flottement se règlent dans la catégorie **Rotating**, héritée de `ARotatingObject` : rien à changer pour commencer.
+
+## 6. Dans la scène
+
+Glisse plusieurs `BP_ItemBox` sur la piste, **au niveau de la route** : le cube monte tout seul à 80 cm. Une rangée de trois boîtes en travers de la route, c'est le classique. Range-les dans un dossier **Items** du World Outliner (clic droit > **Move To > Create New Folder**) : ta scène reste lisible.
+
+<Capture src="/cours/mario-kart/objets/jeu-boites.jpg" legende="En jeu : deux rangées de boîtes sur la piste, et le dossier Items dans l'Outliner." />
+
+## 7. Tester
+
+Lance le jeu et roule dans une boîte. Elle disparaît, le texte de debug vert affiche l'objet reçu après 2 secondes, et la boîte réapparaît 3 secondes plus tard. Appuie sur **E** : turbo.
+
+Si ça ne marche pas, vérifie dans cet ordre :
+
+| Symptôme | Cause probable |
+|---|---|
+| La boîte ne disparaît pas | La boîte est posée trop haut ou trop bas : la sphère de détection ne touche pas le kart. |
+| La boîte disparaît, mais aucun objet n'arrive | `Item Pool` est vide dans `BP_ItemBox`, ou tous les poids de la table sont à 0. |
+| L'objet arrive, mais **E** ne fait rien | `Use Item Action` est vide dans `BP_Kart`, ou `IA_UseItem` n'est pas dans `IMC_Default`. |
+| **E** ne fait rien pendant 2 secondes | C'est normal : on ne peut pas utiliser un objet pendant la roulette. |
+
+<Encadre type="retenir">Pour ajouter un objet qui existe déjà en C++ (un turbo plus long, par exemple), tu n'as touché à aucun fichier `.cpp` : un Data Asset et une ligne dans la table suffisent.</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/objets-bonus/mise-en-place/diagnostic" />

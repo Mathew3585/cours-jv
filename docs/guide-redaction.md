@@ -96,6 +96,11 @@ Affiche les lignes `debut` à `fin` du fichier, avec les étapes à droite. Cliq
 Types : `retenir`, `piege` (erreur fréquente), `plus-loin`, `info`. Un ou deux par leçon, pas plus.
 
 ```mdx
+<Capture src="/cours/mario-kart/objets/bp-itembox.png" legende="Ce qu'on voit sur la capture." />
+```
+Capture d'écran de l'éditeur, avec sa légende. Les images sont rangées dans `public/cours/<projet>/...` (PNG pour l'éditeur, JPEG pour les vues en jeu, plus légères). Une capture termine l'écran de texte : écris juste avant elle le paragraphe qui l'explique. On s'en sert surtout dans la leçon « Mise en place dans l'éditeur », en fin de module, qui regroupe tout ce qu'il faut créer et régler dans l'éditeur.
+
+```mdx
 <Quiz />
 ```
 Place le quiz de la leçon (défini dans `module.ts`). En général à la fin.

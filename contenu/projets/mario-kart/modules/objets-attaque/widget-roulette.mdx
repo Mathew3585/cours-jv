@@ -99,12 +99,7 @@ Le `.cpp` de la case d'objet a deux rôles. D'abord, trouver le composant d'obje
 Le widget ne décide de rien : il ne tire pas l'objet, il ne compte pas les utilisations. Il affiche ce que le composant lui envoie. Si on supprime le widget, le jeu marche toujours.
 </Encadre>
 
-## Dans l'éditeur : la case d'objet
-
-1. Crée un Widget Blueprint `WBP_ItemSlot`, puis dans Graph > Class Settings, mets sa classe parente sur `KartItemWidget`.
-2. Dans le Designer, ajoute une Image nommée exactement `ItemIcon` et un Text nommé exactement `UsesText`. Place la case dans un coin de l'écran.
-3. Dans `BP_KartPlayerController`, choisis `WBP_ItemSlot` dans `Item Widget Class`.
-4. Lance le jeu et roule dans une boîte : les icônes défilent pendant 2 secondes, puis l'objet s'affiche.
+Les réglages dans l'éditeur pour la case d'objet (le Widget Blueprint et le PlayerController) sont regroupés dans la dernière leçon du module, « Mise en place dans l'éditeur », avec des captures.
 
 <Quiz />
 

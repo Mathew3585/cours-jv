@@ -878,6 +878,72 @@ export const objetsBonus: Module = {
         },
       ],
     },
+    {
+      slug: "mise-en-place",
+      titre: "Mise en place dans l'éditeur",
+      resume: "La touche, les icônes, les Data Assets des objets, la table de tirage, BP_ItemBox et les boîtes dans la scène, avec des captures",
+      dureeMin: 20,
+      fichiers: [],
+      charger: () => import("./mise-en-place.mdx"),
+      quiz: {
+        id: "mario-kart/objets-bonus/mise-en-place",
+        questions: [
+          {
+            type: "qcm",
+            enonce: "Tu crées un Data Asset et tu cherches la classe Kart Item Data dans la liste. Elle n'y est pas. Pourquoi ?",
+            choix: [
+              "Le projet n'a pas été compilé",
+              "Elle est déclarée UCLASS(Abstract) : seules ses classes enfants sont proposées",
+              "Les Data Assets ne marchent qu'avec des classes Blueprint",
+              "Il faut d'abord créer la table de tirage",
+            ],
+            bonne: 1,
+            explication: "Abstract interdit de créer un asset du parent. On choisit Kart Item Data Boost ou Kart Item Data Spawn Actor.",
+          },
+          {
+            type: "qcm",
+            enonce: "Tu roules dans une boîte, elle disparaît, mais aucun objet n'arrive jamais. Quelle est la cause la plus probable ?",
+            choix: [
+              "La touche E n'est pas dans IMC_Default",
+              "Le Static Mesh du cube est vide",
+              "Item Pool est vide dans BP_ItemBox, ou tous les poids de la table sont à 0",
+              "La boîte est posée trop haut",
+            ],
+            bonne: 2,
+            explication:
+              "La boîte a détecté le kart (elle a disparu). C'est TryGiveRandomItem qui échoue : pas de table, ou une table dont PickRandomItem renvoie nullptr.",
+          },
+          {
+            type: "vrai-faux",
+            enonce: "Pour créer le triple turbo, on duplique DA_Item_Turbo et on met Uses à 3, sans recompiler.",
+            choix: ["Vrai", "Faux"],
+            bonne: 0,
+            explication: "Le nombre d'utilisations est une donnée du Data Asset. Le code lit Uses quand la roulette se termine.",
+          },
+          {
+            type: "qcm",
+            enonce: "L'objet est bien en main, mais appuyer sur E ne fait rien, même après la roulette. Que vérifies-tu en premier ?",
+            choix: [
+              "Les poids de la table de tirage",
+              "Que Use Item Action est rempli dans BP_Kart et que IA_UseItem est dans IMC_Default",
+              "La position Z d'AnimatedRoot",
+              "Que le dossier Items existe dans l'Outliner",
+            ],
+            bonne: 1,
+            explication: "Sans action, BindAction ne branche rien. Sans ligne dans le Mapping Context, aucune touche ne déclenche l'action.",
+          },
+        ],
+      },
+      questionsLibres: [
+        {
+          id: "mario-kart/objets-bonus/mise-en-place/diagnostic",
+          enonce:
+            "Un camarade te dit : « Mes boîtes tournent, mais quand je roule dedans, rien ne se passe, elles ne disparaissent même pas. » Donne au moins deux causes possibles, et pour chacune ce qu'il doit vérifier dans l'éditeur.",
+          attendus:
+            "La sphère de détection ne touche pas le kart : boîte posée trop haut ou trop bas, ou DetectionSphere mal placée (vérifier sa Location Z et la hauteur de la boîte par rapport à la route). Le kart n'a pas de UKartItemComponent : FindComponentByClass renvoie nullptr et la boîte ignore l'overlap (vérifier que BP_Kart hérite bien de KartPawn). Le profil de collision de la sphère a été changé (il doit rester Trigger avec Generate Overlap Events).",
+        },
+      ],
+    },
   ],
   quizFinal: {
     id: "mario-kart/objets-bonus/final",

@@ -1,4 +1,5 @@
 import type { MDXComponents } from "mdx/types";
+import { Capture } from "@/components/lecon/capture";
 import { CodePasAPas, Etape } from "@/components/lecon/marqueurs";
 import { Encadre } from "@/components/lecon/encadre";
 import { QuestionLibre } from "@/components/lecon/question-libre";
@@ -10,6 +11,7 @@ import { Terme } from "@/components/lecon/terme";
 const components: MDXComponents = {
   Terme,
   Encadre,
+  Capture,
   Etape,
   CodePasAPas,
   Quiz: QuizLecon,

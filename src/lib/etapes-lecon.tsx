@@ -1,6 +1,7 @@
 import "server-only";
 import type { MDXContent } from "mdx/types";
 import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
+import { Capture } from "@/components/lecon/capture";
 import { CodePasAPas, Etape, MarqueurQuestion, MarqueurQuiz, type PropsCode, type PropsEtape } from "@/components/lecon/marqueurs";
 import { lirePlage } from "@/lib/code";
 
@@ -82,6 +83,8 @@ export function construireEtapes(Contenu: MDXContent, options: { quiz: boolean; 
       continue;
     }
     enAttente.push(n);
+    // Une capture termine l'écran : le texte qui la précède et l'image restent ensemble, sans déborder
+    if (n.type === Capture) viderTexte();
   }
   viderTexte();
 

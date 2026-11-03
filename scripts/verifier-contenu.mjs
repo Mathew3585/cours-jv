@@ -92,6 +92,10 @@ for (const projet of readdirSync(path.join(racine, "projets"))) {
       for (const m of source.matchAll(/<Terme\s+id="([^"]+)"/g)) {
         if (!idsDico.has(m[1])) erreurs.push(`${ou} : <Terme id="${m[1]}"> n'existe pas dans le dico`);
       }
+      // Chaque capture doit exister dans public/ (le src commence par /cours/...)
+      for (const m of source.matchAll(/<Capture\s+src="([^"]+)"/g)) {
+        if (!existsSync(path.join(racine, "..", "public", m[1]))) erreurs.push(`${ou} : la capture ${m[1]} n'existe pas dans public/`);
+      }
       for (const m of source.matchAll(/<QuestionLibre\s+id="([^"]+)"/g)) {
         if (!texteModule.includes(`"${m[1]}"`)) erreurs.push(`${ou} : <QuestionLibre id="${m[1]}"> n'est pas déclarée dans module.ts`);
       }

@@ -106,11 +106,7 @@ On ne prend pas le `ProjectileMovementComponent` d'Unreal : comme pour le kart, 
 
 Exemple de rebond : le projectile va vers (1, 0, 0) et touche un mur de face, dont la normale est (-1, 0, 0). La partie qui rentre dans le mur est inversée : il repart vers (-1, 0, 0). S'il arrive en biais, vers (0.7, 0.7, 0), il repart vers (-0.7, 0.7, 0) : il garde la partie qui longe le mur.
 
-## Dans l'éditeur : le projectile
-
-1. Crée un Blueprint de classe parente `KartItemProjectile`, nomme-le `BP_ItemProjectile`, et donne un mesh à son composant `Mesh`.
-2. Crée un Data Asset de classe `KartItemData_SpawnActor`, nommé `DA_Item_Projectile`. Mets `ActorClass` sur `BP_ItemProjectile` et `SpawnOffset` à (150, 0, 0) : devant le kart cette fois. Remplis `DisplayName` et `Icon`.
-3. Ajoute `DA_Item_Projectile` dans `DA_ItemPool_Default`, avec un poids, par exemple 20.
+Les réglages dans l'éditeur pour le projectile (son Blueprint et son Data Asset) sont regroupés dans la dernière leçon du module, « Mise en place dans l'éditeur », avec des captures.
 
 <Quiz />
 
