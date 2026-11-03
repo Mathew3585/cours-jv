@@ -202,7 +202,7 @@ export function Lecteur({
             <section
               aria-live="polite"
               key={index}
-              className="lecteur-apparition flex min-h-0 w-full max-w-[900px] flex-col overflow-y-auto rounded-2xl border border-ligne bg-white p-6 md:p-12"
+              className="lecteur-apparition flex min-h-0 w-full max-w-[860px] flex-col overflow-y-auto px-2 py-6 md:px-6 md:py-10"
             >
               <div className="my-auto flex flex-col gap-5">
                 {ecran === null ? (
