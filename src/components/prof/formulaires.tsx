@@ -9,8 +9,7 @@ import {
   enregistrerNotePrivee,
   enregistrerProjetClasse,
   importerComptes,
-  reinitialiserMotDePasse,
-  type CompteCree,
+  modifierEleve,
   type EtatAction,
   type EtatCreation,
 } from "@/actions/prof";
@@ -67,33 +66,24 @@ export function FormulaireClasse() {
 function ComptesCrees({ etat }: { etat: EtatCreation }) {
   if (etat.erreur) return <p className="text-sm font-semibold text-rouge-texte">{etat.erreur}</p>;
   if (!etat.crees) return null;
-  const copier = () => {
-    const texte = etat.crees!.map((c) => `${c.prenom} ${c.nom}\t${c.identifiant}\t${c.motDePasse}`).join("\n");
-    navigator.clipboard.writeText(texte).catch(() => {});
-  };
   return (
-    <div className="flex flex-col gap-3 rounded-2xl bg-vert-pale p-4">
-      <b className="text-vert-texte">
-        {etat.crees.length} compte{etat.crees.length > 1 ? "s" : ""} créé{etat.crees.length > 1 ? "s" : ""}. Note les mots de passe maintenant : ils ne
-        seront plus affichés.
-      </b>
+    <div className="flex flex-col gap-2.5 rounded-2xl bg-vert-pale p-4">
       {etat.crees.length > 0 && (
         <>
-          <ul className="flex flex-col gap-1 font-mono text-[13.5px]">
+          <b className="text-vert-texte">
+            {etat.crees.length} compte{etat.crees.length > 1 ? "s" : ""} créé{etat.crees.length > 1 ? "s" : ""}. Les élèves se connectent avec leur adresse
+            e-mail : ils reçoivent un code à chaque nouvelle connexion.
+          </b>
+          <ul className="flex flex-col gap-1 text-[14px]">
             {etat.crees.map((c) => (
-              <li key={c.identifiant}>
-                {c.prenom} {c.nom} · <b>{c.identifiant}</b> · <b>{c.motDePasse}</b>
+              <li key={c.email}>
+                <b>
+                  {c.prenom} {c.nom}
+                </b>{" "}
+                · <span className="font-mono text-[13px]">{c.email}</span>
               </li>
             ))}
           </ul>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className="btn" onClick={copier}>
-              Copier la liste
-            </button>
-            <button type="button" className="btn" onClick={() => imprimerFiches(etat.crees!)}>
-              Imprimer les fiches
-            </button>
-          </div>
         </>
       )}
       {etat.echecs && etat.echecs.length > 0 && (
@@ -110,25 +100,6 @@ function ComptesCrees({ etat }: { etat: EtatCreation }) {
   );
 }
 
-/** Ouvre une page imprimable avec une fiche découpable par élève. */
-function imprimerFiches(comptes: CompteCree[]) {
-  const fenetre = window.open("", "_blank");
-  if (!fenetre) return;
-  const echapper = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-  const fiches = comptes
-    .map(
-      (c) => `<div class="fiche"><b>${echapper(c.prenom)} ${echapper(c.nom)}</b><span>${echapper(c.classe)}</span>
-<p>Site : ${echapper(location.origin)}</p><p>Identifiant : <code>${echapper(c.identifiant)}</code></p><p>Mot de passe : <code>${echapper(c.motDePasse)}</code></p></div>`,
-    )
-    .join("");
-  fenetre.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiches identifiants</title>
-<style>body{font-family:system-ui,sans-serif;margin:24px}.grille{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.fiche{border:1px dashed #999;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:4px;break-inside:avoid}
-.fiche b{font-size:18px}.fiche span{color:#666;font-size:13px}.fiche p{margin:4px 0}code{font-size:16px;font-weight:bold}</style>
-</head><body><div class="grille">${fiches}</div><script>window.onload=()=>window.print()</script></body></html>`);
-  fenetre.document.close();
-}
-
 function ChoixClasse({ classes, id, defaut }: { classes: Classe[]; id: string; defaut?: string }) {
   return (
     <label htmlFor={id} className={etiquette}>
@@ -143,18 +114,15 @@ export function FormulaireCompte({ classes }: { classes: Classe[] }) {
   return (
     <form action={envoyer} className="carte flex flex-[1_1_360px] flex-col gap-3.5 p-6">
       <h2 className="font-display text-xl font-bold">Ajouter un élève</h2>
-      <div className="grid grid-cols-2 gap-3">
-        <label htmlFor="compte-prenom" className={etiquette}>
-          Prénom
-          <input id="compte-prenom" name="prenom" required className={champ} />
-        </label>
-        <label htmlFor="compte-nom" className={etiquette}>
-          Nom
-          <input id="compte-nom" name="nom" required className={champ} />
-        </label>
-      </div>
+      <label htmlFor="compte-email" className={etiquette}>
+        Adresse e-mail de l&apos;élève
+        <input id="compte-email" name="email" type="email" required autoComplete="off" placeholder="prenom.nom@ecole.fr" className={champ} />
+      </label>
       <ChoixClasse classes={classes} id="compte-classe" />
-      <p className="text-[13px] text-muet">L&apos;identifiant (prenom.nom) et un mot de passe provisoire sont créés automatiquement.</p>
+      <p className="text-[13px] text-muet">
+        Pas de mot de passe : l&apos;élève se connecte avec son adresse et reçoit un code par e-mail. Le prénom et le nom sont devinés à partir de
+        l&apos;adresse, tu peux les corriger dans sa fiche.
+      </p>
       <button type="submit" className="btn btn-pri self-start" disabled={enCours || classes.length === 0}>
         {enCours ? "Création…" : "Créer le compte"}
       </button>
@@ -171,54 +139,59 @@ export function FormulaireImport({ classes }: { classes: Classe[] }) {
     setTexte(await f.text());
   }
 
-  const nbLignes = texte.split(/\r?\n/).filter((l) => /[;,\t]/.test(l)).length;
+  const nbAdresses = texte.split(/\r?\n/).filter((l) => l.includes("@")).length;
 
   return (
     <form action={envoyer} className="carte flex flex-[1_1_360px] flex-col gap-3.5 p-6">
       <h2 className="font-display text-xl font-bold">Importer une classe entière</h2>
-      <ZoneFichier id="import-fichier" accept=".csv,.txt" onFichier={lireFichier} consigne="Fichier CSV (dans Excel : Enregistrer sous… CSV)" />
+      <ZoneFichier id="import-fichier" accept=".csv,.txt" onFichier={lireFichier} consigne="Fichier CSV ou texte avec les adresses e-mail" />
       <label htmlFor="import-liste" className={etiquette}>
-        Ou colle la liste, une ligne par élève : prénom ; nom
+        Ou colle les adresses, une par ligne
         <textarea
           id="import-liste"
           name="liste"
           rows={6}
           value={texte}
           onChange={(e) => setTexte(e.target.value)}
-          placeholder={"Inès ; Moreau\nHugo ; Lefèvre"}
+          placeholder={"ines.moreau@ecole.fr\nhugo.lefevre@ecole.fr"}
           className="rounded-xl border border-ligne-3 bg-creme px-3 py-2 font-mono text-sm font-normal"
         />
       </label>
       <ChoixClasse classes={classes} id="import-classe" />
-      <button type="submit" className="btn btn-pri self-start" disabled={enCours || nbLignes === 0 || classes.length === 0}>
-        {enCours ? "Création…" : nbLignes > 0 ? `Créer ${nbLignes} compte${nbLignes > 1 ? "s" : ""}` : "Créer les comptes"}
+      <button type="submit" className="btn btn-pri self-start" disabled={enCours || nbAdresses === 0 || classes.length === 0}>
+        {enCours ? "Création…" : nbAdresses > 0 ? `Créer ${nbAdresses} compte${nbAdresses > 1 ? "s" : ""}` : "Créer les comptes"}
       </button>
       <ComptesCrees etat={etat} />
     </form>
   );
 }
 
-export function BoutonReinitialiser({ eleveId, nom }: { eleveId: string; nom: string }) {
-  const [resultat, setResultat] = useState<EtatAction>({});
-  const [enCours, demarrer] = useTransition();
+/** Corrige le prénom, le nom ou l'adresse e-mail d'un élève. */
+export function FormulaireModifierEleve({ eleveId, prenom, nom, email }: { eleveId: string; prenom: string; nom: string; email: string }) {
+  const [etat, envoyer, enCours] = useActionState<EtatAction, FormData>(modifierEleve.bind(null, eleveId), {});
   return (
-    <span className="inline-flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        className="btn min-h-9 text-sm"
-        disabled={enCours}
-        aria-label={`Nouveau mot de passe pour ${nom}`}
-        onClick={() => demarrer(async () => setResultat(await reinitialiserMotDePasse(eleveId)))}
-      >
-        {enCours ? "…" : "Nouveau mot de passe"}
-      </button>
-      {resultat.ok && (
-        <span className="font-mono text-sm">
-          <b>{resultat.ok}</b>
-        </span>
-      )}
-      {resultat.erreur && <span className="text-sm text-rouge-texte">{resultat.erreur}</span>}
-    </span>
+    <form action={envoyer} className="flex flex-col gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5">
+        <label htmlFor="modif-prenom" className={etiquette}>
+          Prénom
+          <input id="modif-prenom" name="prenom" defaultValue={prenom} required className={champ} />
+        </label>
+        <label htmlFor="modif-nom" className={etiquette}>
+          Nom
+          <input id="modif-nom" name="nom" defaultValue={nom} className={champ} />
+        </label>
+      </div>
+      <label htmlFor="modif-email" className={etiquette}>
+        Adresse e-mail
+        <input id="modif-email" name="email" type="email" defaultValue={email} required className={champ} />
+      </label>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Message etat={etat} />
+        <button type="submit" className="btn ml-auto" disabled={enCours}>
+          Enregistrer
+        </button>
+      </div>
+    </form>
   );
 }
 

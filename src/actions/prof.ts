@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { trouverProjet } from "@/contenu";
-import { identifiantDepuisNom, identifiantLibre, motDePasseProvisoire } from "@/lib/comptes";
-import { emailDepuisIdentifiant, exigerProf } from "@/lib/session";
+import { estEmail, nomDepuisEmail } from "@/lib/comptes";
+import { exigerProf } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase/serveur";
 
 export type EtatAction = { ok?: string; erreur?: string };
-export type CompteCree = { prenom: string; nom: string; identifiant: string; motDePasse: string; classe: string };
+export type CompteCree = { prenom: string; nom: string; email: string; classe: string };
 export type EtatCreation = { erreur?: string; crees?: CompteCree[]; echecs?: string[] };
 
 function texte(formData: FormData, cle: string) {
@@ -40,44 +40,48 @@ export async function supprimerClasse(classeId: string) {
 
 // ---------- Comptes élèves ----------
 
-async function creerComptes(lignes: { prenom: string; nom: string }[], classeId: string): Promise<EtatCreation> {
+type LigneCompte = { email: string; prenom?: string; nom?: string };
+
+/** Crée les comptes à partir des adresses e-mail : pas de mot de passe, l'élève se connecte avec un code reçu par e-mail. */
+async function creerComptes(lignes: LigneCompte[], classeId: string): Promise<EtatCreation> {
   const admin = supabaseAdmin();
   const { data: classe } = await admin.from("classes").select("nom, annee").eq("id", classeId).maybeSingle();
   if (!classe) return { erreur: "Choisis une classe." };
 
   const { data: existants } = await admin.from("profiles").select("identifiant");
-  const pris = new Set((existants ?? []).map((p) => p.identifiant));
+  const pris = new Set((existants ?? []).map((p) => p.identifiant.toLowerCase()));
   const crees: CompteCree[] = [];
   const echecs: string[] = [];
 
-  for (const { prenom, nom } of lignes) {
-    const base = identifiantDepuisNom(prenom, nom);
-    if (base.length < 3 || base.startsWith(".") || base.endsWith(".")) {
-      echecs.push(`${prenom} ${nom} : nom ou prénom vide`);
+  for (const ligne of lignes) {
+    const email = ligne.email.trim().toLowerCase();
+    if (!estEmail(email)) {
+      echecs.push(`${ligne.email} : adresse e-mail invalide`);
       continue;
     }
-    const identifiant = identifiantLibre(base, pris);
-    const motDePasse = motDePasseProvisoire();
-    const { data, error } = await admin.auth.admin.createUser({
-      email: emailDepuisIdentifiant(identifiant),
-      password: motDePasse,
-      email_confirm: true,
-      user_metadata: { prenom, nom },
-    });
+    if (pris.has(email)) {
+      echecs.push(`${email} : un compte existe déjà avec cette adresse`);
+      continue;
+    }
+    const devine = nomDepuisEmail(email);
+    const prenom = ligne.prenom?.trim() || devine.prenom;
+    const nom = ligne.nom?.trim() || devine.nom;
+
+    const { data, error } = await admin.auth.admin.createUser({ email, email_confirm: true, user_metadata: { prenom, nom } });
     if (error || !data.user) {
-      echecs.push(`${prenom} ${nom} : ${error?.message ?? "erreur inconnue"}`);
+      echecs.push(`${email} : ${error?.message ?? "erreur inconnue"}`);
       continue;
     }
     const { error: erreurProfil } = await admin
       .from("profiles")
-      .insert({ id: data.user.id, identifiant, prenom, nom, role: "eleve", classe_id: classeId });
+      .insert({ id: data.user.id, identifiant: email, prenom, nom, role: "eleve", classe_id: classeId });
     if (erreurProfil) {
       await admin.auth.admin.deleteUser(data.user.id);
-      echecs.push(`${prenom} ${nom} : profil non créé`);
+      echecs.push(`${email} : profil non créé`);
       continue;
     }
-    pris.add(identifiant);
-    crees.push({ prenom, nom, identifiant, motDePasse, classe: `${classe.nom} · ${classe.annee}` });
+    pris.add(email);
+    crees.push({ prenom, nom, email, classe: `${classe.nom} · ${classe.annee}` });
   }
 
   revalidatePath("/prof", "layout");
@@ -86,33 +90,54 @@ async function creerComptes(lignes: { prenom: string; nom: string }[], classeId:
 
 export async function creerCompte(_: EtatCreation, formData: FormData): Promise<EtatCreation> {
   await exigerProf();
-  const prenom = texte(formData, "prenom");
-  const nom = texte(formData, "nom");
-  if (!prenom || !nom) return { erreur: "Remplis le prénom et le nom." };
-  return creerComptes([{ prenom, nom }], texte(formData, "classe"));
+  const email = texte(formData, "email");
+  if (!email) return { erreur: "Mets l'adresse e-mail de l'élève." };
+  return creerComptes([{ email }], texte(formData, "classe"));
 }
 
-/** Import d'une liste : une ligne par élève, « prénom ; nom » ou « prénom, nom » (une ligne d'en-tête est ignorée). */
+/**
+ * Import d'une liste : une adresse e-mail par ligne.
+ * On peut ajouter le prénom et le nom après l'adresse (« adresse ; prénom ; nom »), sinon ils sont devinés.
+ */
 export async function importerComptes(_: EtatCreation, formData: FormData): Promise<EtatCreation> {
   await exigerProf();
-  const brut = texte(formData, "liste");
-  const lignes = brut
+  const lignes = texte(formData, "liste")
     .split(/\r?\n/)
     .map((l) => l.split(/[;,\t]/).map((c) => c.trim().replace(/^"|"$/g, "")))
-    .filter((c) => c.length >= 2 && c[0] && c[1])
-    .filter((c, i) => !(i === 0 && /pr[ée]nom/i.test(c[0])))
-    .map(([prenom, nom]) => ({ prenom, nom }));
-  if (lignes.length === 0) return { erreur: "Aucun élève trouvé. Une ligne par élève : prénom ; nom." };
+    .map((cellules): LigneCompte | null => {
+      const i = cellules.findIndex((c) => c.includes("@"));
+      if (i < 0) return null;
+      const autres = cellules.filter((_, j) => j !== i && cellules[j]);
+      return { email: cellules[i], prenom: autres[0], nom: autres[1] };
+    })
+    .filter((l): l is LigneCompte => l !== null);
+  if (lignes.length === 0) return { erreur: "Aucune adresse e-mail trouvée. Mets une adresse par ligne." };
   if (lignes.length > 60) return { erreur: "60 élèves maximum par import." };
   return creerComptes(lignes, texte(formData, "classe"));
 }
 
-export async function reinitialiserMotDePasse(eleveId: string): Promise<EtatAction> {
+/** Corrige le prénom, le nom ou l'adresse e-mail d'un élève. */
+export async function modifierEleve(eleveId: string, _: EtatAction, formData: FormData): Promise<EtatAction> {
   await exigerProf();
-  const motDePasse = motDePasseProvisoire();
-  const { error } = await supabaseAdmin().auth.admin.updateUserById(eleveId, { password: motDePasse });
-  if (error) return { erreur: "Le mot de passe n'a pas pu être changé." };
-  return { ok: motDePasse };
+  const prenom = texte(formData, "prenom");
+  const nom = texte(formData, "nom");
+  const email = texte(formData, "email").toLowerCase();
+  if (!prenom) return { erreur: "Le prénom ne peut pas être vide." };
+  if (!estEmail(email)) return { erreur: "Adresse e-mail invalide." };
+
+  const admin = supabaseAdmin();
+  const { data: profil } = await admin.from("profiles").select("identifiant, role").eq("id", eleveId).maybeSingle();
+  if (profil?.role !== "eleve") return { erreur: "Élève introuvable." };
+  if (email !== profil.identifiant.toLowerCase()) {
+    const { data: doublon } = await admin.from("profiles").select("id").eq("identifiant", email).maybeSingle();
+    if (doublon) return { erreur: "Un autre compte utilise déjà cette adresse." };
+    const { error } = await admin.auth.admin.updateUserById(eleveId, { email, email_confirm: true });
+    if (error) return { erreur: "L'adresse n'a pas pu être changée." };
+  }
+  const { error } = await admin.from("profiles").update({ prenom, nom, identifiant: email }).eq("id", eleveId);
+  if (error) return { erreur: "Les informations n'ont pas pu être enregistrées." };
+  revalidatePath("/prof", "layout");
+  return { ok: "Informations enregistrées." };
 }
 
 export async function changerClasse(eleveId: string, _: EtatAction, formData: FormData): Promise<EtatAction> {

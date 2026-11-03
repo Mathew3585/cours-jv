@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { envoyerMessage, supprimerEleve } from "@/actions/prof";
 import { BarreProgression } from "@/components/motion";
-import { BoutonConfirmer, BoutonReinitialiser, FormulaireChangerClasse, FormulaireCorrection, FormulaireMessage, FormulaireNotePrivee } from "@/components/prof/formulaires";
+import { BoutonConfirmer, FormulaireChangerClasse, FormulaireCorrection, FormulaireMessage, FormulaireModifierEleve, FormulaireNotePrivee } from "@/components/prof/formulaires";
 import { Pastille } from "@/components/ui";
 import { idLecon, trouverQuestionLibre, trouverQuiz } from "@/contenu";
 import { dateCourte, ilYa } from "@/lib/dates";
@@ -78,7 +78,6 @@ export default async function FicheElevePage({ params }: PageProps<"/prof/eleves
             </div>
           </div>
         </div>
-        <BoutonReinitialiser eleveId={profil.id} nom={`${profil.prenom} ${profil.nom}`} />
       </section>
 
       <div className="flex flex-wrap items-start gap-5">
@@ -179,6 +178,7 @@ export default async function FicheElevePage({ params }: PageProps<"/prof/eleves
           </div>
           <div className="carte flex flex-col gap-3 p-[22px]">
             <h2 className="font-display text-lg font-bold">Compte</h2>
+            <FormulaireModifierEleve eleveId={profil.id} prenom={profil.prenom} nom={profil.nom} email={profil.identifiant} />
             <FormulaireChangerClasse eleveId={profil.id} classes={classes.map((c) => c.classe)} actuelle={profil.classe_id} />
             <BoutonConfirmer
               action={supprimerEleve.bind(null, profil.id)}

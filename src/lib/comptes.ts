@@ -1,38 +1,26 @@
 import "server-only";
-import { randomInt } from "node:crypto";
 
-const mots = [
-  "volant", "turbo", "drift", "piste", "virage", "kart", "pneu", "moteur", "boost", "podium",
-  "chrono", "tour", "nitro", "casque", "circuit", "sprint", "bolide", "rampe", "saut", "depart",
-  "pixel", "manette", "niveau", "sprite", "shader", "camera", "ressort", "vecteur", "boucle", "octet",
-];
-
-/** Mot de passe facile à dicter en classe, ex. « virage-nitro-47 ». */
-export function motDePasseProvisoire() {
-  const a = mots[randomInt(mots.length)];
-  let b = mots[randomInt(mots.length)];
-  while (b === a) b = mots[randomInt(mots.length)];
-  return `${a}-${b}-${randomInt(10, 100)}`;
+/** Vérification simple d'une adresse e-mail (le serveur d'e-mails fait le reste). */
+export function estEmail(s: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
-function nettoyer(s: string) {
-  return s
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+function majuscule(mot: string) {
+  return mot
+    .split("-")
+    .map((m) => (m ? m[0].toLocaleUpperCase("fr") + m.slice(1).toLocaleLowerCase("fr") : m))
+    .join("-");
 }
 
-/** « Inès », « Moreau » → « ines.moreau » */
-export function identifiantDepuisNom(prenom: string, nom: string) {
-  return `${nettoyer(prenom)}.${nettoyer(nom)}`;
-}
-
-/** Ajoute 2, 3… si l'identifiant est déjà pris. */
-export function identifiantLibre(base: string, pris: Set<string>) {
-  if (!pris.has(base)) return base;
-  let i = 2;
-  while (pris.has(`${base}${i}`)) i++;
-  return `${base}${i}`;
+/**
+ * Devine le prénom et le nom à partir de l'adresse :
+ * « ines.moreau@ecole.fr » → Ines Moreau, « jean-paul_durand2@… » → Jean-Paul Durand.
+ * Le prof peut corriger ensuite dans la fiche élève.
+ */
+export function nomDepuisEmail(email: string) {
+  const local = email.split("@")[0].replace(/\d+/g, " ");
+  const morceaux = local.split(/[._\s]+/).filter(Boolean);
+  if (morceaux.length === 0) return { prenom: "Élève", nom: "" };
+  if (morceaux.length === 1) return { prenom: majuscule(morceaux[0]), nom: "" };
+  return { prenom: majuscule(morceaux[0]), nom: morceaux.slice(1).map(majuscule).join(" ") };
 }
