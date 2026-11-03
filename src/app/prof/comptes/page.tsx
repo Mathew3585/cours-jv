@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FormulaireCompte, FormulaireImport } from "@/components/prof/formulaires";
+import { ModaleEleve } from "@/components/prof/modale-eleve";
 import { Pastille } from "@/components/ui";
 import { tousLesEleves, toutesLesClasses } from "@/lib/donnees-prof";
 
@@ -16,7 +17,7 @@ export default async function ComptesPage() {
       <div className="flex flex-col gap-1.5">
         <h1 className="font-display text-[40px] font-extrabold tracking-tight">Comptes élèves</h1>
         <span className="text-[15px] text-muet">
-          Les élèves ne peuvent pas s&apos;inscrire seuls. Tu crées leurs comptes ici avec leur adresse e-mail et un mot de passe. Tu peux changer le mot de passe à tout moment dans la fiche de l&apos;élève.
+          Les élèves ne peuvent pas s&apos;inscrire seuls. Tu crées leurs comptes ici avec leur adresse e-mail et un mot de passe. Le crayon permet de modifier un élève et de changer son mot de passe.
         </span>
       </div>
 
@@ -41,11 +42,14 @@ export default async function ComptesPage() {
           <table className="w-full min-w-[720px] border-collapse text-[15px]">
             <thead>
               <tr className="bg-creme-3 text-left text-[12.5px] tracking-wider text-muet uppercase">
-                {["Élève", "Adresse e-mail", "Classe", "Mot de passe"].map((h) => (
+                {["Élève", "Adresse e-mail", "Classe"].map((h) => (
                   <th key={h} className="border-b border-ligne px-4 py-3 font-semibold">
                     {h}
                   </th>
                 ))}
+                <th className="w-14 border-b border-ligne px-2 py-3">
+                  <span className="sr-only">Modifier</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -58,10 +62,8 @@ export default async function ComptesPage() {
                   </td>
                   <td className="px-4 py-3 font-mono text-[13.5px]">{e.identifiant}</td>
                   <td className="px-4 py-3">{e.classe_id ? nomClasse.get(e.classe_id) : <Pastille>sans classe</Pastille>}</td>
-                  <td className="px-4 py-3">
-                    <Link href={`/prof/eleves/${e.id}#compte`} className="text-sm font-semibold text-orange-fonce underline">
-                      Changer le mot de passe
-                    </Link>
+                  <td className="px-2 py-1.5 text-right">
+                    <ModaleEleve eleve={{ id: e.id, prenom: e.prenom, nom: e.nom, email: e.identifiant, classeId: e.classe_id }} classes={listeClasses} />
                   </td>
                 </tr>
               ))}

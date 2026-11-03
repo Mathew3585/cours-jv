@@ -2,14 +2,12 @@
 
 import { useActionState, useRef, useState, useTransition } from "react";
 import {
-  changerClasse,
   corrigerReponse,
   creerClasse,
   creerCompte,
   enregistrerNotePrivee,
   enregistrerProjetClasse,
   importerComptes,
-  modifierEleve,
   motDePasseClasse,
   type EtatAction,
   type EtatCreation,
@@ -175,60 +173,6 @@ export function FormulaireImport({ classes }: { classes: Classe[] }) {
   );
 }
 
-/** Corrige le prénom, le nom, l'adresse e-mail ou le mot de passe d'un élève. */
-export function FormulaireModifierEleve({ eleveId, prenom, nom, email }: { eleveId: string; prenom: string; nom: string; email: string }) {
-  const [etat, envoyer, enCours] = useActionState<EtatAction, FormData>(modifierEleve.bind(null, eleveId), {});
-  return (
-    <form action={envoyer} className="flex flex-col gap-2.5">
-      <div className="grid grid-cols-2 gap-2.5">
-        <label htmlFor="modif-prenom" className={etiquette}>
-          Prénom
-          <input id="modif-prenom" name="prenom" defaultValue={prenom} required className={champ} />
-        </label>
-        <label htmlFor="modif-nom" className={etiquette}>
-          Nom
-          <input id="modif-nom" name="nom" defaultValue={nom} className={champ} />
-        </label>
-      </div>
-      <label htmlFor="modif-email" className={etiquette}>
-        Adresse e-mail
-        <input id="modif-email" name="email" type="email" defaultValue={email} required className={champ} />
-      </label>
-      <label htmlFor="modif-mdp" className={etiquette}>
-        Nouveau mot de passe
-        <input id="modif-mdp" name="mot-de-passe" minLength={6} autoComplete="new-password" placeholder="Laisser vide pour ne pas le changer" className={champ} />
-      </label>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Message etat={etat} />
-        <button type="submit" className="btn ml-auto" disabled={enCours}>
-          Enregistrer
-        </button>
-      </div>
-    </form>
-  );
-}
-
-export function FormulaireChangerClasse({ eleveId, classes, actuelle }: { eleveId: string; classes: Classe[]; actuelle: string | null }) {
-  const [etat, envoyer, enCours] = useActionState<EtatAction, FormData>(changerClasse.bind(null, eleveId), {});
-  return (
-    <form action={envoyer} className="flex flex-wrap items-end gap-2.5">
-      <label htmlFor="changer-classe" className={etiquette}>
-        Classe
-        <ListeDeroulante
-          id="changer-classe"
-          name="classe"
-          defaultValue={actuelle ?? ""}
-          className="min-w-[220px]"
-          options={[{ value: "", label: "Aucune classe" }, ...classes.map((c) => ({ value: c.id, label: `${c.nom} · ${c.annee}` }))]}
-        />
-      </label>
-      <button type="submit" className="btn" disabled={enCours}>
-        Changer
-      </button>
-      <Message etat={etat} />
-    </form>
-  );
-}
 
 export function FormulaireNotePrivee({ eleveId, note }: { eleveId: string; note: string | null }) {
   const [etat, envoyer, enCours] = useActionState<EtatAction, FormData>(enregistrerNotePrivee.bind(null, eleveId), {});

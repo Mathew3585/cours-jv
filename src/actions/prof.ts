@@ -133,6 +133,9 @@ export async function modifierEleve(eleveId: string, _: EtatAction, formData: Fo
   const nom = texte(formData, "nom");
   const email = texte(formData, "email").toLowerCase();
   const nouveauMotDePasse = texte(formData, "mot-de-passe");
+  // La classe n'est modifiée que si le champ est envoyé ("" = aucune classe)
+  const classeEnvoyee = formData.has("classe");
+  const classeId = texte(formData, "classe") || null;
   if (!prenom) return { erreur: "Le prénom ne peut pas être vide." };
   if (nouveauMotDePasse && nouveauMotDePasse.length < LONGUEUR_MIN_MDP) {
     return { erreur: `Le mot de passe doit faire au moins ${LONGUEUR_MIN_MDP} caractères.` };
@@ -152,19 +155,13 @@ export async function modifierEleve(eleveId: string, _: EtatAction, formData: Fo
     const { error } = await admin.auth.admin.updateUserById(eleveId, { password: nouveauMotDePasse });
     if (error) return { erreur: "Le mot de passe n'a pas pu être changé." };
   }
-  const { error } = await admin.from("profiles").update({ prenom, nom, identifiant: email }).eq("id", eleveId);
+  const { error } = await admin
+    .from("profiles")
+    .update({ prenom, nom, identifiant: email, ...(classeEnvoyee ? { classe_id: classeId } : {}) })
+    .eq("id", eleveId);
   if (error) return { erreur: "Les informations n'ont pas pu être enregistrées." };
   revalidatePath("/prof", "layout");
   return { ok: nouveauMotDePasse ? "Informations et mot de passe enregistrés." : "Informations enregistrées." };
-}
-
-export async function changerClasse(eleveId: string, _: EtatAction, formData: FormData): Promise<EtatAction> {
-  await exigerProf();
-  const classeId = texte(formData, "classe") || null;
-  const { error } = await supabaseAdmin().from("profiles").update({ classe_id: classeId }).eq("id", eleveId).eq("role", "eleve");
-  if (error) return { erreur: "La classe n'a pas pu être changée." };
-  revalidatePath("/prof", "layout");
-  return { ok: "Classe mise à jour." };
 }
 
 export async function enregistrerNotePrivee(eleveId: string, _: EtatAction, formData: FormData): Promise<EtatAction> {
