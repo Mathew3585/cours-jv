@@ -76,3 +76,10 @@ export async function enregistrerReponseLibre(questionId: string, _: EtatEnvoi, 
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+/** L'élève ferme le bandeau d'un message : on note qu'il l'a lu. */
+export async function marquerMessageLu(messageId: number) {
+  const u = await exigerEleve();
+  const supabase = await supabaseServeur();
+  await supabase.from("messages").update({ lu_le: new Date().toISOString() }).eq("id", messageId).eq("eleve_id", u.id).is("lu_le", null);
+}

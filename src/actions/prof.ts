@@ -196,3 +196,33 @@ export async function corrigerReponse(reponseId: number, _: EtatAction, formData
   revalidatePath("/", "layout");
   return { ok: "Correction enregistrée." };
 }
+
+// ---------- Messages ----------
+
+function texteMessage(formData: FormData) {
+  return String(formData.get("message") ?? "").trim();
+}
+
+export async function envoyerMessage(eleveId: string, _: EtatAction, formData: FormData): Promise<EtatAction> {
+  const u = await exigerProf();
+  const texte = texteMessage(formData);
+  if (!texte) return { erreur: "Écris un message avant d'envoyer." };
+  if (texte.length > 500) return { erreur: "500 caractères maximum." };
+  const { error } = await supabaseAdmin().from("messages").insert({ eleve_id: eleveId, auteur_id: u.id, texte });
+  if (error) return { erreur: "Le message n'a pas pu être envoyé." };
+  revalidatePath(`/prof/eleves/${eleveId}`);
+  return { ok: "Message envoyé. Il s'affiche tout de suite chez l'élève s'il est connecté, sinon à sa prochaine connexion." };
+}
+
+export async function envoyerMessageClasse(classeId: string, _: EtatAction, formData: FormData): Promise<EtatAction> {
+  const u = await exigerProf();
+  const texte = texteMessage(formData);
+  if (!texte) return { erreur: "Écris un message avant d'envoyer." };
+  if (texte.length > 500) return { erreur: "500 caractères maximum." };
+  const admin = supabaseAdmin();
+  const { data: eleves } = await admin.from("profiles").select("id").eq("classe_id", classeId).eq("role", "eleve");
+  if (!eleves?.length) return { erreur: "Il n'y a aucun élève dans cette classe." };
+  const { error } = await admin.from("messages").insert(eleves.map((e) => ({ eleve_id: e.id, auteur_id: u.id, texte })));
+  if (error) return { erreur: "Le message n'a pas pu être envoyé." };
+  return { ok: `Message envoyé aux ${eleves.length} élèves de la classe.` };
+}

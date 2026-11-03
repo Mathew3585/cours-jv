@@ -58,6 +58,15 @@ export type DefiRendu = {
   created_at: string;
 };
 
+export type Message = {
+  id: number;
+  eleve_id: string;
+  auteur_id: string | null;
+  texte: string;
+  created_at: string;
+  lu_le: string | null;
+};
+
 export type Database = {
   __InternalSupabase: { PostgrestVersion: "14.18" };
   public: {
@@ -70,6 +79,7 @@ export type Database = {
       tentatives_quiz: Table<TentativeQuiz, "eleve_id" | "quiz_id" | "score" | "total">;
       reponses_libres: Table<ReponseLibre, "eleve_id" | "question_id" | "reponse">;
       defis_rendus: Table<DefiRendu, "eleve_id" | "defi_id">;
+      messages: Table<Message, "eleve_id" | "texte">;
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import {
   changerClasse,
   corrigerReponse,
@@ -389,5 +389,69 @@ export function BoutonConfirmer({ action, libelle, confirmation }: { action: () 
         Annuler
       </button>
     </span>
+  );
+}
+
+const suggestionsMessage = ["Bien joué, continue comme ça !", "Pense à la deadline de vendredi.", "Viens me voir à la fin du cours.", "Regarde ma correction dans Mes quiz et notes."];
+
+/** Envoie un message qui s'affiche en bandeau chez l'élève (ou chez toute la classe). */
+export function FormulaireMessage({
+  action,
+  id,
+  placeholder = "Écris ton message…",
+  libelle = "Envoyer",
+}: {
+  action: (etat: EtatAction, formData: FormData) => Promise<EtatAction>;
+  id: string;
+  placeholder?: string;
+  libelle?: string;
+}) {
+  const formulaire = useRef<HTMLFormElement>(null);
+  const zone = useRef<HTMLTextAreaElement>(null);
+  const [etat, envoyer, enCours] = useActionState<EtatAction, FormData>(async (precedent, formData) => {
+    const resultat = await action(precedent, formData);
+    if (resultat.ok) formulaire.current?.reset();
+    return resultat;
+  }, {});
+
+  return (
+    <form ref={formulaire} action={envoyer} className="flex flex-col gap-2.5">
+      <label htmlFor={id} className="sr-only">
+        Message
+      </label>
+      <textarea
+        ref={zone}
+        id={id}
+        name="message"
+        rows={3}
+        maxLength={500}
+        required
+        placeholder={placeholder}
+        className="resize-y rounded-xl border border-ligne-3 bg-creme px-3 py-2.5 text-[15px] font-normal"
+      />
+      <div className="flex flex-wrap gap-1.5">
+        {suggestionsMessage.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => {
+              if (zone.current) {
+                zone.current.value = s;
+                zone.current.focus();
+              }
+            }}
+            className="cursor-pointer rounded-full border border-ligne-2 bg-white px-2.5 py-1 text-[12.5px] text-encre-2 hover:border-[#e8b48a] hover:text-encre"
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Message etat={etat} />
+        <button type="submit" className="btn btn-pri ml-auto" disabled={enCours}>
+          {enCours ? "Envoi…" : libelle}
+        </button>
+      </div>
+    </form>
   );
 }

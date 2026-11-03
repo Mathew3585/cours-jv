@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { supprimerClasse } from "@/actions/prof";
-import { BoutonConfirmer } from "@/components/prof/formulaires";
+import { envoyerMessageClasse, supprimerClasse } from "@/actions/prof";
+import { BoutonConfirmer, FormulaireMessage } from "@/components/prof/formulaires";
 import { TableauEleves, type LigneEleve } from "@/components/prof/tableau-eleves";
 import { trouverProjet } from "@/contenu";
 import { dateCourte, ilYa, joursRestants, libelleJoursRestants } from "@/lib/dates";
@@ -111,6 +111,16 @@ export default async function ClassePage({ params }: PageProps<"/prof/classes/[i
       )}
 
       <TableauEleves lignes={lignes} />
+
+      {eleves.length > 0 && (
+        <section className="carte flex flex-col gap-3 p-6">
+          <h2 className="font-display text-lg font-bold">Message à toute la classe</h2>
+          <p className="-mt-1 text-sm text-muet">
+            Les {eleves.length} élèves de {classe.nom} le reçoivent en bandeau, tout de suite s&apos;ils sont connectés. Pour écrire à un seul élève, ouvre sa fiche.
+          </p>
+          <FormulaireMessage action={envoyerMessageClasse.bind(null, classe.id)} id="message-classe" placeholder="Un message pour toute la classe…" libelle="Envoyer à la classe" />
+        </section>
+      )}
 
       <div className="flex justify-end">
         <BoutonConfirmer

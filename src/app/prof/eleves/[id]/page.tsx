@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { supprimerEleve } from "@/actions/prof";
+import { envoyerMessage, supprimerEleve } from "@/actions/prof";
 import { BarreProgression } from "@/components/motion";
-import { BoutonConfirmer, BoutonReinitialiser, FormulaireChangerClasse, FormulaireCorrection, FormulaireNotePrivee } from "@/components/prof/formulaires";
+import { BoutonConfirmer, BoutonReinitialiser, FormulaireChangerClasse, FormulaireCorrection, FormulaireMessage, FormulaireNotePrivee } from "@/components/prof/formulaires";
 import { Pastille } from "@/components/ui";
 import { idLecon, trouverQuestionLibre, trouverQuiz } from "@/contenu";
 import { dateCourte, ilYa } from "@/lib/dates";
 import { suiviEleve, toutesLesClasses } from "@/lib/donnees-prof";
+import { supabaseServeur } from "@/lib/supabase/serveur";
 import { cleDeadline, derniereActivite, moyenneQuiz, progressionModule, progressionProjet, statutEleve, statutLecon } from "@/lib/progression";
 
 export const metadata: Metadata = { title: "Fiche élève" };
@@ -21,7 +22,12 @@ const libellesStatut = {
 
 export default async function FicheElevePage({ params }: PageProps<"/prof/eleves/[id]">) {
   const { id } = await params;
-  const [suivi, classes] = await Promise.all([suiviEleve(id), toutesLesClasses()]);
+  const supabase = await supabaseServeur();
+  const [suivi, classes, { data: messages }] = await Promise.all([
+    suiviEleve(id),
+    toutesLesClasses(),
+    supabase.from("messages").select("*").eq("eleve_id", id).order("created_at", { ascending: false }).limit(5),
+  ]);
   if (!suivi) notFound();
   const { profil, d, classe } = suivi;
   const statut = libellesStatut[statutEleve(d)];
@@ -150,6 +156,23 @@ export default async function FicheElevePage({ params }: PageProps<"/prof/eleves
         </div>
 
         <aside className="flex flex-[1_1_300px] flex-col gap-5">
+          <div className="carte flex flex-col gap-3 p-[22px]">
+            <h2 className="font-display text-lg font-bold">Envoyer un message</h2>
+            <p className="-mt-1 text-[13.5px] text-muet">Il s&apos;affiche en bandeau en haut de son écran, tout de suite s&apos;il est connecté.</p>
+            <FormulaireMessage action={envoyerMessage.bind(null, profil.id)} id="message-eleve" placeholder={`Un mot pour ${profil.prenom}…`} />
+            {(messages ?? []).length > 0 && (
+              <ul className="mt-1 flex flex-col gap-2 border-t border-ligne pt-3">
+                {(messages ?? []).map((m) => (
+                  <li key={m.id} className="flex flex-col gap-0.5 text-sm">
+                    <span className="break-words text-encre">{m.texte}</span>
+                    <span className="text-xs text-muet">
+                      {ilYa(m.created_at)} · {m.lu_le ? <span className="font-semibold text-vert-texte">lu</span> : "pas encore lu"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <div className="carte flex flex-col gap-3 p-[22px]">
             <h2 className="font-display text-lg font-bold">Note privée</h2>
             <FormulaireNotePrivee eleveId={profil.id} note={profil.note_prof} />

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { MenuEleve } from "@/components/menu-eleve";
+import { MessagesEleve } from "@/components/messages-eleve";
 import { utilisateurCourant } from "@/lib/session";
 
 export default async function EleveLayout({ children }: { children: React.ReactNode }) {
@@ -10,6 +11,7 @@ export default async function EleveLayout({ children }: { children: React.ReactN
 
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
+      <MessagesEleve u={u} />
       <MenuEleve
         nom={`${prenom} ${nom}`}
         initiales={`${prenom[0] ?? ""}${nom[0] ?? ""}`.toUpperCase()}
