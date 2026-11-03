@@ -16,7 +16,7 @@ export default async function ComptesPage() {
       <div className="flex flex-col gap-1.5">
         <h1 className="font-display text-[40px] font-extrabold tracking-tight">Comptes élèves</h1>
         <span className="text-[15px] text-muet">
-          Les élèves ne peuvent pas s&apos;inscrire seuls. Tu crées leurs comptes ici avec leur adresse e-mail : ils se connectent ensuite avec un code reçu par e-mail.
+          Les élèves ne peuvent pas s&apos;inscrire seuls. Tu crées leurs comptes ici avec leur adresse e-mail et un mot de passe. Tu peux changer le mot de passe à tout moment dans la fiche de l&apos;élève.
         </span>
       </div>
 
@@ -41,7 +41,7 @@ export default async function ComptesPage() {
           <table className="w-full min-w-[720px] border-collapse text-[15px]">
             <thead>
               <tr className="bg-creme-3 text-left text-[12.5px] tracking-wider text-muet uppercase">
-                {["Élève", "Adresse e-mail", "Classe"].map((h) => (
+                {["Élève", "Adresse e-mail", "Classe", "Mot de passe"].map((h) => (
                   <th key={h} className="border-b border-ligne px-4 py-3 font-semibold">
                     {h}
                   </th>
@@ -58,11 +58,16 @@ export default async function ComptesPage() {
                   </td>
                   <td className="px-4 py-3 font-mono text-[13.5px]">{e.identifiant}</td>
                   <td className="px-4 py-3">{e.classe_id ? nomClasse.get(e.classe_id) : <Pastille>sans classe</Pastille>}</td>
+                  <td className="px-4 py-3">
+                    <Link href={`/prof/eleves/${e.id}#compte`} className="text-sm font-semibold text-orange-fonce underline">
+                      Changer le mot de passe
+                    </Link>
+                  </td>
                 </tr>
               ))}
               {eleves.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-muet">
+                  <td colSpan={4} className="px-4 py-6 text-center text-muet">
                     Aucun compte élève pour l&apos;instant.
                   </td>
                 </tr>

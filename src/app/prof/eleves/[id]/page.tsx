@@ -177,7 +177,7 @@ export default async function FicheElevePage({ params }: PageProps<"/prof/eleves
             <FormulaireNotePrivee eleveId={profil.id} note={profil.note_prof} />
           </div>
           <div className="carte flex flex-col gap-3 p-[22px]">
-            <h2 className="font-display text-lg font-bold">Compte</h2>
+            <h2 id="compte" className="scroll-mt-6 font-display text-lg font-bold">Compte et mot de passe</h2>
             <FormulaireModifierEleve eleveId={profil.id} prenom={profil.prenom} nom={profil.nom} email={profil.identifiant} />
             <FormulaireChangerClasse eleveId={profil.id} classes={classes.map((c) => c.classe)} actuelle={profil.classe_id} />
             <BoutonConfirmer

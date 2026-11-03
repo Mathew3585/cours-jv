@@ -8,7 +8,7 @@ import { exigerProf } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase/serveur";
 
 export type EtatAction = { ok?: string; erreur?: string };
-export type CompteCree = { prenom: string; nom: string; email: string; classe: string };
+export type CompteCree = { prenom: string; nom: string; email: string; motDePasse: string; classe: string };
 export type EtatCreation = { erreur?: string; crees?: CompteCree[]; echecs?: string[] };
 
 function texte(formData: FormData, cle: string) {
@@ -40,10 +40,13 @@ export async function supprimerClasse(classeId: string) {
 
 // ---------- Comptes élèves ----------
 
-type LigneCompte = { email: string; prenom?: string; nom?: string };
+type LigneCompte = { email: string; motDePasse?: string; prenom?: string; nom?: string };
 
-/** Crée les comptes à partir des adresses e-mail : pas de mot de passe, l'élève se connecte avec un code reçu par e-mail. */
-async function creerComptes(lignes: LigneCompte[], classeId: string): Promise<EtatCreation> {
+/** Longueur minimale imposée par Supabase. */
+const LONGUEUR_MIN_MDP = 6;
+
+/** Crée les comptes : adresse e-mail et mot de passe choisi par le prof. */
+async function creerComptes(lignes: LigneCompte[], classeId: string, motDePasseCommun = ""): Promise<EtatCreation> {
   const admin = supabaseAdmin();
   const { data: classe } = await admin.from("classes").select("nom, annee").eq("id", classeId).maybeSingle();
   if (!classe) return { erreur: "Choisis une classe." };
@@ -63,11 +66,16 @@ async function creerComptes(lignes: LigneCompte[], classeId: string): Promise<Et
       echecs.push(`${email} : un compte existe déjà avec cette adresse`);
       continue;
     }
+    const motDePasse = ligne.motDePasse?.trim() || motDePasseCommun;
+    if (motDePasse.length < LONGUEUR_MIN_MDP) {
+      echecs.push(`${email} : mot de passe manquant ou trop court (${LONGUEUR_MIN_MDP} caractères minimum)`);
+      continue;
+    }
     const devine = nomDepuisEmail(email);
     const prenom = ligne.prenom?.trim() || devine.prenom;
     const nom = ligne.nom?.trim() || devine.nom;
 
-    const { data, error } = await admin.auth.admin.createUser({ email, email_confirm: true, user_metadata: { prenom, nom } });
+    const { data, error } = await admin.auth.admin.createUser({ email, password: motDePasse, email_confirm: true, user_metadata: { prenom, nom } });
     if (error || !data.user) {
       echecs.push(`${email} : ${error?.message ?? "erreur inconnue"}`);
       continue;
@@ -81,7 +89,7 @@ async function creerComptes(lignes: LigneCompte[], classeId: string): Promise<Et
       continue;
     }
     pris.add(email);
-    crees.push({ prenom, nom, email, classe: `${classe.nom} · ${classe.annee}` });
+    crees.push({ prenom, nom, email, motDePasse, classe: `${classe.nom} · ${classe.annee}` });
   }
 
   revalidatePath("/prof", "layout");
@@ -91,13 +99,15 @@ async function creerComptes(lignes: LigneCompte[], classeId: string): Promise<Et
 export async function creerCompte(_: EtatCreation, formData: FormData): Promise<EtatCreation> {
   await exigerProf();
   const email = texte(formData, "email");
+  const motDePasse = texte(formData, "mot-de-passe");
   if (!email) return { erreur: "Mets l'adresse e-mail de l'élève." };
-  return creerComptes([{ email }], texte(formData, "classe"));
+  if (motDePasse.length < LONGUEUR_MIN_MDP) return { erreur: `Le mot de passe doit faire au moins ${LONGUEUR_MIN_MDP} caractères.` };
+  return creerComptes([{ email, motDePasse }], texte(formData, "classe"));
 }
 
 /**
- * Import d'une liste : une adresse e-mail par ligne.
- * On peut ajouter le prénom et le nom après l'adresse (« adresse ; prénom ; nom »), sinon ils sont devinés.
+ * Import d'une liste : une ligne par élève, « adresse ; mot de passe », ou seulement l'adresse
+ * si un mot de passe commun est donné pour toute la liste. Le prénom et le nom sont devinés à partir de l'adresse.
  */
 export async function importerComptes(_: EtatCreation, formData: FormData): Promise<EtatCreation> {
   await exigerProf();
@@ -108,21 +118,25 @@ export async function importerComptes(_: EtatCreation, formData: FormData): Prom
       const i = cellules.findIndex((c) => c.includes("@"));
       if (i < 0) return null;
       const autres = cellules.filter((_, j) => j !== i && cellules[j]);
-      return { email: cellules[i], prenom: autres[0], nom: autres[1] };
+      return { email: cellules[i], motDePasse: autres[0] };
     })
     .filter((l): l is LigneCompte => l !== null);
   if (lignes.length === 0) return { erreur: "Aucune adresse e-mail trouvée. Mets une adresse par ligne." };
   if (lignes.length > 60) return { erreur: "60 élèves maximum par import." };
-  return creerComptes(lignes, texte(formData, "classe"));
+  return creerComptes(lignes, texte(formData, "classe"), texte(formData, "mot-de-passe-commun"));
 }
 
-/** Corrige le prénom, le nom ou l'adresse e-mail d'un élève. */
+/** Corrige le prénom, le nom, l'adresse e-mail ou le mot de passe d'un élève. */
 export async function modifierEleve(eleveId: string, _: EtatAction, formData: FormData): Promise<EtatAction> {
   await exigerProf();
   const prenom = texte(formData, "prenom");
   const nom = texte(formData, "nom");
   const email = texte(formData, "email").toLowerCase();
+  const nouveauMotDePasse = texte(formData, "mot-de-passe");
   if (!prenom) return { erreur: "Le prénom ne peut pas être vide." };
+  if (nouveauMotDePasse && nouveauMotDePasse.length < LONGUEUR_MIN_MDP) {
+    return { erreur: `Le mot de passe doit faire au moins ${LONGUEUR_MIN_MDP} caractères.` };
+  }
   if (!estEmail(email)) return { erreur: "Adresse e-mail invalide." };
 
   const admin = supabaseAdmin();
@@ -134,10 +148,14 @@ export async function modifierEleve(eleveId: string, _: EtatAction, formData: Fo
     const { error } = await admin.auth.admin.updateUserById(eleveId, { email, email_confirm: true });
     if (error) return { erreur: "L'adresse n'a pas pu être changée." };
   }
+  if (nouveauMotDePasse) {
+    const { error } = await admin.auth.admin.updateUserById(eleveId, { password: nouveauMotDePasse });
+    if (error) return { erreur: "Le mot de passe n'a pas pu être changé." };
+  }
   const { error } = await admin.from("profiles").update({ prenom, nom, identifiant: email }).eq("id", eleveId);
   if (error) return { erreur: "Les informations n'ont pas pu être enregistrées." };
   revalidatePath("/prof", "layout");
-  return { ok: "Informations enregistrées." };
+  return { ok: nouveauMotDePasse ? "Informations et mot de passe enregistrés." : "Informations enregistrées." };
 }
 
 export async function changerClasse(eleveId: string, _: EtatAction, formData: FormData): Promise<EtatAction> {
@@ -250,4 +268,21 @@ export async function envoyerMessageClasse(classeId: string, _: EtatAction, form
   const { error } = await admin.from("messages").insert(eleves.map((e) => ({ eleve_id: e.id, auteur_id: u.id, texte })));
   if (error) return { erreur: "Le message n'a pas pu être envoyé." };
   return { ok: `Message envoyé aux ${eleves.length} élèves de la classe.` };
+}
+
+/** Donne le même mot de passe à tous les élèves d'une classe (pratique pour une classe déjà inscrite). */
+export async function motDePasseClasse(classeId: string, _: EtatAction, formData: FormData): Promise<EtatAction> {
+  await exigerProf();
+  const motDePasse = texte(formData, "mot-de-passe");
+  if (motDePasse.length < LONGUEUR_MIN_MDP) return { erreur: `Le mot de passe doit faire au moins ${LONGUEUR_MIN_MDP} caractères.` };
+  const admin = supabaseAdmin();
+  const { data: eleves } = await admin.from("profiles").select("id").eq("classe_id", classeId).eq("role", "eleve");
+  if (!eleves?.length) return { erreur: "Il n'y a aucun élève dans cette classe." };
+  let echecs = 0;
+  for (const e of eleves) {
+    const { error } = await admin.auth.admin.updateUserById(e.id, { password: motDePasse });
+    if (error) echecs++;
+  }
+  if (echecs) return { erreur: `${eleves.length - echecs} mot(s) de passe changé(s), ${echecs} échec(s). Réessaie.` };
+  return { ok: `Mot de passe changé pour les ${eleves.length} élèves de la classe.` };
 }

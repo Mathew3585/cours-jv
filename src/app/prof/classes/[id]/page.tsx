@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { envoyerMessageClasse, supprimerClasse } from "@/actions/prof";
-import { BoutonConfirmer, FormulaireMessage } from "@/components/prof/formulaires";
+import { BoutonConfirmer, FormulaireMessage, FormulaireMotDePasseClasse } from "@/components/prof/formulaires";
 import { TableauEleves, type LigneEleve } from "@/components/prof/tableau-eleves";
 import { trouverProjet } from "@/contenu";
 import { dateCourte, ilYa, joursRestants, libelleJoursRestants } from "@/lib/dates";
@@ -119,6 +119,16 @@ export default async function ClassePage({ params }: PageProps<"/prof/classes/[i
             Les {eleves.length} élèves de {classe.nom} le reçoivent en bandeau, tout de suite s&apos;ils sont connectés. Pour écrire à un seul élève, ouvre sa fiche.
           </p>
           <FormulaireMessage action={envoyerMessageClasse.bind(null, classe.id)} id="message-classe" placeholder="Un message pour toute la classe…" libelle="Envoyer à la classe" />
+        </section>
+      )}
+
+      {eleves.length > 0 && (
+        <section className="carte flex flex-col gap-3 p-6">
+          <h2 className="font-display text-lg font-bold">Mot de passe de la classe</h2>
+          <p className="-mt-1 text-sm text-muet">
+            Donne le même mot de passe à tous les élèves de {classe.nom}. Pour un seul élève, ouvre sa fiche.
+          </p>
+          <FormulaireMotDePasseClasse classeId={classe.id} nbEleves={eleves.length} />
         </section>
       )}
 

@@ -10,6 +10,7 @@ import {
   enregistrerProjetClasse,
   importerComptes,
   modifierEleve,
+  motDePasseClasse,
   type EtatAction,
   type EtatCreation,
 } from "@/actions/prof";
@@ -72,7 +73,7 @@ function ComptesCrees({ etat }: { etat: EtatCreation }) {
         <>
           <b className="text-vert-texte">
             {etat.crees.length} compte{etat.crees.length > 1 ? "s" : ""} créé{etat.crees.length > 1 ? "s" : ""}. Les élèves se connectent avec leur adresse
-            e-mail : ils reçoivent un code à chaque nouvelle connexion.
+            e-mail et ce mot de passe.
           </b>
           <ul className="flex flex-col gap-1 text-[14px]">
             {etat.crees.map((c) => (
@@ -80,7 +81,7 @@ function ComptesCrees({ etat }: { etat: EtatCreation }) {
                 <b>
                   {c.prenom} {c.nom}
                 </b>{" "}
-                · <span className="font-mono text-[13px]">{c.email}</span>
+                · <span className="font-mono text-[13px]">{c.email}</span> · mot de passe <b className="font-mono text-[13px]">{c.motDePasse}</b>
               </li>
             ))}
           </ul>
@@ -118,10 +119,14 @@ export function FormulaireCompte({ classes }: { classes: Classe[] }) {
         Adresse e-mail de l&apos;élève
         <input id="compte-email" name="email" type="email" required autoComplete="off" placeholder="prenom.nom@ecole.fr" className={champ} />
       </label>
+      <label htmlFor="compte-mdp" className={etiquette}>
+        Mot de passe (6 caractères minimum)
+        <input id="compte-mdp" name="mot-de-passe" required minLength={6} autoComplete="new-password" className={champ} />
+      </label>
       <ChoixClasse classes={classes} id="compte-classe" />
       <p className="text-[13px] text-muet">
-        Pas de mot de passe : l&apos;élève se connecte avec son adresse et reçoit un code par e-mail. Le prénom et le nom sont devinés à partir de
-        l&apos;adresse, tu peux les corriger dans sa fiche.
+        L&apos;élève se connecte avec son adresse et ce mot de passe. Le prénom et le nom sont devinés à partir de l&apos;adresse, tu peux les corriger
+        dans sa fiche.
       </p>
       <button type="submit" className="btn btn-pri self-start" disabled={enCours || classes.length === 0}>
         {enCours ? "Création…" : "Créer le compte"}
@@ -144,18 +149,22 @@ export function FormulaireImport({ classes }: { classes: Classe[] }) {
   return (
     <form action={envoyer} className="carte flex flex-[1_1_360px] flex-col gap-3.5 p-6">
       <h2 className="font-display text-xl font-bold">Importer une classe entière</h2>
-      <ZoneFichier id="import-fichier" accept=".csv,.txt" onFichier={lireFichier} consigne="Fichier CSV ou texte avec les adresses e-mail" />
+      <ZoneFichier id="import-fichier" accept=".csv,.txt" onFichier={lireFichier} consigne="Fichier CSV : adresse ; mot de passe" />
       <label htmlFor="import-liste" className={etiquette}>
-        Ou colle les adresses, une par ligne
+        Ou colle la liste, une ligne par élève : adresse ; mot de passe
         <textarea
           id="import-liste"
           name="liste"
           rows={6}
           value={texte}
           onChange={(e) => setTexte(e.target.value)}
-          placeholder={"ines.moreau@ecole.fr\nhugo.lefevre@ecole.fr"}
+          placeholder={"ines.moreau@ecole.fr ; kart2026\nhugo.lefevre@ecole.fr ; drift42"}
           className="rounded-xl border border-ligne-3 bg-creme px-3 py-2 font-mono text-sm font-normal"
         />
+      </label>
+      <label htmlFor="import-mdp" className={etiquette}>
+        Mot de passe pour les lignes qui n&apos;en ont pas (facultatif)
+        <input id="import-mdp" name="mot-de-passe-commun" minLength={6} autoComplete="new-password" placeholder="ex. le même pour toute la classe" className={champ} />
       </label>
       <ChoixClasse classes={classes} id="import-classe" />
       <button type="submit" className="btn btn-pri self-start" disabled={enCours || nbAdresses === 0 || classes.length === 0}>
@@ -166,7 +175,7 @@ export function FormulaireImport({ classes }: { classes: Classe[] }) {
   );
 }
 
-/** Corrige le prénom, le nom ou l'adresse e-mail d'un élève. */
+/** Corrige le prénom, le nom, l'adresse e-mail ou le mot de passe d'un élève. */
 export function FormulaireModifierEleve({ eleveId, prenom, nom, email }: { eleveId: string; prenom: string; nom: string; email: string }) {
   const [etat, envoyer, enCours] = useActionState<EtatAction, FormData>(modifierEleve.bind(null, eleveId), {});
   return (
@@ -184,6 +193,10 @@ export function FormulaireModifierEleve({ eleveId, prenom, nom, email }: { eleve
       <label htmlFor="modif-email" className={etiquette}>
         Adresse e-mail
         <input id="modif-email" name="email" type="email" defaultValue={email} required className={champ} />
+      </label>
+      <label htmlFor="modif-mdp" className={etiquette}>
+        Nouveau mot de passe
+        <input id="modif-mdp" name="mot-de-passe" minLength={6} autoComplete="new-password" placeholder="Laisser vide pour ne pas le changer" className={champ} />
       </label>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Message etat={etat} />
@@ -425,6 +438,25 @@ export function FormulaireMessage({
           {enCours ? "Envoi…" : libelle}
         </button>
       </div>
+    </form>
+  );
+}
+
+/** Donne le même mot de passe à toute une classe. */
+export function FormulaireMotDePasseClasse({ classeId, nbEleves }: { classeId: string; nbEleves: number }) {
+  const [etat, envoyer, enCours] = useActionState<EtatAction, FormData>(motDePasseClasse.bind(null, classeId), {});
+  return (
+    <form action={envoyer} className="flex flex-col gap-2.5">
+      <div className="flex flex-wrap items-end gap-2.5">
+        <label htmlFor="mdp-classe" className={`${etiquette} min-w-[220px] flex-1`}>
+          Nouveau mot de passe pour les {nbEleves} élèves
+          <input id="mdp-classe" name="mot-de-passe" required minLength={6} autoComplete="new-password" className={champ} />
+        </label>
+        <button type="submit" className="btn" disabled={enCours}>
+          {enCours ? "Enregistrement…" : "Appliquer à toute la classe"}
+        </button>
+      </div>
+      <Message etat={etat} />
     </form>
   );
 }
