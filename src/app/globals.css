@@ -99,21 +99,22 @@ textarea:focus {
   outline: none;
 }
 input:focus-visible,
-textarea/* Le code s'affiche caractère par caractère, exactement comme il faut le taper :
+textarea:focus-visible {
+  border-color: var(--color-orange);
+  outline: 2px solid var(--color-orange-pale);
+  outline-offset: 0;
+}
+
+/* Le code s'affiche caractère par caractère, exactement comme il faut le taper :
    pas de ligatures (sinon != devient ≠ et -> devient une flèche). */
 .font-mono,
+.font-mono *,
 code,
 pre,
 kbd,
 samp {
   font-variant-ligatures: none;
   font-feature-settings: "liga" 0, "calt" 0;
-}
-
-:focus-visible {
-  border-color: var(--color-orange);
-  outline: 2px solid var(--color-orange-pale);
-  outline-offset: 0;
 }
 input:-webkit-autofill {
   -webkit-box-shadow: 0 0 0 40px var(--color-creme) inset;
