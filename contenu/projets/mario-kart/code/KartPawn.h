@@ -297,7 +297,7 @@ protected:
 
 	// Part de la vitesse gardée au moment du choc (0 = arrêt net, 1 = aucune perte)
 	UPROPERTY(EditAnywhere, Category = "Kart|SpinOut", meta = (ClampMin = "0", ClampMax = "1"))
-	float SpinOutSpeedFactor = 0.4f;
+	float SpinOutSpeedFactor = 0.6f;
 
 	// ---------- État (visible dans les Details pendant le Play pour déboguer) ----------
 

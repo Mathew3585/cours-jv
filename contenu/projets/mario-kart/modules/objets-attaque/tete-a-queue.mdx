@@ -18,7 +18,7 @@ Le kart existe déjà depuis le module 1, et on revient le modifier. C'est norma
     Une nouvelle section de réglages, à la suite des autres. `SpinOutTurns` est le nombre de tours complets que fait le châssis. C'est un entier : on veut que le kart retombe droit à la fin, donc un nombre de tours **complets**.
   </Etape>
   <Etape lignes="298-300" titre="La vitesse perdue au choc">
-    0,4 : le kart garde 40 % de sa vitesse au moment du choc. `ClampMin` et `ClampMax` empêchent de régler une valeur absurde dans l'éditeur, comme 2 (le choc ferait accélérer).
+    0,6 : le kart garde 60 % de sa vitesse au moment du choc, il ne s'arrête pas net. `ClampMin` et `ClampMax` empêchent de régler une valeur absurde dans l'éditeur, comme 2 (le choc ferait accélérer).
   </Etape>
 </CodePasAPas>
 
@@ -50,7 +50,7 @@ Le kart existe déjà depuis le module 1, et on revient le modifier. C'est norma
 
 <CodePasAPas fichier="KartPawn.cpp" debut={229} fin={230}>
   <Etape lignes="229-230" titre="Appeler l'étape au bon moment">
-    On l'appelle **avant** toutes les autres étapes. `UpdateSpinOut` met les touches à zéro et freine. Si elle passait après `UpdateSpeed`, le kart aurait accéléré une image de plus avec les touches du joueur.
+    On l'appelle **avant** toutes les autres étapes. `UpdateSpinOut` met les touches à zéro. Si elle passait après `UpdateSpeed`, le kart aurait accéléré une image de plus avec les touches du joueur.
   </Etape>
 </CodePasAPas>
 
@@ -97,7 +97,7 @@ Quand une nouvelle fonctionnalité casse une hypothèse de l'ancien code (ici : 
     Le temps restant et la durée totale partent de la même valeur. Dès cette ligne, `IsSpinningOut` renvoie vrai.
   </Etape>
   <Etape lignes="799-805" titre="Le choc">
-    On garde 40 % de la vitesse. Le turbo en cours est annulé. Le drift aussi, **sans** passer par `EndDrift` : `EndDrift` donnerait le turbo de la charge accumulée, et se faire toucher ne doit pas récompenser.
+    On garde 60 % de la vitesse. Le turbo en cours est annulé. Le drift aussi, **sans** passer par `EndDrift` : `EndDrift` donnerait le turbo de la charge accumulée, et se faire toucher ne doit pas récompenser.
   </Etape>
 </CodePasAPas>
 
@@ -113,8 +113,8 @@ Quand une nouvelle fonctionnalité casse une hypothèse de l'ancien code (ici : 
   <Etape lignes="817-819" titre="Les touches sont ignorées">
     Exactement comme pendant le compte à rebours, au début du Tick. Les touches sont relues à chaque image : dès la fin du tête-à-queue, le kart répond de nouveau.
   </Etape>
-  <Etape lignes="821-822" titre="Freiner fort">
-    <Terme id="finterpconstantto">FInterpConstantTo</Terme> fait descendre la vitesse vers 0 d'un pas régulier, à la force du freinage du kart (`BrakeDeceleration`).
+  <Etape lignes="821-822" titre="Garder l'élan">
+    Ici, pas de ligne de freinage, et c'est voulu. Comme les touches sont à zéro, `UpdateSpeed` (appelée juste après) fait ralentir le kart avec `CoastDeceleration`, exactement comme quand on lâche l'accélérateur. Le kart glisse sur sa lancée en tournant sur lui-même : c'est bien plus naturel qu'un arrêt net. Une première version freinait ici avec `BrakeDeceleration`, et le kart s'arrêtait d'un coup sur la tache d'huile : le code a évolué après l'avoir testé en jeu.
   </Etape>
   <Etape lignes="824-825" titre="Où en est-on ?">
     `Progress` va de 0 au moment du choc à 1 à la fin. Avec 1,5 seconde au total et 0,75 restante : 1 - 0,75 / 1,5 = 0,5.

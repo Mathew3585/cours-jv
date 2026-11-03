@@ -77,7 +77,7 @@ export const objetsAttaque: Module = {
               "Parce que les fonctions doivent être appelées dans l'ordre alphabétique",
               "Parce que UpdateSpeed remet SpinOutYaw à 0",
               "Pour que la caméra tourne avec le châssis",
-              "Parce qu'elle efface les touches et freine : après UpdateSpeed, le kart aurait accéléré une image de plus",
+              "Parce qu'elle efface les touches : après UpdateSpeed, le kart aurait accéléré une image de plus",
             ],
             bonne: 3,
             explication:
@@ -116,12 +116,12 @@ export const objetsAttaque: Module = {
           },
           {
             type: "code",
-            enonce: "SpinOutSpeedFactor vaut 0,4. Le kart roule à 2000 cm/s quand il est touché. Que vaut CurrentSpeed juste après cette ligne de SpinOut ?",
+            enonce: "SpinOutSpeedFactor vaut 0,6. Le kart roule à 2000 cm/s quand il est touché. Que vaut CurrentSpeed juste après cette ligne de SpinOut ?",
             code: "CurrentSpeed *= SpinOutSpeedFactor;",
-            choix: ["1200 cm/s", "800 cm/s", "0 cm/s", "1999,6 cm/s"],
+            choix: ["800 cm/s", "1200 cm/s", "0 cm/s", "1999,4 cm/s"],
             bonne: 1,
             explication:
-              "2000 × 0,4 = 800 : le kart garde 40 % de sa vitesse. 1200 serait la vitesse perdue, pas celle qui reste.",
+              "2000 × 0,6 = 1200 : le kart garde 60 % de sa vitesse. 800 serait la vitesse perdue, pas celle qui reste.",
           },
           {
             type: "qcm",

@@ -818,8 +818,8 @@ void AKartPawn::UpdateSpinOut(float DeltaTime)
 	ThrottleInput = 0.f;
 	SteerInput = 0.f;
 
-	// Le kart freine fort jusqu'à l'arrêt
-	CurrentSpeed = FMath::FInterpConstantTo(CurrentSpeed, 0.f, DeltaTime, BrakeDeceleration);
+	// Pas de freinage forcé : les touches sont à zéro, donc UpdateSpeed ralentit le kart doucement (CoastDeceleration),
+	// comme quand on lâche l'accélérateur. Le kart glisse sur sa lancée au lieu de s'arrêter net
 
 	// Progress = où on en est, de 0 (début du choc) à 1 (fin)
 	const float Progress = 1.f - SpinOutTimeRemaining / SpinOutTotalTime;
