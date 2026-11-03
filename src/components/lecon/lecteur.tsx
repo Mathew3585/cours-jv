@@ -208,6 +208,8 @@ export function Lecteur({
                 </button>
               </div>
               <div ref={zoneCode} className="relative min-h-0 flex-1 overflow-auto py-3 font-mono leading-[1.65]" style={{ fontSize: taillesCode[taille] }}>
+                {/* Toutes les lignes ont la largeur de la plus longue : le surlignage va jusqu'au bout quand on défile vers la droite */}
+                <div className="w-max min-w-full">
                 {lignes.map((ligne) => {
                   const allumee = plage && ligne.n >= plage.debut && ligne.n <= plage.fin;
                   return (
@@ -231,6 +233,7 @@ export function Lecteur({
                     </div>
                   );
                 })}
+                </div>
               </div>
             </section>
 
