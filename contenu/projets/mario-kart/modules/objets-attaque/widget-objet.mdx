@@ -71,29 +71,29 @@ Le PlayerController du module 4 crée déjà le compte à rebours et le HUD. On 
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPlayerController.h" debut={24} fin={26}>
-  <Etape lignes="24-26" titre="La classe à créer">
+<CodePasAPas fichier="KartPlayerController.h" debut={32} fin={34}>
+  <Etape lignes="32-34" titre="La classe à créer">
     Un <Terme id="tsubclassof">TSubclassOf</Terme> pour choisir `WBP_ItemSlot` dans `BP_KartPlayerController`, comme pour les deux autres.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPlayerController.h" debut={36} fin={37}>
-  <Etape lignes="36-37" titre="Le widget créé">
+<CodePasAPas fichier="KartPlayerController.h" debut={82} fin={83}>
+  <Etape lignes="82-83" titre="Le widget créé">
     On garde le widget créé dans un `UPROPERTY()`, pour qu'il ne soit pas effacé par le ramasse-miettes d'Unreal.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPlayerController.cpp" debut={5} fin={5}>
-  <Etape lignes="5" titre="L'include">
+<CodePasAPas fichier="KartPlayerController.cpp" debut={10} fin={10}>
+  <Etape lignes="10" titre="L'include">
     Le chemin commence par `Items/` : le widget est rangé dans le sous-dossier des objets.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPlayerController.cpp" debut={26} fin={34}>
-  <Etape lignes="26-28" titre="Une classe a-t-elle été choisie ?">
+<CodePasAPas fichier="KartPlayerController.cpp" debut={41} fin={49}>
+  <Etape lignes="41-43" titre="Une classe a-t-elle été choisie ?">
     Si personne n'a choisi de widget dans le Blueprint, on saute ce bloc : le jeu marche, sans case d'objet.
   </Etape>
-  <Etape lignes="29-34" titre="Créer et afficher">
+  <Etape lignes="44-49" titre="Créer et afficher">
     <Terme id="createwidget">CreateWidget</Terme> fabrique le widget, puis <Terme id="addtoviewport">AddToViewport</Terme> le pose à l'écran. Trois widgets, trois blocs identiques : c'est voulu, chacun se lit tout seul.
   </Etape>
 </CodePasAPas>

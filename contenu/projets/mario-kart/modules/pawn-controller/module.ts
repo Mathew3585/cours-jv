@@ -141,7 +141,7 @@ export const pawnController: Module = {
     {
       slug: "cpp-constructeur-beginplay",
       titre: "KartPawn.cpp (1/8) : includes, constructeur et BeginPlay",
-      resume: "Lignes 1 à 108 : les includes, deux constantes, la fabrication des composants et l'entrée en jeu",
+      resume: "Lignes 1 à 103 : les includes, deux constantes, la fabrication des composants et l'entrée en jeu",
       dureeMin: 20,
       fichiers: ["KartPawn.cpp"],
       charger: () => import("./cpp-constructeur-beginplay.mdx"),
@@ -290,8 +290,8 @@ export const pawnController: Module = {
     },
     {
       slug: "cpp-tours-branchement-input",
-      titre: "KartPawn.cpp (2/8) : direction, tours et branchement des touches",
-      resume: "Lignes 109 à 215 : GetMoveDirection, le comptage des tours, puis le Mapping Context et les BindAction",
+      titre: "KartPawn.cpp (2/8) : direction et tours",
+      resume: "Lignes 104 à 169 : GetMoveDirection et le comptage des tours",
       dureeMin: 20,
       fichiers: ["KartPawn.cpp"],
       charger: () => import("./cpp-tours-branchement-input.mdx"),
@@ -366,74 +366,13 @@ export const pawnController: Module = {
             explication:
               "3 >= 3 : la course est finie, on garde le temps d'arrivée et on prévient le GameMode. Le return empêche d'atteindre ++CurrentLap.",
           },
-          {
-            type: "qcm",
-            enonce: "Une IA possède le kart. Que fait NotifyControllerChanged ?",
-            choix: [
-              "Elle ajoute le Mapping Context à l'IA",
-              "Rien : le Cast vers APlayerController renvoie nullptr, et une IA n'a pas de clavier",
-              "Elle plante, car l'IA n'a pas de LocalPlayer",
-              "Elle donne les touches au premier joueur",
-            ],
-            bonne: 1,
-            explication:
-              "Controller peut être un joueur ou une IA. Le Cast ne réussit que pour un APlayerController. On ajoute le Mapping Context ici car c'est à ce moment qu'on sait quel joueur pilote le kart.",
-          },
-          {
-            type: "qcm",
-            enonce: "Que se passerait-il si on supprimait le lien Completed de ThrottleAction (ligne 203) ?",
-            choix: [
-              "Le kart ne pourrait plus accélérer",
-              "Rien, Triggered remet la valeur à 0 tout seul",
-              "Le kart continuerait d'accélérer après qu'on a lâché la touche",
-              "Le jeu ne compilerait plus",
-            ],
-            bonne: 2,
-            explication:
-              "Quand on lâche, Triggered n'est plus appelé. Sans OnThrottleReleased, ThrottleInput garderait sa dernière valeur (par exemple 1).",
-          },
-          {
-            type: "code",
-            enonce: "Quel événement faut-il pour que le saut ne parte qu'une fois par appui ?",
-            code: "EnhancedInput->BindAction(JumpAction, ETriggerEvent::____, this, &AKartPawn::OnJumpPressed);",
-            choix: ["Triggered", "Completed", "Ongoing", "Started"],
-            bonne: 3,
-            explication:
-              "Started se déclenche une seule fois, au moment de l'appui. Triggered serait appelé à chaque image tant que le bouton est tenu : le kart sauterait dès qu'il retouche le sol.",
-          },
-          {
-            type: "qcm",
-            enonce: "Tu tiens la touche d'accélération pendant une demi-seconde. Combien de fois chaque événement se déclenche-t-il ?",
-            choix: [
-              "Started à chaque image, Triggered une fois, Completed une fois",
-              "Started une fois, Triggered à chaque image, Completed une fois au relâchement",
-              "Les trois une seule fois",
-              "Triggered une fois à l'appui, Completed à chaque image",
-            ],
-            bonne: 1,
-            explication:
-              "Started marque le début de l'appui, Triggered se répète tant qu'on tient, Completed marque le relâchement. Un axe à suivre en continu utilise Triggered, une action ponctuelle Started.",
-          },
-          {
-            type: "qcm",
-            enonce: "Le kart ne réagit à aucune touche, et le code compile. Que vérifier en premier ?",
-            choix: [
-              "Que KartMappingContext et les Input Actions sont bien remplis dans le Blueprint du kart",
-              "Que Tick est bien appelé",
-              "Que BeginPlay appelle SetupPlayerInputComponent",
-              "Que bShowDebug est vrai",
-            ],
-            bonne: 0,
-            explication:
-              "Ces variables EditAnywhere sont vides par défaut : le code ne peut pas deviner quels assets utiliser. Sans Mapping Context ni actions, aucune touche n'arrive jusqu'au kart.",
-          },
         ],
       },
     },
     {
       slug: "cpp-tick-fonctions-input",
-      titre: "KartPawn.cpp (3/8) : le Tick et les fonctions d'input",
-      resume: "Lignes 216 à 294 : l'ordre des étapes du Tick, DeltaTime, et les fonctions qui notent les touches",
+      titre: "KartPawn.cpp (3/8) : le Tick et les commandes",
+      resume: "Lignes 171 à 217 : l'ordre des étapes du Tick, DeltaTime, et les commandes qui notent ce que veut le pilote",
       dureeMin: 15,
       fichiers: ["KartPawn.cpp"],
       charger: () => import("./cpp-tick-fonctions-input.mdx"),
@@ -451,7 +390,7 @@ export const pawnController: Module = {
             ],
             bonne: 2,
             explication:
-              "Les lignes 223 à 227 remettent ThrottleInput et SteerInput à 0, mais il n'y a pas de return : toutes les étapes s'exécutent, donc le kart reste posé sur la piste.",
+              "Les lignes 177 à 181 remettent ThrottleInput et SteerInput à 0, mais il n'y a pas de return : toutes les étapes s'exécutent, donc le kart reste posé sur la piste.",
           },
           {
             type: "code",
@@ -496,73 +435,47 @@ export const pawnController: Module = {
             enonce: "Le joueur garde l'accélérateur enfoncé pendant tout le décompte. Que se passe-t-il au GO ?",
             code: "if (!bCanMove)\n{\n\tThrottleInput = 0.f;\n\tSteerInput = 0.f;\n}",
             choix: [
-              "Le kart démarre aussitôt : OnThrottle réécrit ThrottleInput à chaque image, et plus personne ne l'efface",
+              "Le kart démarre aussitôt : le controller rappelle SetThrottleInput à chaque image, et plus personne ne l'efface",
               "Il faut relâcher puis réappuyer, car ThrottleInput a été mis à 0",
               "Le kart démarre avec un turbo",
               "Le kart reste bloqué jusqu'à la fin de la course",
             ],
             bonne: 0,
             explication:
-              "Tant que la touche est tenue, Triggered appelle OnThrottle à chaque image, puis le Tick efface la valeur. Dès que bCanMove repasse à vrai, l'effacement s'arrête.",
+              "Tant que la touche est tenue, le controller appelle SetThrottleInput à chaque image, puis le Tick efface la valeur. Dès que bCanMove repasse à vrai, l'effacement s'arrête.",
           },
           {
             type: "code",
-            enonce: "Le joueur enfonce une gâchette de manette à moitié. Que vaut ThrottleInput après cette ligne ?",
-            code: "ThrottleInput = Value.Get<float>();",
+            enonce: "Le joueur enfonce une gâchette de manette à moitié : le controller appelle SetThrottleInput(0.5f). Que vaut ThrottleInput après cette ligne ?",
+            code: "ThrottleInput = FMath::Clamp(Value, -1.f, 1.f);",
             choix: ["1", "0,5", "0", "-0,5"],
             bonne: 1,
             explication:
-              "Get<float>() lit la valeur de l'axe, entre -1 et 1. Une gâchette donne des valeurs intermédiaires ; UpdateSpeed visera alors la moitié de la vitesse max.",
+              "0,5 est déjà entre -1 et 1 : Clamp la laisse telle quelle. UpdateSpeed visera alors la moitié de la vitesse max.",
           },
           {
             type: "vrai-faux",
-            enonce: "OnThrottle fait avancer le kart en modifiant sa position.",
+            enonce: "SetThrottleInput fait avancer le kart en modifiant sa position.",
             choix: ["Vrai", "Faux"],
             bonne: 1,
             explication:
-              "OnThrottle ne fait que ranger la valeur dans ThrottleInput. C'est UpdateSpeed puis MoveKart, dans le Tick, qui font avancer le kart.",
-          },
-          {
-            type: "qcm",
-            enonce: "Le kart est bloqué (bCanMove faux) et le joueur relâche le bouton de drift. Que se passe-t-il ?",
-            choix: [
-              "Rien, car le kart est bloqué",
-              "Le kart saute",
-              "Le drift démarre",
-              "EndDrift est appelée quand même : OnDriftReleased ne teste pas bCanMove",
-            ],
-            bonne: 3,
-            explication:
-              "Seules OnDriftPressed et OnJumpPressed vérifient bCanMove. OnDriftReleased appelle toujours EndDrift, pour qu'un drift ne reste jamais bloqué en cours.",
-          },
-          {
-            type: "qcm",
-            enonce: "OnThrottleReleased ne se sert pas de son paramètre Value. Pourquoi le reçoit-elle quand même ?",
-            choix: [
-              "Pour remettre Value à 0 quand on lâche la touche",
-              "Parce que Value contient DeltaTime",
-              "Pour que toutes les fonctions d'input aient la même forme, celle qu'on branche avec BindAction",
-              "Pour savoir quelle touche a été relâchée",
-            ],
-            bonne: 2,
-            explication:
-              "Le choix est fait pour l'uniformité : chaque fonction d'input reçoit un FInputActionValue, qu'elle s'en serve ou non. C'est ThrottleInput qu'on remet à 0, pas Value.",
+              "SetThrottleInput ne fait que ranger la valeur dans ThrottleInput. C'est UpdateSpeed puis MoveKart, dans le Tick, qui font avancer le kart.",
           },
         ],
       },
       questionsLibres: [
         {
           id: "mario-kart/pawn-controller/cpp-tick-fonctions-input/ecouter-agir",
-          enonce: "Les fonctions d'input (OnThrottle, OnSteer...) ne déplacent pas le kart : elles rangent seulement une valeur. Explique avec tes mots pourquoi on fait bouger le kart dans Tick plutôt que directement dans ces fonctions.",
+          enonce: "Les commandes (SetThrottleInput, SetSteerInput...) ne déplacent pas le kart : elles rangent seulement une valeur. Explique avec tes mots pourquoi on fait bouger le kart dans Tick plutôt que directement dans ces fonctions.",
           attendus:
-            "Le kart doit bouger à chaque image, même quand aucune touche n'est appuyée (roue libre, gravité, drift). Les fonctions d'input ne sont appelées que lors des événements d'input. Mettre tout le mouvement dans Tick permet d'utiliser DeltaTime et de garder un ordre maîtrisé des étapes (sol, vitesse, virage, déplacement). Bonus : séparer « écouter » et « agir » rend le code plus lisible.",
+            "Le kart doit bouger à chaque image, même quand aucune touche n'est appuyée (roue libre, gravité, drift). Les commandes ne sont appelées que lorsque le controller le décide (événements d'input pour le joueur). Mettre tout le mouvement dans Tick permet d'utiliser DeltaTime et de garder un ordre maîtrisé des étapes (sol, vitesse, virage, déplacement). Bonus : séparer « écouter » et « agir » rend le code plus lisible.",
         },
       ],
     },
     {
       slug: "cpp-sol-vitesse-virage",
       titre: "KartPawn.cpp (4/8) : UpdateGround, UpdateSpeed et UpdateSteering",
-      resume: "Lignes 305 à 416 : au sol ou en l'air, gravité, vitesse cible et virage (y compris en drift)",
+      resume: "Lignes 229 à 340 : au sol ou en l'air, gravité, vitesse cible et virage (y compris en drift)",
       dureeMin: 30,
       fichiers: ["KartPawn.cpp"],
       charger: () => import("./cpp-sol-vitesse-virage.mdx"),
@@ -705,7 +618,7 @@ export const pawnController: Module = {
     {
       slug: "cpp-drift-deplacement",
       titre: "KartPawn.cpp (5/8) : UpdateDrift, UpdateBoost, MoveKart et AlignToGround",
-      resume: "Lignes 417 à 520 : faire progresser le drift, décompter le turbo, se déplacer avec un sweep, cogner les murs, s'incliner",
+      resume: "Lignes 341 à 444 : faire progresser le drift, décompter le turbo, se déplacer avec un sweep, cogner les murs, s'incliner",
       dureeMin: 30,
       fichiers: ["KartPawn.cpp"],
       charger: () => import("./cpp-drift-deplacement.mdx"),
@@ -740,7 +653,7 @@ export const pawnController: Module = {
             choix: ["Vrai", "Faux"],
             bonne: 1,
             explication:
-              "Lignes 436 à 440 : la charge n'augmente que si bIsGrounded est vrai. En l'air, elle est en pause (DriftBlend, lui, continue de monter).",
+              "Lignes 360 à 364 : la charge n'augmente que si bIsGrounded est vrai. En l'air, elle est en pause (DriftBlend, lui, continue de monter).",
           },
           {
             type: "code",
@@ -846,14 +759,14 @@ export const pawnController: Module = {
           id: "mario-kart/pawn-controller/cpp-drift-deplacement/sweep",
           enonce: "Dans MoveKart, que fait le kart après avoir touché un mur de biais ? Décris les deux effets et la ligne de code de chacun.",
           attendus:
-            "1) Il perd de la vitesse selon l'angle du choc : CurrentSpeed *= Lerp(1, WallSpeedFactor, ImpactStrength) (ligne 485), avec ImpactStrength calculé par le produit scalaire entre la direction du mouvement et la normale du mur (ligne 482). 2) Le reste du trajet est projeté sur la surface du mur et refait avec un sweep (lignes 503-504) : le kart glisse le long du mur au lieu de s'y coller.",
+            "1) Il perd de la vitesse selon l'angle du choc : CurrentSpeed *= Lerp(1, WallSpeedFactor, ImpactStrength) (ligne 409), avec ImpactStrength calculé par le produit scalaire entre la direction du mouvement et la normale du mur (ligne 406). 2) Le reste du trajet est projeté sur la surface du mur et refait avec un sweep (lignes 427-428) : le kart glisse le long du mur au lieu de s'y coller.",
         },
       ],
     },
     {
       slug: "cpp-visuels-camera",
       titre: "KartPawn.cpp (6/8) : roues, châssis, caméra et champ de vision",
-      resume: "Lignes 521 à 586 : UpdateVisuals et UpdateCameraFieldOfView, avec radians, FInterpTo et zone morte",
+      resume: "Lignes 445 à 510 : UpdateVisuals et UpdateCameraFieldOfView, avec radians, FInterpTo et zone morte",
       dureeMin: 20,
       fichiers: ["KartPawn.cpp"],
       charger: () => import("./cpp-visuels-camera.mdx"),
@@ -975,7 +888,7 @@ export const pawnController: Module = {
     {
       slug: "cpp-rayons-roues",
       titre: "KartPawn.cpp (7/8) : les rayons sous les roues et l'orientation des roues",
-      resume: "Lignes 587 à 675 : TraceGroundUnderWheels (line trace, moyennes, produit vectoriel) et SetWheelRotation",
+      resume: "Lignes 511 à 599 : TraceGroundUnderWheels (line trace, moyennes, produit vectoriel) et SetWheelRotation",
       dureeMin: 25,
       fichiers: ["KartPawn.cpp"],
       charger: () => import("./cpp-rayons-roues.mdx"),
@@ -1058,7 +971,7 @@ export const pawnController: Module = {
             choix: ["Vrai", "Faux"],
             bonne: 0,
             explication:
-              "Lignes 631 à 636 : OutGroundPoint vaut la position du kart, OutGroundNormal vaut FVector::UpVector, et la fonction renvoie 0. UpdateGround en déduit que le kart est en l'air.",
+              "Lignes 555 à 560 : OutGroundPoint vaut la position du kart, OutGroundNormal vaut FVector::UpVector, et la fonction renvoie 0. UpdateGround en déduit que le kart est en l'air.",
           },
           {
             type: "qcm",
@@ -1128,7 +1041,7 @@ export const pawnController: Module = {
     {
       slug: "cpp-saut-drift-debug",
       titre: "KartPawn.cpp (8/8) : saut, drift, turbo et texte de debug",
-      resume: "Lignes 676 à 776 : Jump, StartDrift, EndDrift, StartBoost, GetCurrentMaxSpeed et ShowDebugInfo",
+      resume: "Lignes 600 à 700 : Jump, StartDrift, EndDrift, StartBoost, GetCurrentMaxSpeed et ShowDebugInfo",
       dureeMin: 20,
       fichiers: ["KartPawn.cpp"],
       charger: () => import("./cpp-saut-drift-debug.mdx"),
@@ -1280,17 +1193,17 @@ export const pawnController: Module = {
   ],
   carte: {
     fichier: "KartPawn.cpp",
-    lignes: 833,
+    lignes: 757,
     tranches: [
-      { lecon: "cpp-constructeur-beginplay", label: "Includes, constructeur, BeginPlay", debut: 1, fin: 108 },
-      { lecon: "cpp-tours-branchement-input", label: "Direction, tours, branchement de l'input", debut: 109, fin: 215 },
-      { lecon: "cpp-tick-fonctions-input", label: "Tick et fonctions d'input", debut: 216, fin: 304 },
-      { lecon: "cpp-sol-vitesse-virage", label: "Sol, vitesse, virage", debut: 305, fin: 416 },
-      { lecon: "cpp-drift-deplacement", label: "Drift, turbo, déplacement, inclinaison", debut: 417, fin: 520 },
-      { lecon: "cpp-visuels-camera", label: "Roues, châssis, caméra, FOV", debut: 521, fin: 586 },
-      { lecon: "cpp-rayons-roues", label: "Rayons sous les roues, rotation des roues", debut: 587, fin: 675 },
-      { lecon: "cpp-saut-drift-debug", label: "Saut, drift, turbo, debug", debut: 676, fin: 776 },
-      { lecon: "objets-bonus", label: "Turbo d'objet et tête-à-queue (modules Objets bonus et Pièges)", debut: 777, fin: 833 },
+      { lecon: "cpp-constructeur-beginplay", label: "Includes, constructeur, BeginPlay", debut: 1, fin: 103 },
+      { lecon: "cpp-tours-branchement-input", label: "Direction et tours", debut: 104, fin: 170 },
+      { lecon: "cpp-tick-fonctions-input", label: "Tick et commandes", debut: 171, fin: 228 },
+      { lecon: "cpp-sol-vitesse-virage", label: "Sol, vitesse, virage", debut: 229, fin: 340 },
+      { lecon: "cpp-drift-deplacement", label: "Drift, turbo, déplacement, inclinaison", debut: 341, fin: 444 },
+      { lecon: "cpp-visuels-camera", label: "Roues, châssis, caméra, FOV", debut: 445, fin: 510 },
+      { lecon: "cpp-rayons-roues", label: "Rayons sous les roues, rotation des roues", debut: 511, fin: 599 },
+      { lecon: "cpp-saut-drift-debug", label: "Saut, drift, turbo, debug", debut: 600, fin: 700 },
+      { lecon: "objets-bonus", label: "Turbo d'objet et tête-à-queue (modules Objets bonus et Pièges)", debut: 701, fin: 757 },
     ],
   },
   quizFinal: {
@@ -1478,6 +1391,6 @@ export const pawnController: Module = {
     id: "mario-kart/pawn-controller/defi-boost-depart",
     titre: "Ajouter un boost au départ",
     consigne:
-      "Si le joueur accélère pendant la dernière seconde du compte à rebours, le kart part avec un mini-turbo. Indices : pendant le décompte, OnThrottle remplit encore ThrottleInput avant que le Tick ne l'efface (ligne 223) ; le GameMode a une fonction GetCountdownNumber() qui vaut 1 pendant la dernière seconde ; quand le GameMode appelle SetCanMove(true), tu peux lancer StartBoost(MiniTurboDuration). Dépose un lien vers une capture ou une vidéo une fois fait.",
+      "Si le joueur accélère pendant la dernière seconde du compte à rebours, le kart part avec un mini-turbo. Indices : pendant le décompte, le controller appelle encore SetThrottleInput, qui remplit encore ThrottleInput avant que le Tick ne l'efface (ligne 177) ; le GameMode a une fonction GetCountdownNumber() qui vaut 1 pendant la dernière seconde ; quand le GameMode appelle SetCanMove(true), tu peux lancer StartBoost(MiniTurboDuration). Dépose un lien vers une capture ou une vidéo une fois fait.",
   },
 };

@@ -5,6 +5,7 @@ import { compteurTours } from "./modules/compteur-tours/module";
 import { widgetsHud } from "./modules/widgets-hud/module";
 import { objetsBonus } from "./modules/objets-bonus/module";
 import { objetsAttaque } from "./modules/objets-attaque/module";
+import { controllerCommandes } from "./modules/controller-commandes/module";
 
 export const marioKart: Projet = {
   slug: "mario-kart",
@@ -13,11 +14,11 @@ export const marioKart: Projet = {
   techno: "Unreal Engine 5 · C++",
   description:
     "On construit un jeu de karting de A à Z : un kart pilotable fait maison, les règles de la course, le comptage des tours, l'interface et les objets bonus. Chaque module explique une partie du vrai code du projet.",
-  modules: [pawnController, gameMode, compteurTours, widgetsHud, objetsBonus, objetsAttaque],
+  modules: [pawnController, gameMode, compteurTours, widgetsHud, objetsBonus, objetsAttaque, controllerCommandes],
   fichiers: [
     { nom: "KartPawn.h", role: "Déclare le kart : composants, réglages, état", module: "pawn-controller" },
     { nom: "KartPawn.cpp", role: "Conduite, gravité, drift, boost, caméra", module: "pawn-controller" },
-    { nom: "KartPlayerController.cpp", role: "Crée et affiche les widgets du joueur", module: "widgets-hud" },
+    { nom: "KartPlayerController.cpp", role: "Crée les widgets du joueur et transforme ses touches en commandes pour le kart", module: "widgets-hud" },
     { nom: "KartGameMode.cpp", role: "Compte à rebours, départ, fin de course", module: "game-mode" },
     { nom: "LapZone.cpp", role: "Ligne d'arrivée et checkpoints", module: "compteur-tours" },
     { nom: "KartCountdownWidget.cpp", role: "Affiche 3, 2, 1, GO", module: "widgets-hud" },

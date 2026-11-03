@@ -1,0 +1,38 @@
+Côté `.cpp`, le kart perd tout son code d'input : les includes d'Enhanced Input, `NotifyControllerChanged`, `SetupPlayerInputComponent` et les huit fonctions `On…`. À la place du bloc « Input », une section « Commandes ». On relit les lignes qui ont changé, du haut vers le bas du fichier.
+
+## La section Commandes
+
+<CodePasAPas fichier="KartPawn.cpp" debut={205} fin={227}>
+  <Etape lignes="205-206" titre="Un bandeau, et la règle">
+    Les commandes sont appelées par un controller, joueur ou IA. Le kart n'a même pas besoin de savoir lequel.
+  </Etape>
+  <Etape lignes="208-212" titre="SetThrottleInput">
+    On range la valeur dans `ThrottleInput`, comme le faisait `OnThrottle`. La différence : <Terme id="clamp">Clamp</Terme>. Une touche donne toujours une valeur entre -1 et 1, mais une IA calcule ses valeurs, et un bug pourrait demander 5. Le kart se protège lui-même : il ne fait jamais confiance à celui qui le pilote.
+  </Etape>
+  <Etape lignes="214-217" titre="SetSteerInput">
+    Même chose pour le volant. Plus besoin de fonction « relâchée » : le controller envoie 0.
+  </Etape>
+  <Etape lignes="219-227" titre="UseItem">
+    L'ancien `OnUseItemPressed`, sans son paramètre `FInputActionValue` : le kart n'a plus aucune idée de ce qu'est une touche. Les deux vérifications restent ici, dans le kart.
+  </Etape>
+</CodePasAPas>
+
+## Les vérifications passent dans les commandes
+
+Avant, `OnJumpPressed` et `OnDriftPressed` testaient `bCanMove` **avant** d'appeler `Jump` et `StartDrift`. Maintenant que `Jump` et `StartDrift` sont publiques, n'importe qui peut les appeler : elles doivent se protéger elles-mêmes.
+
+<CodePasAPas fichier="KartPawn.cpp" debut={610} fin={614}>
+  <Etape lignes="610-614" titre="Jump : compte à rebours et tête-à-queue">
+    La garde du tête-à-queue vérifie maintenant aussi `bCanMove`. Si on avait laissé ce test dans le controller du joueur, une IA aurait pu sauter pendant le « 3, 2, 1 ».
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.cpp" debut={631} fin={635}>
+  <Etape lignes="631-635" titre="StartDrift : pareil">
+    Même garde dans `StartDrift`. `EndDrift`, elle, n'a pas de test : on doit toujours pouvoir finir un drift, même si le kart vient d'être bloqué.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="piege">Une règle de jeu placée dans le controller du joueur ne s'applique qu'au joueur. Les règles du kart (ce qu'il a le droit de faire et quand) vont dans le kart ; le controller ne fait que transmettre ce que le pilote demande.</Encadre>
+
+<Quiz />

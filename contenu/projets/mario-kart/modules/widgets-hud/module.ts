@@ -207,7 +207,7 @@ export const widgetsHud: Module = {
             choix: ["Vrai", "Faux"],
             bonne: 1,
             explication:
-              "La classe vaut nullptr, le if de la ligne 17 est faux et le code saute simplement ce widget. Le jeu tourne sans compte à rebours, sans aucun message : c'est pour ça que l'oubli est difficile à repérer.",
+              "La classe vaut nullptr, le if de la ligne 32 est faux et le code saute simplement ce widget. Le jeu tourne sans compte à rebours, sans aucun message : c'est pour ça que l'oubli est difficile à repérer.",
           },
           {
             type: "code",

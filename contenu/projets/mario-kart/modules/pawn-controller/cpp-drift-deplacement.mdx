@@ -1,21 +1,21 @@
-Lignes 417 à 519 : quatre étapes du Tick. `UpdateDrift` fait progresser un drift en cours, `UpdateBoost` décompte le turbo. Puis vient la plus importante : `MoveKart` déplace enfin la sphère et décide quoi faire si elle cogne quelque chose. `AlignToGround` incline ensuite le kart pour qu'il épouse la pente.
+Lignes 341 à 443 : quatre étapes du Tick. `UpdateDrift` fait progresser un drift en cours, `UpdateBoost` décompte le turbo. Puis vient la plus importante : `MoveKart` déplace enfin la sphère et décide quoi faire si elle cogne quelque chose. `AlignToGround` incline ensuite le kart pour qu'il épouse la pente.
 
 ## UpdateDrift et UpdateBoost
 
-<CodePasAPas fichier="KartPawn.cpp" debut={417} fin={446}>
-  <Etape lignes="417-422" titre="Rien à faire sans drift">
+<CodePasAPas fichier="KartPawn.cpp" debut={341} fin={370}>
+  <Etape lignes="341-346" titre="Rien à faire sans drift">
     Une sortie rapide si aucun drift n'est en cours. Le drift démarre dans `StartDrift`, à la fin du fichier.
   </Etape>
-  <Etape lignes="424-431" titre="Trop lent : le drift s'arrête">
+  <Etape lignes="348-355" titre="Trop lent : le drift s'arrête">
     Sous la moitié de `DriftMinSpeed` (500 cm/s), le drift s'arrête et la charge est perdue, sans turbo. On démarre à 1000 mais on n'arrête qu'à 500 : deux seuils, comme pour le sol. Un kart qui ralentit un peu dans le virage ne perd pas son drift aussitôt.
   </Etape>
-  <Etape lignes="433-434" titre="Entrer dans la glissade, petit à petit">
+  <Etape lignes="357-358" titre="Entrer dans la glissade, petit à petit">
     `DriftBlend` monte de `DeltaTime / 0.4` à chaque image : en 0,4 seconde, il passe de 0 à 1. `FMath::Min(1.f, ...)` l'empêche de dépasser 1. C'est cette valeur qu'utilise le virage de drift dans `UpdateSteering`.
   </Etape>
-  <Etape lignes="436-441" titre="Charger le turbo, au sol seulement">
+  <Etape lignes="360-365" titre="Charger le turbo, au sol seulement">
     `DriftChargeTime` compte les secondes de drift. Un saut pendant le drift met la charge en pause : il faut glisser sur la route pour la remplir. L'accolade ferme la fonction.
   </Etape>
-  <Etape lignes="443-446" titre="Le compte à rebours du turbo">
+  <Etape lignes="367-370" titre="Le compte à rebours du turbo">
     `UpdateBoost` retire le temps écoulé au turbo restant, sans descendre sous 0 grâce à `FMath::Max`. Tant qu'il reste du temps, `UpdateSpeed` impose la vitesse du turbo.
   </Etape>
 </CodePasAPas>
@@ -24,20 +24,20 @@ Lignes 417 à 519 : quatre étapes du Tick. `UpdateDrift` fait progresser un dri
 
 Le kart s'incline **progressivement** (on le verra avec `AlignToGround`) : son avant ne suit pas toujours exactement la route. En bas d'une montée, il pointe encore un peu « dans » la route ; en haut d'une bosse, un peu « vers le ciel ». La solution : coucher la flèche « avant » sur le sol avant de s'en servir. C'est une <Terme id="projection-plan">projection sur un plan</Terme>, comme l'ombre d'une flèche éclairée dans l'axe de la normale du sol.
 
-<CodePasAPas fichier="KartPawn.cpp" debut={448} fin={471}>
-  <Etape lignes="448-452" titre="La signature et l'avant du kart">
+<CodePasAPas fichier="KartPawn.cpp" debut={372} fin={395}>
+  <Etape lignes="372-376" titre="La signature et l'avant du kart">
     Les commentaires résument le problème des bosses et des montées. On part de la flèche « avant » du kart.
   </Etape>
-  <Etape lignes="453-458" titre="L'avant, couché sur la route">
+  <Etape lignes="377-382" titre="L'avant, couché sur la route">
     Au sol, `VectorPlaneProject` retire de `Forward` sa partie qui rentre dans la route ou qui en sort. L'ombre d'une flèche est plus courte que la flèche : `GetSafeNormal` la remet à une longueur de 1, sinon le kart irait moins vite dans les pentes. En l'air, on garde l'avant tel quel.
   </Etape>
-  <Etape lignes="460-462" titre="Le déplacement de cette image">
-    Deux flèches mises bout à bout : l'avant × vitesse × DeltaTime, plus la verticale du monde × vitesse verticale × DeltaTime. On obtient `Delta`, le trajet complet de cette image, en centimètres. L'instruction tient sur deux lignes : le `;` est à la fin de la ligne 462.
+  <Etape lignes="384-386" titre="Le déplacement de cette image">
+    Deux flèches mises bout à bout : l'avant × vitesse × DeltaTime, plus la verticale du monde × vitesse verticale × DeltaTime. On obtient `Delta`, le trajet complet de cette image, en centimètres. L'instruction tient sur deux lignes : le `;` est à la fin de la ligne 386.
   </Etape>
-  <Etape lignes="464-466" titre="Bouger avec un sweep">
+  <Etape lignes="388-390" titre="Bouger avec un sweep">
     Le `true` demande un <Terme id="sweep">sweep</Terme> : la sphère glisse le long du trajet et s'arrête au premier obstacle. Le <Terme id="fhitresult">FHitResult</Terme> `Hit` raconte ce qu'elle a touché.
   </Etape>
-  <Etape lignes="468-471" titre="Rien touché : c'est fini">
+  <Etape lignes="392-395" titre="Rien touché : c'est fini">
     Cas le plus courant : le chemin était libre, la sphère est arrivée au bout. On s'arrête là.
   </Etape>
 </CodePasAPas>
@@ -48,23 +48,23 @@ Sans sweep, `AddActorWorldOffset` téléporterait la sphère à sa nouvelle posi
 
 `Hit.Normal` donne la direction qui repousse la sphère, perpendiculaire à l'obstacle. `Hit.Time` dit quelle part du trajet a été faite avant le choc : 0,25 signifie « un quart du chemin, puis le choc ».
 
-<CodePasAPas fichier="KartPawn.cpp" debut={473} fin={505}>
-  <Etape lignes="473-476" titre="Est-ce un mur ?">
+<CodePasAPas fichier="KartPawn.cpp" debut={397} fin={429}>
+  <Etape lignes="397-400" titre="Est-ce un mur ?">
     Si le Z de la normale est sous 0,7 (`WalkableFloorZ`), la surface est trop penchée : c'est un mur. On ignore le cas `bStartPenetrating`, quand la sphère était déjà enfoncée dans l'objet au départ : ce n'est pas un vrai choc.
   </Etape>
-  <Etape lignes="477-482" titre="Choc de face ou de côté ?">
+  <Etape lignes="401-406" titre="Choc de face ou de côté ?">
     `MoveDirection` est la direction réelle du mouvement, avec <Terme id="sign">Sign</Terme> comme dans `GetMoveDirection`. Le produit scalaire avec la normale vaut -1 de face et 0 si on frôle le mur. Le signe moins le rend positif, <Terme id="clamp">Clamp</Terme> le garde entre 0 et 1.
   </Etape>
-  <Etape lignes="484-486" titre="Perdre de la vitesse">
+  <Etape lignes="408-410" titre="Perdre de la vitesse">
     Frôler le mur (0) garde toute la vitesse ; le prendre de face (1) n'en garde que 30 % (`WallSpeedFactor`). Entre les deux, Lerp mélange.
   </Etape>
-  <Etape lignes="487-495" titre="Le sol n'arrête pas la sphère">
+  <Etape lignes="411-419" titre="Le sol n'arrête pas la sphère">
     Au sol, si la sphère touche une surface orientée comme la route, ce n'est pas un obstacle. On finit le trajet restant **sans** collision (`false`), et `UpdateGround` remettra le kart à la bonne hauteur à l'image suivante. Sans ça, la sphère s'arrêterait net à chaque petite bosse. `SphereFloorHitCount` compte ces cas.
   </Etape>
-  <Etape lignes="496-500" titre="Atterrissage">
+  <Etape lignes="420-424" titre="Atterrissage">
     En l'air, la sphère touche un sol en descendant : la chute s'arrête, la vitesse verticale revient à 0.
   </Etape>
-  <Etape lignes="502-505" titre="Glisser le long de l'obstacle">
+  <Etape lignes="426-429" titre="Glisser le long de l'obstacle">
     Le reste du trajet (`1 - Hit.Time`) est projeté sur la surface touchée : on ne garde que la partie qui longe l'obstacle, et on la fait avec un nouveau sweep. Le kart glisse le long du mur au lieu de rester collé contre lui.
   </Etape>
 </CodePasAPas>
@@ -73,14 +73,14 @@ Le kart roule à 2000 cm/s. S'il frôle un mur, `ImpactStrength` ≈ 0 : il gard
 
 ## AlignToGround : s'incliner sur la pente
 
-<CodePasAPas fichier="KartPawn.cpp" debut={507} fin={519}>
-  <Etape lignes="507-512" titre="La rotation idéale">
+<CodePasAPas fichier="KartPawn.cpp" debut={431} fin={443}>
+  <Etape lignes="431-436" titre="La rotation idéale">
     `MakeFromZX` construit une rotation à partir de deux axes. Le haut (Z) doit être exactement la normale du sol ; l'avant (X) reste aussi proche que possible de l'avant actuel. On la convertit en <Terme id="quaternion">quaternion</Terme>, plus sûr pour les calculs de rotation.
   </Etape>
-  <Etape lignes="514-516" titre="Y aller petit à petit">
+  <Etape lignes="438-440" titre="Y aller petit à petit">
     `Slerp` est un Lerp pour les rotations : Alpha = 0 donne la rotation actuelle, Alpha = 1 la rotation idéale. Avec `GroundAlignSpeed` = 8 et 60 images par seconde, Alpha vaut environ 0,13 : à chaque image, le kart fait 13 % du chemin qui lui reste.
   </Etape>
-  <Etape lignes="518-519" titre="Appliquer">
+  <Etape lignes="442-443" titre="Appliquer">
     On donne la nouvelle rotation au kart. L'accolade ferme la fonction.
   </Etape>
 </CodePasAPas>

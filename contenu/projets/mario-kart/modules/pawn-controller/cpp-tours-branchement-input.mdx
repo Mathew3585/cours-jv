@@ -1,14 +1,14 @@
-On continue la lecture de `KartPawn.cpp`, lignes 109 à 215. Cette partie contient deux choses. D'abord, les fonctions qui servent à la **course** : la direction du kart et le comptage des tours. Ensuite, le **branchement des touches** avec l'<Terme id="enhanced-input">Enhanced Input</Terme>.
+On continue la lecture de `KartPawn.cpp`, lignes 104 à 169. Cette partie contient les fonctions qui servent à la **course** : la direction du kart et le comptage des tours.
 
 Les zones de tour (`ALapZone`) qui appellent ces fonctions sont détaillées dans le module 3, « Compteur de tours ». Ici, on regarde seulement ce que fait le kart quand on l'appelle.
 
 ## La direction du mouvement
 
-<CodePasAPas fichier="KartPawn.cpp" debut={109} fin={115}>
-  <Etape lignes="109-110" titre="Une fonction const">
+<CodePasAPas fichier="KartPawn.cpp" debut={104} fin={110}>
+  <Etape lignes="104-105" titre="Une fonction const">
     `GetMoveDirection` renvoie un <Terme id="vecteur">FVector</Terme>, une flèche. Elle est <Terme id="fonction-const">const</Terme> : elle lit l'état du kart sans rien modifier.
   </Etape>
-  <Etape lignes="111-115" titre="L'avant, multiplié par un signe">
+  <Etape lignes="106-110" titre="L'avant, multiplié par un signe">
     `GetActorForwardVector()` est la flèche « vers l'avant du kart ». <Terme id="sign">Sign</Terme> donne +1 si `CurrentSpeed` est positive, -1 si elle est négative (marche arrière), 0 à l'arrêt. Le résultat est donc l'avant, l'arrière, ou une flèche nulle. Les commentaires expliquent pourquoi on préfère `Sign` à un `if` : une seule ligne gère les trois cas.
   </Etape>
 </CodePasAPas>
@@ -17,85 +17,44 @@ Les zones de tour (`ALapZone`) qui appellent ces fonctions sont détaillées dan
 
 Sur le circuit, la zone 0 est la ligne d'arrivée, et les zones 1, 2, 3... sont des checkpoints à passer dans l'ordre. Le kart retient le prochain checkpoint attendu dans `NextCheckpoint`, et le tour en cours dans `CurrentLap`.
 
-<CodePasAPas fichier="KartPawn.cpp" debut={117} fin={174}>
-  <Etape lignes="117" titre="Un bandeau de section">
+<CodePasAPas fichier="KartPawn.cpp" debut={112} fin={169}>
+  <Etape lignes="112" titre="Un bandeau de section">
     Un simple commentaire pour se repérer dans un long fichier. On en verra d'autres plus bas (Input, Étapes du Tick, Saut...).
   </Etape>
-  <Etape lignes="119-122" titre="EnterLapZone : lire le GameMode">
+  <Etape lignes="114-117" titre="EnterLapZone : lire le GameMode">
     Une zone de tour appelle cette fonction en donnant son numéro, `ZoneIndex`. On récupère le GameMode de kart, comme dans BeginPlay : on a besoin de lui pour savoir si la course a commencé et combien il y a de checkpoints.
   </Etape>
-  <Etape lignes="124-128" titre="Quand les zones ne comptent pas">
+  <Etape lignes="119-123" titre="Quand les zones ne comptent pas">
     Pas de GameMode de kart, course pas encore lancée, ou course déjà finie pour ce kart : on sort tout de suite avec `return`. Le `||` signifie « ou » : une seule condition vraie suffit.
   </Etape>
-  <Etape lignes="130-134" titre="Le checkpoint attendu">
+  <Etape lignes="125-129" titre="Le checkpoint attendu">
     Si la zone traversée est exactement celle qu'on attendait, on passe à la suivante : `++NextCheckpoint` ajoute 1.
   </Etape>
-  <Etape lignes="135-139" titre="La ligne d'arrivée">
+  <Etape lignes="130-134" titre="La ligne d'arrivée">
     Si c'est la zone 0 **et** que `NextCheckpoint` a dépassé le nombre de checkpoints, tous ont été passés : le tour est fini, on appelle `CompleteLap`.
   </Etape>
-  <Etape lignes="141-143" titre="Tout le reste est ignoré">
+  <Etape lignes="136-138" titre="Tout le reste est ignoré">
     Un checkpoint dans le désordre (raccourci, demi-tour) ou la ligne d'arrivée sans avoir fait le tour : aucun `else`, donc rien ne se passe. L'accolade ferme la fonction.
   </Etape>
-  <Etape lignes="145-151" titre="CompleteLap : les vérifications">
+  <Etape lignes="140-146" titre="CompleteLap : les vérifications">
     On récupère le GameMode, cette fois sans `const` : on va l'appeler pour lui signaler l'arrivée. Sans GameMode ou si la course est déjà finie, on s'arrête.
   </Etape>
-  <Etape lignes="153-154" titre="Repartir du premier checkpoint">
+  <Etape lignes="148-149" titre="Repartir du premier checkpoint">
     Un nouveau tour commence : il faudra repasser tous les checkpoints, en commençant par le 1.
   </Etape>
-  <Etape lignes="156-163" titre="C'était le dernier tour">
+  <Etape lignes="151-158" titre="C'était le dernier tour">
     Si le tour en cours est le dernier, la course est finie pour ce kart. On le note, on garde le temps de course donné par le GameMode, et on prévient le GameMode avec `NotifyKartFinished(this)` : `this` désigne notre kart.
   </Etape>
-  <Etape lignes="165-166" titre="Sinon, tour suivant">
+  <Etape lignes="160-161" titre="Sinon, tour suivant">
     Ce n'était pas le dernier tour : on passe au suivant.
   </Etape>
-  <Etape lignes="168-174" titre="ResetRaceProgress">
+  <Etape lignes="163-169" titre="ResetRaceProgress">
     Remet le kart au tour 1, au premier checkpoint, course pas finie et temps d'arrivée à 0. Utile quand une course recommence.
   </Etape>
 </CodePasAPas>
 
-## Brancher les touches
+## Et les touches ?
 
-Avec l'Enhanced Input, il faut deux branchements. D'abord, donner au joueur la liste des touches du kart : c'est le <Terme id="input-mapping-context">Input Mapping Context</Terme> (`KartMappingContext`). Ensuite, dire quelle fonction appeler pour chaque Input Action (`ThrottleAction`, `SteerAction`, `DriftAction`, `JumpAction`).
-
-<CodePasAPas fichier="KartPawn.cpp" debut={176} fin={210}>
-  <Etape lignes="176-178" titre="Quand un Controller prend le kart">
-    `NotifyControllerChanged` est appelée chaque fois que le kart change de Controller, par exemple quand le joueur en prend possession. C'est le bon moment pour lui donner les touches : à cet instant, on sait enfin **qui** pilote.
-  </Etape>
-  <Etape lignes="180-181" titre="Est-ce un joueur ?">
-    `Controller` peut être un joueur ou une IA. Le <Terme id="cast">Cast</Terme> vers `APlayerController` ne réussit que pour un joueur ; pour une IA, il renvoie <Terme id="nullptr">nullptr</Terme> et on ne fait rien : une IA n'a pas de clavier.
-  </Etape>
-  <Etape lignes="182-189" titre="Ajouter le Mapping Context">
-    Chaque joueur local a un sous-système Enhanced Input. On lui ajoute notre Mapping Context avec la priorité 0. À partir de là, les touches du clavier ou de la manette déclenchent nos Input Actions. Les accolades ferment les deux `if` puis la fonction.
-  </Etape>
-  <Etape lignes="191-193" titre="SetupPlayerInputComponent">
-    Unreal appelle cette fonction pour qu'on branche nos actions. On appelle d'abord la version du parent avec `Super`.
-  </Etape>
-  <Etape lignes="195-199" titre="Récupérer l'Enhanced Input Component">
-    Unreal nous donne un `UInputComponent` générique. On le convertit en `UEnhancedInputComponent`, la version qui sait gérer les Input Actions. Si la conversion échoue (projet mal configuré), on s'arrête au lieu de planter.
-  </Etape>
-  <Etape lignes="201-203" titre="L'accélérateur">
-    <Terme id="bindaction">BindAction</Terme> relie une action et un moment à une fonction. Deux liens : `Triggered` (tant qu'on appuie) appelle `OnThrottle`, `Completed` (quand on lâche) appelle `OnThrottleReleased`.
-  </Etape>
-  <Etape lignes="205-206" titre="Le volant">
-    Même chose pour le volant : `OnSteer` tant qu'on tourne, `OnSteerReleased` quand on lâche.
-  </Etape>
-  <Etape lignes="208-210" titre="Le drift">
-    Ici, on utilise `Started` : une seule fois, au moment de l'appui. Le drift a aussi un `Completed` : c'est en relâchant qu'on obtient le turbo.
-  </Etape>
-</CodePasAPas>
-
-<CodePasAPas fichier="KartPawn.cpp" debut={214} fin={215}>
-  <Etape lignes="214-215" titre="Le saut">
-    `Started` aussi : un saut ne doit partir qu'une fois par appui, pas à chaque image tant que le bouton est enfoncé. L'accolade ferme la fonction.
-  </Etape>
-</CodePasAPas>
-
-`this, &AKartPawn::OnThrottle` se lit : « sur cet objet-ci, appelle la fonction `OnThrottle` de la classe AKartPawn ». Le `&` devant le nom donne l'adresse de la fonction, pour qu'Unreal sache laquelle appeler plus tard.
-
-Imagine que tu tiens la touche d'accélération une demi-seconde. Les trois moments, appelés <Terme id="trigger-event">ETriggerEvent</Terme>, se déclenchent ainsi : **Started** une fois quand tu appuies, **Triggered** à chaque image tant que tu tiens la touche, **Completed** une fois quand tu relâches. Un axe qu'il faut suivre en continu utilise Triggered, une action ponctuelle utilise Started.
-
-<Encadre type="piege">
-Si le kart ne réagit à aucune touche, vérifie d'abord dans le Blueprint du kart que `KartMappingContext` et les quatre Input Actions sont bien remplis. Ces variables sont vides par défaut : le code ne peut pas deviner quels assets utiliser.
-</Encadre>
+Avant, le kart branchait lui-même les touches ici, avec `NotifyControllerChanged` et `SetupPlayerInputComponent`. Ce code a déménagé dans le PlayerController, pour qu'une IA puisse piloter le même kart. Tout est expliqué dans le module « Le controller prend les commandes ».
 
 <Quiz />

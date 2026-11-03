@@ -1,0 +1,74 @@
+Dans le `.cpp` du controller, trois ajouts : donner les touches au joueur dans `BeginPlay`, brancher chaque Input Action dans `SetupInputComponent`, puis les huit fonctions qui transforment une touche en commande.
+
+## Les includes
+
+<CodePasAPas fichier="KartPlayerController.cpp" debut={1} fin={10}>
+  <Etape lignes="3-6" titre="Ceux d'Enhanced Input">
+    Les includes qu'avait le kart : le joueur local (`LocalPlayer`), le composant et le sous-système d'<Terme id="enhanced-input">Enhanced Input</Terme>, et `FInputActionValue`. Plus bas, `KartPawn.h` (ligne 8) : pour appeler les commandes, le compilateur doit connaître la classe du kart en entier.
+  </Etape>
+</CodePasAPas>
+
+## Donner les touches au joueur
+
+<CodePasAPas fichier="KartPlayerController.cpp" debut={16} fin={30}>
+  <Etape lignes="22-24" titre="Le sous-système du joueur local">
+    Juste après le test « joueur local », on récupère le sous-système Enhanced Input du joueur qui joue sur cette machine. Avant, c'était le kart qui le faisait dans `NotifyControllerChanged`, en passant par son controller : maintenant, le controller le fait directement avec `GetLocalPlayer()`.
+  </Etape>
+  <Etape lignes="25-30" titre="Ajouter le Mapping Context">
+    On ajoute le Mapping Context, priorité 0. Le test `!= nullptr` évite un avertissement si on a oublié de le choisir dans le Blueprint.
+  </Etape>
+</CodePasAPas>
+
+## Brancher les touches
+
+<CodePasAPas fichier="KartPlayerController.cpp" debut={61} fin={85}>
+  <Etape lignes="61-63" titre="SetupInputComponent">
+    On appelle d'abord <Terme id="super">Super</Terme> : c'est la version d'`APlayerController` qui crée le composant d'input.
+  </Etape>
+  <Etape lignes="65-70" titre="Le composant d'input du controller">
+    `InputComponent` appartient au controller, pas au kart. Conséquence pratique : si le joueur change de kart (réapparition, sélection…), ses touches restent branchées. Un <Terme id="cast">Cast</Terme> vérifie que c'est bien un composant Enhanced Input.
+  </Etape>
+  <Etape lignes="72-77" titre="Accélérateur et volant">
+    Les mêmes <Terme id="bindaction">BindAction</Terme> que dans le kart, avec `this` et `&AKartPlayerController::…` : les fonctions appelées sont maintenant celles du controller. <Terme id="trigger-event">Triggered</Terme> tant qu'on appuie, Completed quand on lâche.
+  </Etape>
+  <Etape lignes="79-85" titre="Drift, saut et objet">
+    `Started` : une seule fois par appui. Le drift a aussi un `Completed`, pour le finir en lâchant le bouton.
+  </Etape>
+</CodePasAPas>
+
+## Retrouver le kart
+
+<CodePasAPas fichier="KartPlayerController.cpp" debut={87} fin={91}>
+  <Etape lignes="87-91" titre="GetKart">
+    <Terme id="getpawn">GetPawn</Terme> renvoie le pawn possédé par ce controller. La version avec `<AKartPawn>` fait le `Cast` en même temps : on obtient un kart, ou `nullptr`.
+  </Etape>
+</CodePasAPas>
+
+## Des touches aux commandes
+
+<CodePasAPas fichier="KartPlayerController.cpp" debut={93} fin={158}>
+  <Etape lignes="93-94" titre="Le principe">
+    Chaque fonction lit la touche et donne l'ordre au kart. C'est la seule différence entre un joueur et une IA : d'où viennent les ordres.
+  </Etape>
+  <Etape lignes="96-102" titre="OnThrottle">
+    `if (AKartPawn* Kart = GetKart())` déclare la variable et la teste dans la même ligne : si le controller ne pilote pas de kart, on ne fait rien. Sinon, on transmet la valeur de la touche à `SetThrottleInput`.
+  </Etape>
+  <Etape lignes="104-110" titre="OnThrottleReleased">
+    Lâcher l'accélérateur, c'est envoyer 0. Sans cette fonction, le kart garderait la dernière valeur et accélérerait tout seul.
+  </Etape>
+  <Etape lignes="112-126" titre="Le volant">
+    Exactement le même duo pour `SetSteerInput`.
+  </Etape>
+  <Etape lignes="128-142" titre="Le drift">
+    Appuyer : `StartDrift`. Lâcher : `EndDrift`. C'est le kart qui vérifie s'il a le droit de drifter.
+  </Etape>
+  <Etape lignes="144-158" titre="Le saut et l'objet">
+    Deux boutons, deux commandes. Les fonctions ne testent ni `bCanMove` ni le tête-à-queue : ces règles sont dans le kart.
+  </Etape>
+</CodePasAPas>
+
+<Encadre type="plus-loin">Un `AKartAIController` n'aurait ni Mapping Context ni `SetupInputComponent`. Dans son `Tick`, il calculerait où aller (par exemple vers le prochain checkpoint), puis appellerait `GetPawn<AKartPawn>()->SetThrottleInput(1.f)` et `SetSteerInput(...)`. Le kart, lui, ne changerait pas d'une ligne.</Encadre>
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/controller-commandes/controller-cpp/regles" />

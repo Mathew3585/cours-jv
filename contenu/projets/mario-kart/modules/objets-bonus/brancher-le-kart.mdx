@@ -4,76 +4,60 @@ Dans cette leçon, on ne voit que les lignes **ajoutées** pour les objets bonus
 
 ## Les ajouts dans KartPawn.h
 
-<CodePasAPas fichier="KartPawn.h" debut={12} fin={14}>
-  <Etape lignes="14" titre="Annoncer la poche">
+<CodePasAPas fichier="KartPawn.h" debut={11} fin={11}>
+  <Etape lignes="11" titre="Annoncer la poche">
     Une <Terme id="declaration-anticipee">déclaration anticipée</Terme> de plus : le header ne garde qu'un pointeur vers le composant.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.h" debut={65} fin={70}>
-  <Etape lignes="65-70" titre="ApplyBoost, la porte d'entrée du turbo">
+<CodePasAPas fichier="KartPawn.h" debut={88} fin={93}>
+  <Etape lignes="88-93" titre="ApplyBoost, la porte d'entrée du turbo">
     Une nouvelle section publique pour les objets. `StartBoost`, écrite au module 1, est `private` : seul le kart peut l'appeler. Plutôt que de la rendre publique, on ajoute `ApplyBoost`, publique, qui l'appelle. Le kart garde le contrôle : on pourra plus tard y ajouter des vérifications sans toucher aux objets.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.h" debut={79} fin={80}>
-  <Etape lignes="79-80" titre="Donner accès à la poche">
+<CodePasAPas fichier="KartPawn.h" debut={102} fin={103}>
+  <Etape lignes="102-103" titre="Donner accès à la poche">
     Un getter `BlueprintPure` pour qu'un Blueprint ou une autre classe puisse lire la poche du kart.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.h" debut={116} fin={121}>
-  <Etape lignes="119-121" titre="Le composant dans la liste des composants">
+<CodePasAPas fichier="KartPawn.h" debut={136} fin={141}>
+  <Etape lignes="139-141" titre="Le composant dans la liste des composants">
     Rangé avec les autres composants, juste après la caméra. Il apparaîtra dans le Blueprint du kart, sous les meshes.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.h" debut={141} fin={146}>
-  <Etape lignes="144-146" titre="Une nouvelle touche">
-    Une cinquième `UInputAction`, comme les quatre autres. On mettra `IA_UseItem` dedans dans le Blueprint du kart.
-  </Etape>
-</CodePasAPas>
-
-<CodePasAPas fichier="KartPawn.h" debut={385} fin={386}>
-  <Etape lignes="386" titre="La fonction appelée par la touche">
-    Rangée avec les autres fonctions d'input, même signature qu'elles.
-  </Etape>
-</CodePasAPas>
+La touche `IA_UseItem` et la fonction qui l'écoute ne sont pas dans le kart : c'est le PlayerController qui lit les touches et appelle la commande `UseItem` du kart (module « Le controller prend les commandes »).
 
 ## Les ajouts dans KartPawn.cpp
 
-<CodePasAPas fichier="KartPawn.cpp" debut={13} fin={14}>
-  <Etape lignes="14" titre="L'include du composant">
+<CodePasAPas fichier="KartPawn.cpp" debut={8} fin={9}>
+  <Etape lignes="9" titre="L'include du composant">
     Dans le `.cpp`, on crée le composant et on appelle ses fonctions : il faut son header complet.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.cpp" debut={53} fin={56}>
-  <Etape lignes="55-56" titre="Créer la poche">
+<CodePasAPas fichier="KartPawn.cpp" debut={48} fin={51}>
+  <Etape lignes="50-51" titre="Créer la poche">
     Avec <Terme id="createdefaultsubobject">CreateDefaultSubobject</Terme>, comme les autres composants. Mais pas de `SetupAttachment` : un <Terme id="uactorcomponent">ActorComponent</Terme> n'a pas de position, il n'est attaché à rien.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.cpp" debut={210} fin={212}>
-  <Etape lignes="212" titre="Brancher la touche">
-    `Started` : une seule fois au moment où on appuie, comme le saut. Avec `Triggered`, maintenir la touche utiliserait les trois turbos d'un coup.
+<CodePasAPas fichier="KartPawn.cpp" debut={219} fin={227}>
+  <Etape lignes="219-222" titre="UseItem : pas d'objet n'importe quand">
+    `UseItem` est une **commande** publique : le PlayerController l'appelle quand le joueur appuie sur la touche. Pendant le compte à rebours (`bCanMove` faux), elle ne fait rien. `IsSpinningOut` dit si le kart est en tête-à-queue : on la verra au module suivant.
   </Etape>
-</CodePasAPas>
-
-<CodePasAPas fichier="KartPawn.cpp" debut={295} fin={303}>
-  <Etape lignes="295-298" titre="Pas d'objet n'importe quand">
-    Pendant le compte à rebours (`bCanMove` faux), la touche ne fait rien. `IsSpinningOut` dit si le kart est en tête-à-queue : on la verra au module suivant.
-  </Etape>
-  <Etape lignes="299-303" titre="Passer la main à la poche">
+  <Etape lignes="223-227" titre="Passer la main à la poche">
     Le kart ne sait pas utiliser un objet : il demande à son composant. C'est la seule ligne du kart qui parle d'objets en jeu.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.cpp" debut={778} fin={786}>
-  <Etape lignes="778" titre="Une nouvelle section">
+<CodePasAPas fichier="KartPawn.cpp" debut={702} fin={710}>
+  <Etape lignes="702" titre="Une nouvelle section">
     À la fin du fichier, une section pour tout ce qui concerne les objets.
   </Etape>
-  <Etape lignes="780-786" titre="ApplyBoost">
+  <Etape lignes="704-710" titre="ApplyBoost">
     Une durée nulle ou négative ne veut rien dire : on l'ignore. Sinon on lance le turbo du drift, déjà écrit au module 1. Le turbo d'objet et le turbo de drift sont **le même** turbo : même vitesse, même champ de vision élargi.
   </Etape>
 </CodePasAPas>

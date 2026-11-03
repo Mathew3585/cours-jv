@@ -1,0 +1,38 @@
+Le `KartPlayerController` créait déjà l'interface (module « Widgets HUD »). Il reçoit maintenant tout ce que le kart a perdu : les réglages des touches et les fonctions qui les écoutent. On ne lit ici que les lignes ajoutées.
+
+Pourquoi le PlayerController ? Parce qu'il représente **la personne qui tient la manette**. Il existe toute la partie, même si son kart est détruit ou remplacé, et c'est à lui qu'Unreal envoie les touches en premier.
+
+<CodePasAPas fichier="KartPlayerController.h" debut={7} fin={13}>
+  <Etape lignes="10-13" titre="Quatre déclarations anticipées">
+    Ce sont exactement celles que le kart a perdues (`UInputMappingContext`, `UInputAction`, `FInputActionValue`), plus `AKartPawn` : le controller doit connaître le kart pour lui envoyer des commandes. Seulement des pointeurs, donc pas d'include dans le header.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.h" debut={22} fin={26}>
+  <Etape lignes="25-26" titre="SetupInputComponent">
+    L'équivalent, pour un controller, de `SetupPlayerInputComponent` du pawn : Unreal l'appelle quand il crée le composant d'input du controller. C'est là qu'on branchera chaque Input Action. Le mot <Terme id="override">override</Terme> : on remplace la version de `APlayerController`.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.h" debut={40} fin={63}>
+  <Etape lignes="40-43" titre="Le Mapping Context">
+    Une nouvelle catégorie, Kart > Input. Le <Terme id="input-mapping-context">Mapping Context</Terme> dit quelle touche déclenche quelle action. Ces lignes viennent telles quelles du header du kart.
+  </Etape>
+  <Etape lignes="45-51" titre="Accélérateur et volant">
+    Deux actions sur un axe, de -1 à +1, comme avant.
+  </Etape>
+  <Etape lignes="53-63" titre="Drift, saut et objet">
+    Trois actions de type bouton. On les choisira dans `BP_Kart_Controller`, plus dans `BP_Kart`.
+  </Etape>
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.h" debut={65} fin={77}>
+  <Etape lignes="65-74" titre="Les fonctions des touches">
+    Les huit fonctions `On…` qui étaient dans le kart. Elles gardent leur paramètre <Terme id="finputactionvalue">FInputActionValue</Terme>, la forme qu'attend `BindAction`. Mais au lieu de modifier le kart directement, chacune va lui envoyer une commande.
+  </Etape>
+  <Etape lignes="76-77" titre="GetKart">
+    Une petite fonction pour retrouver le kart piloté, utilisée par les huit fonctions. Elle peut renvoyer `nullptr` : au tout début de la partie, ou si le controller pilote autre chose qu'un kart.
+  </Etape>
+</CodePasAPas>
+
+<Quiz />

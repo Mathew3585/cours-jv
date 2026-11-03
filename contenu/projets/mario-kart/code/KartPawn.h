@@ -8,9 +8,6 @@ class USphereComponent;
 class UStaticMeshComponent;
 class USpringArmComponent;
 class UCameraComponent;
-class UInputMappingContext;
-class UInputAction;
-struct FInputActionValue;
 class UKartItemComponent;
 
 // Kart arcade "fait maison" : pas de physique simulée, on calcule tout nous-mêmes dans Tick
@@ -23,7 +20,6 @@ public:
 	AKartPawn();
 
 	virtual void Tick(float DeltaTime) override;
-	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
 	// Bloque ou débloque le kart (utilisé par le GameMode pour le compte à rebours)
 	UFUNCTION(BlueprintCallable, Category = "Kart")
@@ -37,6 +33,33 @@ public:
 	// (utilisée par les ALapZone pour savoir si on les traverse dans le bon sens)
 	UFUNCTION(BlueprintPure, Category = "Kart")
 	FVector GetMoveDirection() const;
+
+	// ---------- Commandes (envoyées par le controller : le joueur, ou plus tard une IA) ----------
+	// Le kart ne lit aucune touche lui-même : il obéit à ces fonctions, peu importe qui les appelle
+
+	// Accélérateur : +1 = accélérer, -1 = freiner / reculer, 0 = rien
+	UFUNCTION(BlueprintCallable, Category = "Kart|Commands")
+	void SetThrottleInput(float Value);
+
+	// Volant : +1 = droite, -1 = gauche, 0 = tout droit
+	UFUNCTION(BlueprintCallable, Category = "Kart|Commands")
+	void SetSteerInput(float Value);
+
+	// Commence un drift (il faut être au sol, assez rapide, et tourner d'un côté)
+	UFUNCTION(BlueprintCallable, Category = "Kart|Commands")
+	void StartDrift();
+
+	// Termine le drift : donne un turbo si le drift a été assez long
+	UFUNCTION(BlueprintCallable, Category = "Kart|Commands")
+	void EndDrift();
+
+	// Petit saut (seulement depuis le sol)
+	UFUNCTION(BlueprintCallable, Category = "Kart|Commands")
+	void Jump();
+
+	// Utilise l'objet bonus en main
+	UFUNCTION(BlueprintCallable, Category = "Kart|Commands")
+	void UseItem();
 
 	// ---------- Course : tours ----------
 
@@ -82,9 +105,6 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
-	// Appelée quand un Controller prend possession du kart : on y ajoute le Mapping Context
-	virtual void NotifyControllerChanged() override;
-
 	// ---------- Composants ----------
 
 	// Sphère de collision : c'est elle qui se déplace et qui bloque contre les murs
@@ -119,31 +139,6 @@ protected:
 	// La "poche" à objets bonus : c'est elle qui garde l'objet en main et l'utilise
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Kart|Components")
 	TObjectPtr<UKartItemComponent> ItemComponent;
-
-	// ---------- Input ----------
-
-	UPROPERTY(EditAnywhere, Category = "Kart|Input")
-	TObjectPtr<UInputMappingContext> KartMappingContext;
-
-	// Axe 1D : +1 = accélérer, -1 = freiner / reculer
-	UPROPERTY(EditAnywhere, Category = "Kart|Input")
-	TObjectPtr<UInputAction> ThrottleAction;
-
-	// Axe 1D : +1 = droite, -1 = gauche
-	UPROPERTY(EditAnywhere, Category = "Kart|Input")
-	TObjectPtr<UInputAction> SteerAction;
-
-	// Bouton : maintenir en tournant pour drifter
-	UPROPERTY(EditAnywhere, Category = "Kart|Input")
-	TObjectPtr<UInputAction> DriftAction;
-
-	// Bouton : petit saut
-	UPROPERTY(EditAnywhere, Category = "Kart|Input")
-	TObjectPtr<UInputAction> JumpAction;
-
-	// Bouton : utiliser l'objet bonus en main
-	UPROPERTY(EditAnywhere, Category = "Kart|Input")
-	TObjectPtr<UInputAction> UseItemAction;
 
 	// ---------- Réglages : déplacement (cm et secondes) ----------
 
@@ -375,16 +370,6 @@ protected:
 	float FinishTime = 0.f;
 
 private:
-	// ---------- Fonctions appelées par l'input ----------
-	void OnThrottle(const FInputActionValue& Value);
-	void OnThrottleReleased(const FInputActionValue& Value);
-	void OnSteer(const FInputActionValue& Value);
-	void OnSteerReleased(const FInputActionValue& Value);
-	void OnDriftPressed(const FInputActionValue& Value);
-	void OnDriftReleased(const FInputActionValue& Value);
-	void OnJumpPressed(const FInputActionValue& Value);
-	void OnUseItemPressed(const FInputActionValue& Value);
-
 	// ---------- Étapes du Tick (dans l'ordre) ----------
 	void UpdateGround(float DeltaTime);
 	void UpdateSpeed(float DeltaTime);
@@ -401,12 +386,7 @@ private:
 	// le point moyen du sol et sa pente (plus stable qu'un seul point de contact)
 	int32 TraceGroundUnderWheels(FVector& OutGroundPoint, FVector& OutGroundNormal) const;
 
-	// ---------- Saut ----------
-	void Jump();
-
-	// ---------- Drift et boost ----------
-	void StartDrift();
-	void EndDrift();
+	// ---------- Boost ----------
 	void StartBoost(float Duration);
 	float GetCurrentMaxSpeed() const;
 

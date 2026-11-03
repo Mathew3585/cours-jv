@@ -1,4 +1,4 @@
-Tu as lu le header : tu connais les pièces du kart et la liste de ses fonctions. On ouvre maintenant `KartPawn.cpp`, qui explique comment tout ça marche. Le fichier fait 744 lignes : on le recopie du haut vers le bas, en huit leçons qui se suivent. Celle-ci couvre les lignes 1 à 108 : les includes, le constructeur et BeginPlay.
+Tu as lu le header : tu connais les pièces du kart et la liste de ses fonctions. On ouvre maintenant `KartPawn.cpp`, qui explique comment tout ça marche. Le fichier fait 744 lignes : on le recopie du haut vers le bas, en huit leçons qui se suivent. Celle-ci couvre les lignes 1 à 103 : les includes, le constructeur et BeginPlay.
 
 Rappel important : notre kart est **fait maison**. Il n'utilise pas la physique simulée d'Unreal : il n'y a ni masse, ni forces, ni frottements calculés par le moteur. À chaque image, le code décide lui-même de la vitesse, de la rotation et du déplacement. C'est plus de travail, mais le kart se comporte exactement comme on l'a écrit, ce qui est idéal pour un jeu d'arcade.
 
@@ -6,20 +6,20 @@ Un <Terme id="pawn">Pawn</Terme> est un corps : il ne décide de rien tout seul.
 
 ## Le haut du fichier
 
-<CodePasAPas fichier="KartPawn.cpp" debut={1} fin={13}>
+<CodePasAPas fichier="KartPawn.cpp" debut={1} fin={8}>
   <Etape lignes="1" titre="Son propre header d'abord">
     Un `.cpp` inclut toujours son header en premier. Ainsi, s'il manque un include dans `KartPawn.h`, l'erreur apparaît tout de suite ici.
   </Etape>
-  <Etape lignes="3-13" titre="Les vrais includes">
-    Le header n'avait que des <Terme id="declaration-anticipee">déclarations anticipées</Terme>. Ici, on a besoin du contenu des classes (appeler `SetSphereRadius`, `BindAction`...), donc on inclut leurs fichiers : caméra, sphère, mesh, bras de caméra, Enhanced Input, PlayerController. `Engine.h` donne accès à `GEngine` pour le texte de debug, et `KartGameMode.h` sert à lire le GameMode dans BeginPlay.
+  <Etape lignes="3-8" titre="Les vrais includes">
+    Le header n'avait que des <Terme id="declaration-anticipee">déclarations anticipées</Terme>. Ici, on a besoin du contenu des classes (appeler `SetSphereRadius`, `SetupAttachment`...), donc on inclut leurs fichiers : caméra, sphère, mesh, bras de caméra. Aucun include d'Enhanced Input : le kart ne lit pas les touches, c'est le PlayerController qui s'en charge. `Engine.h` donne accès à `GEngine` pour le texte de debug, et `KartGameMode.h` sert à lire le GameMode dans BeginPlay.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.cpp" debut={16} fin={20}>
-  <Etape lignes="16-17" titre="La marge de contact">
+<CodePasAPas fichier="KartPawn.cpp" debut={11} fin={15}>
+  <Etape lignes="11-12" titre="La marge de contact">
     Une <Terme id="constexpr">constante</Terme> de 5 cm, utilisée dans `UpdateGround` (leçon 4) pour décider si le kart touche le sol. `static` la rend visible seulement dans ce fichier.
   </Etape>
-  <Etape lignes="19-20" titre="Sol ou mur ?">
+  <Etape lignes="14-15" titre="Sol ou mur ?">
     `WalkableFloorZ = 0.7` sert à trier les surfaces : assez à plat, c'est un sol ; trop penché, c'est un mur. 0,7 correspond à une pente d'environ 45 degrés. On verra le calcul avec le <Terme id="produit-scalaire">produit scalaire</Terme> dans la leçon 4.
   </Etape>
 </CodePasAPas>
@@ -41,38 +41,38 @@ CollisionSphere (racine)
     └── Camera
 ```
 
-<CodePasAPas fichier="KartPawn.cpp" debut={22} fin={53}>
-  <Etape lignes="22-24" titre="Le constructeur et le Tick">
+<CodePasAPas fichier="KartPawn.cpp" debut={17} fin={48}>
+  <Etape lignes="17-19" titre="Le constructeur et le Tick">
     `AKartPawn::AKartPawn()` est le <Terme id="constructeur">constructeur</Terme> : `AKartPawn::` dit que la fonction appartient à la classe. Première ligne : `bCanEverTick = true`. Sans elle, Unreal n'appellerait jamais notre Tick, et le kart resterait immobile.
   </Etape>
-  <Etape lignes="26-31" titre="La sphère, racine du kart">
+  <Etape lignes="21-26" titre="La sphère, racine du kart">
     <Terme id="createdefaultsubobject">CreateDefaultSubobject</Terme> crée le composant. Rayon 35 cm, profil de collision « Pawn », et **pas** de physique simulée : c'est nous qui la déplaçons. Elle devient le <Terme id="rootcomponent">RootComponent</Terme> : déplacer le kart, c'est déplacer la sphère.
   </Etape>
-  <Etape lignes="33-36" titre="Le châssis, juste pour les yeux">
+  <Etape lignes="28-31" titre="Le châssis, juste pour les yeux">
     <Terme id="setupattachment">SetupAttachment</Terme> visse le châssis sur la sphère. Sa collision est coupée : une seule forme gère les chocs, la sphère. Le mesh du châssis ne sert qu'à être vu.
   </Etape>
-  <Etape lignes="38-45" titre="Les roues avant, sur le châssis">
+  <Etape lignes="33-40" titre="Les roues avant, sur le châssis">
     Même recette que pour le châssis. Les roues sont attachées au **châssis** et pas à la sphère : quand le châssis se met de travers pendant le drift, les roues suivent.
   </Etape>
-  <Etape lignes="47-53" titre="Les roues arrière">
+  <Etape lignes="42-48" titre="Les roues arrière">
     Exactement la même chose pour les deux roues arrière. Le nom passé à `TEXT(...)` est celui qu'on verra dans le Blueprint : chaque composant doit avoir un nom différent.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.cpp" debut={58} fin={78}>
-  <Etape lignes="58-63" titre="Le bras de caméra">
+<CodePasAPas fichier="KartPawn.cpp" debut={53} fin={73}>
+  <Etape lignes="53-58" titre="Le bras de caméra">
     Le <Terme id="springarm">SpringArm</Terme> part de la sphère, penché de 15 degrés vers le bas (`-15` en Pitch), long de 6 mètres. `SocketOffset` monte le bout du bras de 1 mètre : la caméra regarde le kart d'un peu plus haut.
   </Etape>
-  <Etape lignes="65-66" titre="Pas de retard en position">
+  <Etape lignes="60-61" titre="Pas de retard en position">
     Un retard en position ferait trembler le kart d'avant en arrière à l'écran, à grande vitesse. On le coupe.
   </Etape>
-  <Etape lignes="68-71" titre="Du retard en rotation">
+  <Etape lignes="63-66" titre="Du retard en rotation">
     Dans un virage, la caméra suit en douceur au lieu de tourner sèchement. `bInheritRoll` à faux : la caméra ne penche pas sur le côté avec le kart.
   </Etape>
-  <Etape lignes="73-74" titre="Ne pas copier l'inclinaison">
+  <Etape lignes="68-69" titre="Ne pas copier l'inclinaison">
     `bInheritPitch` à faux : la caméra ne copie pas l'inclinaison avant-arrière du kart. On choisira nous-mêmes son angle dans `UpdateVisuals` (leçon 6).
   </Etape>
-  <Etape lignes="76-78" titre="La caméra au bout du bras">
+  <Etape lignes="71-73" titre="La caméra au bout du bras">
     `SocketName` désigne l'extrémité du bras : c'est là qu'on accroche la caméra. L'accolade ferme le constructeur.
   </Etape>
 </CodePasAPas>
@@ -85,20 +85,20 @@ Le constructeur ne sert qu'à fabriquer le kart et à donner des valeurs par dé
 
 ## BeginPlay : le kart entre en jeu
 
-<CodePasAPas fichier="KartPawn.cpp" debut={80} fin={108}>
-  <Etape lignes="80-82" titre="Appeler le parent">
+<CodePasAPas fichier="KartPawn.cpp" debut={75} fin={103}>
+  <Etape lignes="75-77" titre="Appeler le parent">
     <Terme id="beginplay">BeginPlay</Terme> s'exécute quand le kart entre vraiment dans la partie. <Terme id="super">Super::BeginPlay()</Terme> laisse d'abord APawn faire son travail : on garde ce réflexe dans toutes les fonctions qu'on redéfinit.
   </Etape>
-  <Etape lignes="84-90" titre="Retenir les rotations de départ">
+  <Etape lignes="79-85" titre="Retenir les rotations de départ">
     Dans le Blueprint, on a peut-être tourné le châssis, le bras ou les roues pour que les modèles soient dans le bon sens. On note ces rotations une fois pour toutes. Plus tard, on tournera les pièces **par-dessus** ces rotations, au lieu de les écraser.
   </Etape>
-  <Etape lignes="93-97" titre="Attendre le GO">
+  <Etape lignes="88-92" titre="Attendre le GO">
     `GetAuthGameMode<AKartGameMode>()` récupère le <Terme id="gamemode">GameMode</Terme> sous sa forme de kart, ou `nullptr` si la partie utilise un autre GameMode. Le `if` fait deux choses à la fois : il range le résultat dans `GameMode` et vérifie qu'il n'est pas nul. Si la course n'a pas commencé, `bCanMove` devient faux : le kart attend.
   </Etape>
-  <Etape lignes="99-102" titre="Lire la case de debug">
+  <Etape lignes="94-97" titre="Lire la case de debug">
     On recopie une seule fois la case du GameMode dans `bShowDebug`. Le Tick lira ensuite cette copie, sans redemander au GameMode à chaque image. Les deux accolades ferment le `if` puis BeginPlay.
   </Etape>
-  <Etape lignes="104-107" titre="SetCanMove">
+  <Etape lignes="99-102" titre="SetCanMove">
     La fonction que le GameMode appelle pour bloquer ou débloquer le kart. Elle ne fait que changer `bCanMove` : c'est le Tick qui en tient compte.
   </Etape>
 </CodePasAPas>

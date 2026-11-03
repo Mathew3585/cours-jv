@@ -1,44 +1,47 @@
-Le header a déclaré `BeginPlay`, deux classes à choisir et deux pointeurs. Le `.cpp` ne contient qu'une fonction : `BeginPlay`, qui fabrique les deux widgets puis les pose à l'écran. On le recopie de la ligne 1 à la ligne 44. Les lignes de la case d'objet bonus, ajoutées plus tard, sont expliquées dans le module Objets bonus.
+Le header a déclaré `BeginPlay`, deux classes à choisir et deux pointeurs. Ici, on lit `BeginPlay`, qui fabrique les widgets puis les pose à l'écran, de la ligne 1 à la ligne 59. Les lignes ajoutées plus tard sont expliquées dans leurs modules : la case d'objet bonus dans « Pièges, projectiles et HUD », et les touches (le Mapping Context, `SetupInputComponent` et les fonctions qui suivent) dans « Le controller prend les commandes ».
 
 ## Les includes et le début de BeginPlay
 
-<CodePasAPas fichier="KartPlayerController.cpp" debut={1} fin={4}>
+<CodePasAPas fichier="KartPlayerController.cpp" debut={1} fin={1}>
   <Etape lignes="1" titre="Son propre header">
     Un `.cpp` commence toujours par inclure son propre header : il y retrouve la déclaration de la classe.
   </Etape>
-  <Etape lignes="3-4" titre="Les headers des widgets">
-    Dans le header, une déclaration anticipée suffisait. Ici on va **créer** les widgets : le compilateur a besoin des vraies classes, donc on inclut leurs headers.
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPlayerController.cpp" debut={7} fin={9}>
+  <Etape lignes="7-9" titre="Les headers des widgets">
+    Dans le header, une déclaration anticipée suffisait. Ici on va **créer** les widgets : le compilateur a besoin des vraies classes, donc on inclut leurs headers. Au milieu, `KartPawn.h` sert à envoyer des commandes au kart (module « Le controller prend les commandes »), comme les quatre includes d'Enhanced Input juste au-dessus.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPlayerController.cpp" debut={7} fin={15}>
-  <Etape lignes="7-9" titre="Signature et Super::BeginPlay">
+<CodePasAPas fichier="KartPlayerController.cpp" debut={12} fin={20}>
+  <Etape lignes="12-14" titre="Signature et Super::BeginPlay">
     `AKartPlayerController::BeginPlay` dit qu'on écrit le `BeginPlay` de notre classe. La première ligne appelle la version de `APlayerController` : <Terme id="super">Super</Terme> désigne la classe parente. Sans cet appel, le PlayerController ne ferait pas son propre travail de démarrage.
   </Etape>
-  <Etape lignes="11-15" titre="Seulement pour le joueur local">
+  <Etape lignes="16-20" titre="Seulement pour le joueur local">
     <Terme id="islocalcontroller">IsLocalController</Terme> vérifie que ce PlayerController appartient à quelqu'un qui joue sur cette machine. En réseau, le serveur a aussi un PlayerController pour chaque joueur distant ; ces joueurs n'ont pas d'écran ici, donc on ne leur crée rien. Le `return` sort tout de suite de la fonction.
   </Etape>
 </CodePasAPas>
 
 ## Créer puis afficher les deux widgets
 
-<CodePasAPas fichier="KartPlayerController.cpp" debut={17} fin={24}>
-  <Etape lignes="17-18" titre="Une classe a-t-elle été choisie ?">
+<CodePasAPas fichier="KartPlayerController.cpp" debut={32} fin={39}>
+  <Etape lignes="32-33" titre="Une classe a-t-elle été choisie ?">
     Si la case `CountdownWidgetClass` est vide dans l'éditeur, elle vaut <Terme id="nullptr">nullptr</Terme> (« rien »). Dans ce cas, le `if` est faux et on saute ce widget au lieu de planter.
   </Etape>
-  <Etape lignes="19" titre="CreateWidget">
+  <Etape lignes="34" titre="CreateWidget">
     <Terme id="createwidget">CreateWidget</Terme> fabrique le widget à partir de la classe choisie. Le premier paramètre, `this`, est son propriétaire : le PlayerController. Le résultat est rangé dans `CountdownWidget`, le pointeur déclaré dans le header.
   </Etape>
-  <Etape lignes="20-24" titre="AddToViewport">
-    On vérifie que la création a réussi, puis <Terme id="addtoviewport">AddToViewport</Terme> pose le widget à l'écran. La dernière accolade ferme le `if` de la ligne 17.
+  <Etape lignes="35-39" titre="AddToViewport">
+    On vérifie que la création a réussi, puis <Terme id="addtoviewport">AddToViewport</Terme> pose le widget à l'écran. La dernière accolade ferme le `if` de la ligne 32.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPlayerController.cpp" debut={36} fin={44}>
-  <Etape lignes="36-38" titre="Même chose pour le HUD">
+<CodePasAPas fichier="KartPlayerController.cpp" debut={51} fin={59}>
+  <Etape lignes="51-53" titre="Même chose pour le HUD">
     Exactement le même schéma pour le chrono et les tours : on vérifie la case `RaceHudWidgetClass`, puis on fabrique le widget.
   </Etape>
-  <Etape lignes="39-44" titre="L'afficher, et fin de BeginPlay">
+  <Etape lignes="54-59" titre="L'afficher, et fin de BeginPlay">
     Le HUD est posé à l'écran à son tour. La dernière accolade ferme `BeginPlay`. Les deux widgets existent donc dès le début de la partie : c'est à chacun de décider quand se montrer, on le verra dans leur `.cpp`.
   </Etape>
 </CodePasAPas>

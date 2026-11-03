@@ -857,14 +857,14 @@ export const objetsBonus: Module = {
             type: "qcm",
             enonce: "Tu as une boîte, tu reçois bien un turbo, mais appuyer sur E ne fait rien. Le code est correct. Que vérifies-tu ?",
             choix: [
-              "Que IA_UseItem a une touche dans IMC_Default et qu'elle est choisie dans Use Item Action de BP_Kart",
+              "Que IA_UseItem a une touche dans IMC_Default et qu'elle est choisie dans Use Item Action de BP_Kart_Controller",
               "Que DA_Item_Turbo a Uses = 3",
               "Que BP_ItemBox a bien une table de tirage",
               "Que le GameMode utilise BP_KartPlayerController",
             ],
             bonne: 0,
             explication:
-              "UseItemAction est une case vide tant qu'on ne lui donne pas IA_UseItem dans le Blueprint du kart, et l'action doit être liée à une touche dans l'Input Mapping Context.",
+              "UseItemAction est une case vide tant qu'on ne lui donne pas IA_UseItem dans le Blueprint du PlayerController, et l'action doit être liée à une touche dans l'Input Mapping Context.",
           },
         ],
       },
@@ -925,7 +925,7 @@ export const objetsBonus: Module = {
             enonce: "L'objet est bien en main, mais appuyer sur E ne fait rien, même après la roulette. Que vérifies-tu en premier ?",
             choix: [
               "Les poids de la table de tirage",
-              "Que Use Item Action est rempli dans BP_Kart et que IA_UseItem est dans IMC_Default",
+              "Que Use Item Action est rempli dans BP_Kart_Controller et que IA_UseItem est dans IMC_Default",
               "La position Z d'AnimatedRoot",
               "Que le dossier Items existe dans l'Outliner",
             ],
@@ -978,8 +978,8 @@ export const objetsBonus: Module = {
         type: "qcm",
         enonce: "Le joueur appuie sur la touche avec un turbo en poche. Quel chemin suit l'appel ?",
         choix: [
-          "OnUseItemPressed → StartBoost directement",
-          "OnUseItemPressed → ItemComponent->UseItem → CurrentItem->Activate(Kart) → Kart->ApplyBoost → StartBoost",
+          "OnUseItemPressed (controller) → StartBoost directement",
+          "OnUseItemPressed (controller) → Kart->UseItem → ItemComponent->UseItem → CurrentItem->Activate(Kart) → Kart->ApplyBoost → StartBoost",
           "La poche appelle StartBoost, puis Activate pour retirer une utilisation",
           "Le Data Asset détecte l'appui et appelle ApplyBoost",
         ],

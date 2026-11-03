@@ -6,9 +6,10 @@ import { termes as compteurTours } from "./compteur-tours";
 import { termes as widgetsHud } from "./widgets-hud";
 import { termes as objetsBonus } from "./objets-bonus";
 import { termes as objetsAttaque } from "./objets-attaque";
+import { termes as controllerCommandes } from "./controller-commandes";
 
 // Si deux fichiers définissent le même id, le premier gagne.
-const tous = [...base, ...pawnController, ...gameMode, ...compteurTours, ...widgetsHud, ...objetsBonus, ...objetsAttaque];
+const tous = [...base, ...pawnController, ...gameMode, ...compteurTours, ...widgetsHud, ...objetsBonus, ...objetsAttaque, ...controllerCommandes];
 const vus = new Set<string>();
 
 export const dico: EntreeDico[] = tous

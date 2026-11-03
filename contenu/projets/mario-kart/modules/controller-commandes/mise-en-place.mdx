@@ -1,0 +1,34 @@
+Le code a changé de place : les réglages des touches doivent suivre. Ils étaient dans `BP_Kart`, ils vont dans `BP_Kart_Controller`. Pas besoin de recréer les Input Actions ni le Mapping Context : ce sont les mêmes assets, on les choisit simplement dans un autre Blueprint.
+
+## 1. Le controller reçoit les touches
+
+Ouvre `BP_Kart_Controller` (le Blueprint de ton PlayerController, choisi dans le GameMode). Dans le panneau Details, tape « Kart » dans la recherche : la catégorie **Kart > Input** est apparue, à côté de **Kart > UI**. Remplis-la :
+
+- **Kart Mapping Context** : `IMC_Default` ;
+- **Throttle Action** : `IA_Throttle`, **Steer Action** : `IA_Steer` ;
+- **Drift Action** : `IA_Drift`, **Jump Action** : `IA_Jump` ;
+- **Use Item Action** : `IA_UseItem`.
+
+<Capture src="/cours/mario-kart/controller/bp-kart-controller-input.png" legende="BP_Kart_Controller : les widgets (Kart > UI) et maintenant les touches (Kart > Input)." />
+
+## 2. Le kart n'a plus de touches
+
+Ouvre `BP_Kart` et cherche « Input » : la catégorie Kart > Input a disparu. Il ne reste que l'état du kart (`Throttle Input` et `Steer Input`), les valeurs que les commandes remplissent. Les anciens réglages ont été oubliés à la compilation : il n'y a rien à effacer à la main.
+
+<Capture src="/cours/mario-kart/controller/bp-kart-sans-input.png" legende="BP_Kart : plus aucune Input Action, seulement l'état rempli par les commandes (Throttle Input, Steer Input)." />
+
+## 3. Tester
+
+Lance le jeu : rien ne doit avoir changé pour le joueur. Accélère, tourne, drifte, saute, utilise un objet. Pendant le « 3, 2, 1 », le kart ne doit toujours pas bouger, et pendant un tête-à-queue, le saut et le drift ne doivent rien faire.
+
+| Symptôme | Cause probable |
+|---|---|
+| Le kart ne réagit à aucune touche | Le Mapping Context est vide dans `BP_Kart_Controller`, ou le GameMode n'utilise pas `BP_Kart_Controller`. |
+| Une seule touche ne marche pas | Son Input Action est vide dans `BP_Kart_Controller`. |
+| Le kart accélère tout seul | L'action d'accélération n'a pas de `Completed` branché : `OnThrottleReleased` n'envoie jamais 0. |
+
+## Et l'IA ?
+
+Le kart est prêt. Une IA aura son propre controller, un `AKartAIController` qui hérite de `AAIController`, et il lui suffira d'appeler les commandes du kart dans son Tick. Sur les karts adverses posés dans le niveau, on choisira ce controller dans **AI Controller Class** (catégorie Pawn) : ils utiliseront **le même** `BP_Kart` que le joueur.
+
+<Quiz />

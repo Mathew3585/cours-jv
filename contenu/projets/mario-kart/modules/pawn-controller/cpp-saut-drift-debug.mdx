@@ -1,17 +1,17 @@
-Dernière partie de `KartPawn.cpp`, lignes 676 à 776. On y trouve les petites fonctions appelées par les touches et par les étapes du Tick : le saut, le début et la fin du drift, le turbo. Le fichier se termine par le texte de debug.
+Dernière partie de `KartPawn.cpp`, lignes 600 à 700. On y trouve les petites fonctions appelées par les touches et par les étapes du Tick : le saut, le début et la fin du drift, le turbo. Le fichier se termine par le texte de debug.
 
 Le drift, avec les réglages par défaut : le joueur roule à au moins 1000 cm/s, tourne d'un côté et **appuie** sur drift. Au bout d'1 seconde de drift au sol, le mini-turbo est chargé (bleu dans le debug) ; au bout de 2 secondes, le super-turbo (orange). Quand il **relâche**, il obtient un turbo de 0,6 seconde (mini) ou 1,2 seconde (super) à 3500 cm/s.
 
 ## Le saut
 
-<CodePasAPas fichier="KartPawn.cpp" debut={676} fin={684}>
-  <Etape lignes="676-684" titre="Seulement depuis le sol">
-    Un bandeau de section, puis `Jump`, appelée par `OnJumpPressed`. Pas de double saut : si le kart n'est pas au sol, la fonction s'arrête tout de suite.
+<CodePasAPas fichier="KartPawn.cpp" debut={600} fin={608}>
+  <Etape lignes="600-608" titre="Seulement depuis le sol">
+    Un bandeau de section, puis `Jump`, une commande publique appelée par le controller (la fonction `OnJumpPressed` du PlayerController, ou plus tard une IA). Pas de double saut : si le kart n'est pas au sol, la fonction s'arrête tout de suite.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.cpp" debut={692} fin={695}>
-  <Etape lignes="692-695" titre="Une impulsion vers le haut">
+<CodePasAPas fichier="KartPawn.cpp" debut={616} fin={619}>
+  <Etape lignes="616-619" titre="Une impulsion vers le haut">
     On ne déplace pas le kart : on lui donne une vitesse verticale de 450 cm/s, et on le déclare en l'air. La gravité d'`UpdateGround` et le déplacement de `MoveKart` s'occupent du reste.
   </Etape>
 </CodePasAPas>
@@ -20,37 +20,37 @@ Suivons ce saut. Le kart monte à 450 cm/s, et la gravité lui retire 2500 cm/s 
 
 ## Démarrer et finir le drift
 
-<CodePasAPas fichier="KartPawn.cpp" debut={697} fin={705}>
-  <Etape lignes="697-705" titre="Trois conditions">
-    `StartDrift` est appelée par `OnDriftPressed`. Il faut être au sol, assez rapide, et en train de tourner. `FMath::IsNearlyZero(SteerInput)` vérifie que le volant n'est pas au centre : sans direction, on ne saurait pas de quel côté glisser.
+<CodePasAPas fichier="KartPawn.cpp" debut={621} fin={629}>
+  <Etape lignes="621-629" titre="Trois conditions">
+    `StartDrift` est une commande, appelée par le controller quand on appuie sur le bouton de drift. Il faut être au sol, assez rapide, et en train de tourner. `FMath::IsNearlyZero(SteerInput)` vérifie que le volant n'est pas au centre : sans direction, on ne saurait pas de quel côté glisser.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.cpp" debut={713} fin={739}>
-  <Etape lignes="713-714" titre="Choisir le côté">
+<CodePasAPas fichier="KartPawn.cpp" debut={637} fin={663}>
+  <Etape lignes="637-638" titre="Choisir le côté">
     Volant à droite : `DriftDirection` vaut +1. À gauche : -1. Ce côté est retenu pour tout le drift, même si le joueur change de direction ensuite.
   </Etape>
-  <Etape lignes="715-717" titre="Tout remettre à zéro">
+  <Etape lignes="639-641" titre="Tout remettre à zéro">
     La charge du turbo et la progression de l'entrée en drift repartent de 0. `UpdateDrift` les fera monter à chaque image.
   </Etape>
-  <Etape lignes="719-724" titre="Pas de drift, pas de turbo">
+  <Etape lignes="643-648" titre="Pas de drift, pas de turbo">
     `EndDrift` est appelée quand on relâche le bouton. Si le drift n'avait pas démarré (trop lent, pas de direction), elle ne fait rien.
   </Etape>
-  <Etape lignes="726-734" titre="Quel turbo ?">
+  <Etape lignes="650-658" titre="Quel turbo ?">
     On teste le super-turbo **en premier**. Si on testait d'abord le mini-turbo, un drift de 2,5 secondes passerait le test du mini (2,5 ≥ 1) et n'atteindrait jamais le `else if` du super.
   </Etape>
-  <Etape lignes="736-739" titre="Fin du drift">
+  <Etape lignes="660-663" titre="Fin du drift">
     Dans tous les cas, avec ou sans turbo, le drift est terminé et sa charge remise à 0.
   </Etape>
 </CodePasAPas>
 
 ## Le turbo et la vitesse max
 
-<CodePasAPas fichier="KartPawn.cpp" debut={741} fin={750}>
-  <Etape lignes="741-745" titre="Lancer le turbo">
+<CodePasAPas fichier="KartPawn.cpp" debut={665} fin={674}>
+  <Etape lignes="665-669" titre="Lancer le turbo">
     On règle le temps restant et on impose **tout de suite** la vitesse du turbo : le joueur sent la poussée dès l'image du relâchement.
   </Etape>
-  <Etape lignes="747-750" titre="La vitesse max du moment">
+  <Etape lignes="671-674" titre="La vitesse max du moment">
     Vitesse du turbo pendant un turbo, vitesse max normale sinon. `UpdateSpeed` l'utilise comme cible quand on accélère.
   </Etape>
 </CodePasAPas>
@@ -58,27 +58,27 @@ Suivons ce saut. Le kart monte à 450 cm/s, et la gravité lui retire 2500 cm/s 
 Après le turbo, `CurrentSpeed` vaut 3500 alors que la vitesse max normale est 2500. Si le joueur accélère, `UpdateSpeed` vise 2500 au rythme `Acceleration` : le kart redescend en douceur vers sa vitesse max, en environ deux tiers de seconde.
 
 <Encadre type="info">
-`GetCurrentMaxSpeed` n'est appelée que dans `UpdateSpeed` (ligne 363), après le test du turbo des lignes 345 à 349 qui fait déjà `return`. À cet endroit, elle renvoie donc toujours `MaxForwardSpeed`. Sa première branche ne servirait que si on l'appelait ailleurs.
+`GetCurrentMaxSpeed` n'est appelée que dans `UpdateSpeed` (ligne 287), après le test du turbo des lignes 269 à 273 qui fait déjà `return`. À cet endroit, elle renvoie donc toujours `MaxForwardSpeed`. Sa première branche ne servirait que si on l'appelait ailleurs.
 </Encadre>
 
 ## Le texte de debug
 
 `ShowDebugInfo`, appelée à la fin du Tick, écrit trois lignes en haut à gauche de l'écran. C'est l'outil le plus simple pour voir ce que le kart pense pendant qu'on joue.
 
-<CodePasAPas fichier="KartPawn.cpp" debut={752} fin={776}>
-  <Etape lignes="752-757" titre="Vérifier GEngine">
+<CodePasAPas fichier="KartPawn.cpp" debut={676} fin={700}>
+  <Etape lignes="676-681" titre="Vérifier GEngine">
     <Terme id="gengine">GEngine</Terme> est le moteur. C'est un pointeur : par prudence, on vérifie qu'il n'est pas <Terme id="nullptr">nul</Terme> avant de s'en servir. La fonction est `const` : elle lit l'état du kart sans rien modifier.
   </Etape>
-  <Etape lignes="759-767" titre="Une couleur selon la charge du drift">
+  <Etape lignes="683-691" titre="Une couleur selon la charge du drift">
     Blanc par défaut, cyan quand le mini-turbo est chargé, orange pour le super-turbo. Même ordre que dans `EndDrift` : le super-turbo est testé en premier.
   </Etape>
-  <Etape lignes="769-771" titre="Vitesse et sol">
+  <Etape lignes="693-695" titre="Vitesse et sol">
     Le premier paramètre est une clé : un nouveau message avec la même clé remplace l'ancien au lieu de s'ajouter en dessous. La durée 0 signifie « une seule image » : c'est pourquoi le Tick réécrit ces lignes à chaque image. `%.0f` affiche un nombre sans décimale, `%s` un texte.
   </Etape>
-  <Etape lignes="772-773" titre="Drift et charge">
+  <Etape lignes="696-697" titre="Drift et charge">
     Clé 2, dans la couleur choisie plus haut. `%.2f` affiche la charge avec deux décimales.
   </Etape>
-  <Etape lignes="774-776" titre="Turbo restant">
+  <Etape lignes="698-700" titre="Turbo restant">
     Clé 3, en jaune : le temps de turbo restant. La dernière accolade ferme la fonction et termine le fichier.
   </Etape>
 </CodePasAPas>

@@ -1,0 +1,41 @@
+Jusqu'ici, le kart lisait lui-même le clavier : il déclarait ses Input Actions, ajoutait le Mapping Context et branchait chaque touche dans `SetupPlayerInputComponent`. Ça marche très bien pour **un** joueur. Mais on veut ajouter des karts pilotés par des IA, et une IA n'a pas de clavier.
+
+Si le kart lit le clavier, il faudrait écrire un deuxième kart pour les IA, avec le même moteur, la même gravité, le même drift… et tout corriger deux fois à chaque bug. On fait l'inverse : on sépare **qui décide** de **qui exécute**.
+
+| Avant | Maintenant |
+|---|---|
+| Le kart lit les touches **et** se déplace. | Le kart **exécute des commandes** : accélérer, tourner, drifter, sauter, utiliser un objet. |
+| Les Input Actions sont réglées dans `BP_Kart`. | Les Input Actions sont réglées dans `BP_Kart_Controller`. |
+| Une IA devrait avoir son propre kart. | Une IA pilote **le même** `BP_Kart`, avec les mêmes commandes. |
+
+Le PlayerController lit les touches et les transforme en commandes. Demain, un AIController calculera ses commandes à partir du circuit (suivre les checkpoints, freiner avant un virage) et appellera exactement les mêmes fonctions. Le kart ne saura jamais qui le pilote : c'est la <Terme id="separation-commandes">séparation entre décision et exécution</Terme>.
+
+<Encadre type="retenir">Une règle commune devient automatiquement juste pour tout le monde. Le compte à rebours, le tête-à-queue et les objets passent par les mêmes commandes : une IA ne peut pas démarrer avant le GO ni sauter pendant un tête-à-queue, sans une ligne de code en plus.</Encadre>
+
+## Les commandes dans KartPawn.h
+
+Elles sont publiques, juste après `GetMoveDirection`. Ce sont les seules portes d'entrée pour piloter le kart.
+
+<CodePasAPas fichier="KartPawn.h" debut={37} fin={62}>
+  <Etape lignes="37-38" titre="Une nouvelle section">
+    Le commentaire dit tout : le kart ne lit aucune touche, il obéit à ces fonctions. Le joueur et l'IA sont deux « pilotes » différents pour le même véhicule.
+  </Etape>
+  <Etape lignes="40-46" titre="Accélérateur et volant">
+    Deux commandes qui reçoivent une valeur entre -1 et 1, comme un axe de manette. Elles remplacent `OnThrottle`, `OnThrottleReleased`, `OnSteer` et `OnSteerReleased` : relâcher une touche, c'est simplement envoyer 0. <Terme id="ufunction">BlueprintCallable</Terme> permettra même à un Blueprint de piloter le kart.
+  </Etape>
+  <Etape lignes="48-54" titre="Le drift">
+    `StartDrift` et `EndDrift` existaient déjà, mais elles étaient `private` : seules les fonctions d'input du kart pouvaient les appeler. On les rend publiques, parce que c'est maintenant le controller qui décide quand drifter.
+  </Etape>
+  <Etape lignes="56-58" titre="Le saut">
+    Même chose pour `Jump`, qui passe de `private` à `public`.
+  </Etape>
+  <Etape lignes="60-62" titre="Utiliser un objet">
+    `UseItem` remplace `OnUseItemPressed` : une IA pourra lancer un piège ou un projectile exactement comme le joueur.
+  </Etape>
+</CodePasAPas>
+
+Et ce qui a **disparu** du header du kart : les déclarations anticipées `UInputMappingContext`, `UInputAction` et `FInputActionValue`, `SetupPlayerInputComponent`, `NotifyControllerChanged`, les six `UPROPERTY` de la catégorie Kart > Input, et les huit fonctions `On…` de la partie `private`. Tout ça déménage dans le PlayerController.
+
+<Quiz />
+
+<QuestionLibre id="mario-kart/controller-commandes/pourquoi/ia" />

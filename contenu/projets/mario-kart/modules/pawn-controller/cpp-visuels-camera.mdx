@@ -1,26 +1,26 @@
-Lignes 521 à 585 : les deux dernières étapes du Tick. Le kart a bougé ; il reste à le **montrer**. `UpdateVisuals` fait tourner et braquer les roues, met le châssis de travers en drift et oriente la caméra. `UpdateCameraFieldOfView` élargit le champ de vision quand on va vite. Rien de tout ça ne change la trajectoire.
+Lignes 445 à 509 : les deux dernières étapes du Tick. Le kart a bougé ; il reste à le **montrer**. `UpdateVisuals` fait tourner et braquer les roues, met le châssis de travers en drift et oriente la caméra. `UpdateCameraFieldOfView` élargit le champ de vision quand on va vite. Rien de tout ça ne change la trajectoire.
 
 Pour les roues, on utilise le <Terme id="radian">radian</Terme>. Un radian, c'est l'angle pour lequel une roue qui roule sans glisser a parcouru une distance égale à son rayon. D'où une formule très simple : **angle (en radians) = distance parcourue / rayon**.
 
 ## UpdateVisuals : roues et châssis
 
-<CodePasAPas fichier="KartPawn.cpp" debut={521} fin={549}>
-  <Etape lignes="521-524" titre="L'angle parcouru par les roues">
+<CodePasAPas fichier="KartPawn.cpp" debut={445} fin={473}>
+  <Etape lignes="445-448" titre="L'angle parcouru par les roues">
     Distance de cette image (`CurrentSpeed × DeltaTime`) divisée par le rayon (20 cm) : on obtient des radians, convertis en degrés pour Unreal. En marche arrière, la vitesse est négative : la roue tourne dans l'autre sens.
   </Etape>
-  <Etape lignes="525-529" titre="Ne pas laisser l'angle grandir">
+  <Etape lignes="449-453" titre="Ne pas laisser l'angle grandir">
     370 degrés ou 10 degrés, c'est la même position de roue. <Terme id="fmod">Fmod</Terme> retire les tours complets : l'angle reste entre -360 et 360. Sans ça, l'angle finirait par valoir des millions de degrés ; un `float` aussi grand perd en précision et la roue saccaderait.
   </Etape>
-  <Etape lignes="531-536" titre="Braquer les roues avant">
+  <Etape lignes="455-460" titre="Braquer les roues avant">
     Volant à fond : 30 degrés de braquage. Les roues arrière reçoivent 0 : elles tournent sur elles-mêmes mais ne braquent pas. `SetWheelRotation` est écrite plus bas (leçon 7).
   </Etape>
-  <Etape lignes="538-540" titre="L'angle visé pour le châssis">
+  <Etape lignes="462-464" titre="L'angle visé pour le châssis">
     En drift, le châssis se met de travers de 25 degrés du côté du drift, en suivant la même courbe en S que le virage. Sans drift, la cible est 0 : le châssis revient droit.
   </Etape>
-  <Etape lignes="541-544" titre="Un pas vers la cible">
+  <Etape lignes="465-468" titre="Un pas vers la cible">
     <Terme id="finterpto">FInterpTo</Terme> rapproche `BodySlideYaw`, l'angle de glissade du châssis, de sa cible, en douceur. Cet angle est gardé dans une variable du kart (déclarée dans le header) : on repart à chaque image de la valeur de l'image d'avant.
   </Etape>
-  <Etape lignes="546-549" titre="Tourner par-dessus la rotation de départ">
+  <Etape lignes="470-473" titre="Tourner par-dessus la rotation de départ">
     On repart de la rotation notée dans BeginPlay et on lui ajoute l'angle de glissade. Le réglage fait dans le Blueprint n'est jamais écrasé. `SpinOutYaw` vaut 0 tant que le kart n'est pas touché par un objet : on le verra dans le module Objets bonus, avec le tête-à-queue.
   </Etape>
 </CodePasAPas>
@@ -29,14 +29,14 @@ Pour les roues, on utilise le <Terme id="radian">radian</Terme>. Un radian, c'es
 
 ## UpdateVisuals : la caméra
 
-<CodePasAPas fichier="KartPawn.cpp" debut={551} fin={565}>
-  <Etape lignes="551-553" titre="La caméra suit la glissade">
+<CodePasAPas fichier="KartPawn.cpp" debut={475} fin={489}>
+  <Etape lignes="475-477" titre="La caméra suit la glissade">
     La caméra vise le même angle que le châssis (multiplié par `CameraDriftFollow`, qui vaut 1), mais avec une vitesse plus faible : 3 au lieu de 6. Elle rattrape le châssis avec retard, sans tourner d'un coup. Elle suit `BodySlideYaw` et pas `SpinOutYaw` : pendant un tête-à-queue, l'écran ne tourne pas.
   </Etape>
-  <Etape lignes="555-559" titre="Pencher la caméra dans les grandes pentes">
+  <Etape lignes="479-483" titre="Pencher la caméra dans les grandes pentes">
     `KartPitch` est l'inclinaison avant-arrière du kart. Sous 10 degrés, la cible est 0 : la caméra reste droite. Au-delà, on retire les 10 degrés de la zone morte. La caméra rejoint cette cible en douceur.
   </Etape>
-  <Etape lignes="561-565" titre="Appliquer au bras">
+  <Etape lignes="485-489" titre="Appliquer au bras">
     Comme pour le châssis, on part de la rotation de départ du bras (penché de 15 degrés vers le bas) et on ajoute les deux angles calculés. L'accolade ferme `UpdateVisuals`.
   </Etape>
 </CodePasAPas>
@@ -45,17 +45,17 @@ Pourquoi retirer la zone morte ? Si la caméra copiait la pente au-dessus de 10 
 
 ## UpdateCameraFieldOfView : la sensation de vitesse
 
-<CodePasAPas fichier="KartPawn.cpp" debut={567} fin={585}>
-  <Etape lignes="567-569" titre="Partir du FOV de base">
+<CodePasAPas fichier="KartPawn.cpp" debut={491} fin={509}>
+  <Etape lignes="491-493" titre="Partir du FOV de base">
     Le <Terme id="fov">FOV</Terme> visé commence à 90 degrés, la valeur de base.
   </Etape>
-  <Etape lignes="571-574" titre="Turbo : champ de vision maximal">
+  <Etape lignes="495-498" titre="Turbo : champ de vision maximal">
     Pendant un turbo, on vise 110 degrés.
   </Etape>
-  <Etape lignes="575-580" titre="Sinon, selon la vitesse">
+  <Etape lignes="499-504" titre="Sinon, selon la vitesse">
     `SpeedRatio` vaut 0 à l'arrêt et 1 à la vitesse max. <Terme id="clamp">Clamp</Terme> le bloque entre 0 et 1 : en marche arrière il vaut 0, et au-dessus de la vitesse max il reste à 1. Le Lerp donne un FOV entre 90 et 100 degrés.
   </Etape>
-  <Etape lignes="582-585" titre="Changer le FOV en douceur">
+  <Etape lignes="506-509" titre="Changer le FOV en douceur">
     Un FInterpTo de plus, pour que le champ de vision ne saute jamais d'un coup quand le turbo démarre ou s'arrête.
   </Etape>
 </CodePasAPas>

@@ -1,10 +1,10 @@
 Le fichier <Terme id="header">KartPawn.h</Terme> déclare tout ce que contient le kart : ses fonctions, ses composants, ses réglages et son état. Le `.cpp` explique ensuite comment ces fonctions marchent. On lit toujours le header en premier : c'est le sommaire de la classe.
 
-Notre kart est **fait maison** : il n'utilise pas la physique simulée d'Unreal. Tout est calculé à la main dans <Terme id="tick">Tick</Terme>, image par image. C'est pour ça que le header contient autant de réglages. On va le parcourir en entier, de la ligne 1 à la ligne 445. Les quelques lignes ajoutées plus tard pour les objets bonus (le composant d'objet, le tête-à-queue) sont expliquées dans le module Objets bonus : tu les sautes pour l'instant.
+Notre kart est **fait maison** : il n'utilise pas la physique simulée d'Unreal. Tout est calculé à la main dans <Terme id="tick">Tick</Terme>, image par image. C'est pour ça que le header contient autant de réglages. On va le parcourir en entier, de la ligne 1 à la ligne 425. Les quelques lignes ajoutées plus tard pour les objets bonus (le composant d'objet, le tête-à-queue) sont expliquées dans le module Objets bonus : tu les sautes pour l'instant.
 
 ## Le début du fichier
 
-<CodePasAPas fichier="KartPawn.h" debut={1} fin={13}>
+<CodePasAPas fichier="KartPawn.h" debut={1} fin={10}>
   <Etape lignes="1" titre="#pragma once">
     <Terme id="pragma-once">#pragma once</Terme> empêche ce header d'être lu deux fois dans le même fichier compilé. Tous les headers Unreal commencent ainsi.
   </Etape>
@@ -13,116 +13,112 @@ Notre kart est **fait maison** : il n'utilise pas la physique simulée d'Unreal.
 
     <Encadre type="piege">Un `#include` ajouté après `KartPawn.generated.h` fait échouer la compilation avec une erreur peu claire.</Encadre>
   </Etape>
-  <Etape lignes="7-13" titre="Les déclarations anticipées">
+  <Etape lignes="7-10" titre="Les déclarations anticipées">
     Ces lignes annoncent que ces classes existent, sans inclure leur fichier : c'est une <Terme id="declaration-anticipee">déclaration anticipée</Terme>. Le header n'utilise que des pointeurs vers elles, donc ça suffit. Les vrais includes sont dans le `.cpp`, et le header compile plus vite.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.h" debut={16} fin={20}>
-  <Etape lignes="16" titre="Le commentaire qui résume tout">
+<CodePasAPas fichier="KartPawn.h" debut={13} fin={17}>
+  <Etape lignes="13" titre="Le commentaire qui résume tout">
     Une ligne pour dire l'essentiel : pas de physique simulée, tout est calculé dans Tick. Quand tu reviens sur un projet après des semaines, ce genre de phrase t'évite de relire 700 lignes.
   </Etape>
-  <Etape lignes="17-20" titre="UCLASS et GENERATED_BODY">
+  <Etape lignes="14-17" titre="UCLASS et GENERATED_BODY">
     <Terme id="uclass">UCLASS()</Terme> rend la classe visible du moteur et des Blueprints. `KARTGAMES_API` permet aux autres modules de l'utiliser. Le préfixe **A** de `AKartPawn` signale un <Terme id="actor">Actor</Terme>, et `public APawn` dit que notre kart est un <Terme id="pawn">Pawn</Terme>. <Terme id="generated-body">GENERATED_BODY()</Terme> réserve la place du code généré.
   </Etape>
 </CodePasAPas>
 
 ## Ce que les autres peuvent appeler
 
-<CodePasAPas fichier="KartPawn.h" debut={22} fin={63}>
-  <Etape lignes="22-23" titre="public et le constructeur">
+<CodePasAPas fichier="KartPawn.h" debut={19} fin={35}>
+  <Etape lignes="19-20" titre="public et le constructeur">
     Tout ce qui suit `public:` peut être appelé depuis d'autres classes. Le <Terme id="constructeur">constructeur</Terme> `AKartPawn()` crée les composants du kart.
   </Etape>
-  <Etape lignes="25-26" titre="Tick et SetupPlayerInputComponent">
-    `Tick` est appelé à chaque image : c'est là que le kart avance. `SetupPlayerInputComponent` branche les touches. Le mot <Terme id="override">override</Terme> indique qu'on remplace la version de APawn.
+  <Etape lignes="22" titre="Tick">
+    `Tick` est appelé à chaque image : c'est là que le kart avance. Le mot <Terme id="override">override</Terme> indique qu'on remplace la version de APawn. Tu ne trouveras pas de `SetupPlayerInputComponent` : le kart ne lit aucune touche lui-même, c'est son PlayerController qui le fait (module « Le controller prend les commandes »).
   </Etape>
-  <Etape lignes="28-33" titre="SetCanMove et CanMove">
+  <Etape lignes="24-29" titre="SetCanMove et CanMove">
     Le GameMode bloque le kart pendant le compte à rebours avec `SetCanMove`. Ces deux fonctions sont des <Terme id="ufunction">UFUNCTION</Terme> : `BlueprintCallable` peut être appelée depuis un Blueprint, `BlueprintPure` lit une valeur sans rien modifier. `CanMove` est écrite directement dans le header, car elle tient en une ligne.
   </Etape>
-  <Etape lignes="35-39" titre="GetMoveDirection">
+  <Etape lignes="31-35" titre="GetMoveDirection">
     Renvoie la direction dans laquelle le kart se déplace vraiment : vers l'avant, vers l'arrière en marche arrière, ou rien à l'arrêt. Les zones de tour s'en servent pour savoir si on les traverse dans le bon sens (module 3).
   </Etape>
-  <Etape lignes="41-49" titre="Les tours : EnterLapZone et CompleteLap">
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.h" debut={64} fin={86}>
+  <Etape lignes="64-72" titre="Les tours : EnterLapZone et CompleteLap">
     Une zone de tour appelle `EnterLapZone` quand le kart la traverse. La zone 0 est la ligne d'arrivée, les suivantes sont des checkpoints. `CompleteLap` passe au tour suivant ou termine la course.
   </Etape>
-  <Etape lignes="51-63" titre="Remettre à zéro et lire l'état de la course">
+  <Etape lignes="74-86" titre="Remettre à zéro et lire l'état de la course">
     `ResetRaceProgress` remet le kart au tour 1 quand une course recommence. Les trois fonctions suivantes donnent le tour en cours, si la course est finie et le temps d'arrivée : le HUD les utilise pour s'afficher.
   </Etape>
 </CodePasAPas>
 
 ## Les composants : de quoi est fait le kart
 
-<CodePasAPas fichier="KartPawn.h" debut={82} fin={117}>
-  <Etape lignes="82-86" titre="protected : BeginPlay et NotifyControllerChanged">
-    `protected:` réserve ce qui suit à la classe et à ses enfants (dont le Blueprint du kart). <Terme id="beginplay">BeginPlay</Terme> s'exécute au lancement. `NotifyControllerChanged` est appelée quand un joueur prend le kart en main : c'est là qu'on ajoutera les touches.
+<CodePasAPas fichier="KartPawn.h" debut={105} fin={106}>
+  <Etape lignes="105-106" titre="protected et BeginPlay">
+    `protected:` réserve ce qui suit à la classe et à ses enfants (dont le Blueprint du kart). <Terme id="beginplay">BeginPlay</Terme> s'exécute au lancement.
   </Etape>
-  <Etape lignes="88-93" titre="La sphère de collision">
+</CodePasAPas>
+
+<CodePasAPas fichier="KartPawn.h" debut={108} fin={137}>
+  <Etape lignes="108-113" titre="La sphère de collision">
     C'est elle qui se déplace vraiment et qui bloque contre les murs. Une sphère n'a pas de coins : rien n'accroche dans les pentes ni sur les bosses. Elle est rangée dans un <Terme id="tobjectptr">TObjectPtr</Terme>, le pointeur recommandé par Unreal 5.
   </Etape>
-  <Etape lignes="95-110" titre="Le châssis et les 4 roues">
+  <Etape lignes="115-130" titre="Le châssis et les 4 roues">
     De simples meshes visibles. Les roues avant braquent quand on tourne, toutes tournent quand on roule : c'est purement visuel. `VisibleAnywhere` : on les voit dans l'éditeur et on règle leurs propriétés, mais on ne peut pas les remplacer par un autre objet.
   </Etape>
-  <Etape lignes="112-117" titre="Le bras de caméra et la caméra">
+  <Etape lignes="132-137" titre="Le bras de caméra et la caméra">
     Le SpringArm tient la caméra derrière le kart. La caméra est accrochée au bout du bras.
   </Etape>
 </CodePasAPas>
 
-## Les touches
+## Et les touches ?
 
-<CodePasAPas fichier="KartPawn.h" debut={123} fin={142}>
-  <Etape lignes="123-126" titre="Le Mapping Context">
-    Avec l'<Terme id="enhanced-input">Enhanced Input</Terme>, le Mapping Context relie les touches aux actions. C'est un asset qu'on choisit dans l'éditeur, d'où `EditAnywhere`.
-  </Etape>
-  <Etape lignes="128-134" titre="Accélérer et tourner">
-    Deux actions sur un axe : -1 à +1. Pour l'accélérateur, +1 accélère et -1 freine ou recule. Pour le volant, +1 tourne à droite et -1 à gauche. Une manette donne des valeurs entre les deux.
-  </Etape>
-  <Etape lignes="136-142" titre="Drifter et sauter">
-    Deux actions de type bouton : on les presse ou on les relâche. Le drift se maintient en tournant.
-  </Etape>
-</CodePasAPas>
+Le kart ne déclare aucune touche (ni Input Action, ni Mapping Context). Il reçoit des **commandes** (accélérer, tourner, drifter…), envoyées par son PlayerController ou, plus tard, par une IA. Ces commandes, placées juste après `GetMoveDirection` dans le fichier, sont expliquées dans le module « Le controller prend les commandes » : tu les sautes pour l'instant.
 
 ## Les réglages
 
 Les réglages sont choisis avant de jouer et ne bougent plus pendant la partie. Ils sont tous en `EditAnywhere` : on les ajuste dans l'éditeur sans recompiler. Les distances sont en centimètres et les vitesses en centimètres par seconde, les unités d'Unreal.
 
-<CodePasAPas fichier="KartPawn.h" debut={148} fin={290}>
-  <Etape lignes="148-157" titre="Vitesses et accélération">
+<CodePasAPas fichier="KartPawn.h" debut={143} fin={285}>
+  <Etape lignes="143-152" titre="Vitesses et accélération">
     2500 cm/s, c'est 90 km/h. La marche arrière est limitée à 800. Le `.f` indique un nombre à virgule (`float`).
   </Etape>
-  <Etape lignes="159-165" titre="Freiner et lâcher les gaz">
+  <Etape lignes="154-160" titre="Freiner et lâcher les gaz">
     Deux décélérations différentes : freiner (appuyer dans l'autre sens) arrête vite, lâcher l'accélérateur fait ralentir doucement, comme un vrai kart en roue libre.
   </Etape>
-  <Etape lignes="167-173" titre="Tourner">
+  <Etape lignes="162-168" titre="Tourner">
     `TurnRate` est la vitesse de rotation en degrés par seconde. Sous `MinSpeedToTurn`, le kart ne tourne pas : un kart à l'arrêt ne pivote pas sur place.
   </Etape>
-  <Etape lignes="175-177" titre="Le choc contre un mur">
+  <Etape lignes="170-172" titre="Le choc contre un mur">
     On garde 30 % de la vitesse en touchant un mur. `meta = (ClampMin = "0", ClampMax = "1")` empêche de taper une valeur hors de 0 à 1 dans l'éditeur.
   </Etape>
-  <Etape lignes="179-186" titre="Gravité et recherche du sol">
+  <Etape lignes="174-181" titre="Gravité et recherche du sol">
     Notre propre gravité, puisqu'on n'utilise pas la physique d'Unreal. `GroundTraceDistance` est la distance sur laquelle on cherche le sol sous les roues.
   </Etape>
-  <Etape lignes="188-199" titre="Flotter au-dessus du sol">
+  <Etape lignes="183-194" titre="Flotter au-dessus du sol">
     Le centre de la sphère flotte à 45 cm du sol : ce sont les roues qui suivent les petites bosses. `GroundStickDistance` évite de décoller en haut d'une bosse, `GroundAlignSpeed` règle la vitesse à laquelle le kart s'incline sur une pente.
   </Etape>
-  <Etape lignes="201-207" titre="Où lancer les rayons">
+  <Etape lignes="196-202" titre="Où lancer les rayons">
     La distance entre le centre et les roues. Le kart lance un rayon sous chaque roue pour lire la pente : on le verra dans la leçon sur le sol.
   </Etape>
-  <Etape lignes="209-213" titre="Le saut">
+  <Etape lignes="204-208" titre="Le saut">
     Une vitesse vers le haut au moment du saut. 450 donne environ 40 cm de haut avec notre gravité.
   </Etape>
-  <Etape lignes="215-229" titre="Entrer dans un drift">
+  <Etape lignes="210-224" titre="Entrer dans un drift">
     Il faut aller assez vite pour drifter. En drift, le kart tourne 1,4 fois plus et le châssis se met de travers de 25°. `DriftEnterTime` fait monter tout ça progressivement, en 0,4 seconde.
   </Etape>
-  <Etape lignes="231-250" titre="Les turbos">
+  <Etape lignes="226-245" titre="Les turbos">
     Plus on drifte longtemps, plus le turbo est fort : 1 seconde donne le mini-turbo bleu, 2 secondes le super-turbo orange. Chacun a sa durée, et pendant un turbo le kart roule à `BoostSpeed`.
   </Etape>
-  <Etape lignes="252-258" titre="Les roues">
+  <Etape lignes="247-253" titre="Les roues">
     Le rayon des roues sert à les faire tourner à la bonne vitesse. Les roues avant braquent jusqu'à 30°.
   </Etape>
-  <Etape lignes="260-270" titre="Le champ de vision">
+  <Etape lignes="255-265" titre="Le champ de vision">
     Le FOV s'élargit avec la vitesse, et encore plus pendant un turbo : c'est ce qui donne la sensation de vitesse.
   </Etape>
-  <Etape lignes="272-290" titre="La caméra en drift et en pente">
+  <Etape lignes="267-285" titre="La caméra en drift et en pente">
     La caméra suit l'angle du drift avec du retard, et ne s'incline que dans les vraies pentes (au-delà de 10°). `FieldOfViewInterpSpeed` règle la vitesse de changement du FOV.
   </Etape>
 </CodePasAPas>
@@ -131,26 +127,26 @@ Les réglages sont choisis avant de jouer et ne bougent plus pendant la partie. 
 
 L'état change à chaque image : vitesse actuelle, kart au sol ou non, drift en cours. Ces variables sont en `VisibleAnywhere` : pendant le Play, on les voit évoluer dans le panneau Details, ce qui aide beaucoup à déboguer.
 
-<CodePasAPas fichier="KartPawn.h" debut={302} fin={346}>
-  <Etape lignes="302-310" titre="Les vitesses">
+<CodePasAPas fichier="KartPawn.h" debut={297} fin={341}>
+  <Etape lignes="297-305" titre="Les vitesses">
     `CurrentSpeed` est la vitesse vers l'avant, négative en marche arrière. `VerticalSpeed` est négative quand le kart tombe.
   </Etape>
-  <Etape lignes="312-319" titre="Ce que le joueur demande, et le sol">
+  <Etape lignes="307-314" titre="Ce que le joueur demande, et le sol">
     Les dernières valeurs des touches d'accélérateur et de volant, et un booléen pour savoir si le kart touche le sol. Le préfixe `b` est la convention d'Unreal pour un booléen.
   </Etape>
-  <Etape lignes="321-333" titre="L'état du drift">
+  <Etape lignes="316-328" titre="L'état du drift">
     Le drift en cours, son sens (-1 à gauche, +1 à droite), le temps de charge du turbo, et `DriftBlend` qui monte de 0 à 1 pendant l'entrée dans le drift.
   </Etape>
-  <Etape lignes="335-342" titre="Turbo, roues et pente">
+  <Etape lignes="330-337" titre="Turbo, roues et pente">
     Le temps de turbo restant, l'angle de rotation des roues et `GroundNormal`, la direction « vers le haut » du sol sous le kart. Sur du plat, c'est la verticale.
   </Etape>
-  <Etape lignes="344-346" titre="bCanMove">
+  <Etape lignes="339-341" titre="bCanMove">
     Faux pendant le compte à rebours : le kart ignore les touches. C'est le GameMode qui le change avec `SetCanMove`.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.h" debut={360} fin={375}>
-  <Etape lignes="360-375" titre="L'état de la course">
+<CodePasAPas fichier="KartPawn.h" debut={355} fin={370}>
+  <Etape lignes="355-370" titre="L'état de la course">
     Le tour en cours (commence à 1), le prochain checkpoint à passer, la course finie ou non, et le temps d'arrivée. `BlueprintReadOnly` : les Blueprints peuvent les lire, pas les modifier.
   </Etape>
 </CodePasAPas>
@@ -159,37 +155,31 @@ L'état change à chaque image : vitesse actuelle, kart au sol ou non, drift en 
 
 La partie `private` liste les fonctions internes : personne d'autre que le kart ne peut les appeler. Elle annonce le plan du `.cpp`.
 
-<CodePasAPas fichier="KartPawn.h" debut={377} fin={385}>
-  <Etape lignes="377-385" titre="Les fonctions appelées par les touches">
-    Une fonction par action du joueur, pressée ou relâchée. L'Enhanced Input les appellera avec la valeur de la touche.
-  </Etape>
-</CodePasAPas>
-
-<CodePasAPas fichier="KartPawn.h" debut={388} fin={415}>
-  <Etape lignes="388-398" titre="Les étapes du Tick">
-    À chaque image, le kart lit le sol, calcule sa vitesse, tourne, gère le drift et le turbo, se déplace, s'incline sur la pente, puis met à jour roues et caméra. Chaque leçon suivante explique une de ces fonctions.
+<CodePasAPas fichier="KartPawn.h" debut={372} fin={395}>
+  <Etape lignes="372-383" titre="Les étapes du Tick">
+    Après `private:`, la liste des étapes du Tick. À chaque image, le kart lit le sol, calcule sa vitesse, tourne, gère le drift et le turbo, se déplace, s'incline sur la pente, puis met à jour roues et caméra. Chaque leçon suivante explique une de ces fonctions.
 
     <Encadre type="info">Le commentaire dit « dans l'ordre », mais le vrai Tick appelle `UpdateBoost` en deuxième. On le verra en lisant le Tick, leçon 1.4.</Encadre>
   </Etape>
-  <Etape lignes="400-402" titre="Lire le sol sous les roues">
+  <Etape lignes="385-387" titre="Lire le sol sous les roues">
     Lance un rayon sous chaque roue et renvoie le nombre de roues au sol. Les paramètres `Out…` passés par référence (`&`) servent à renvoyer plusieurs résultats à la fois : le point moyen du sol et sa pente.
   </Etape>
-  <Etape lignes="404-411" titre="Saut, drift et turbo">
-    Les petites fonctions utilitaires appelées par les étapes du Tick. `GetCurrentMaxSpeed` est `const` : elle lit l'état sans le modifier.
+  <Etape lignes="389-391" titre="Le turbo">
+    `StartBoost` lance un turbo (après un drift, ou pour un objet via `ApplyBoost`). `GetCurrentMaxSpeed` est `const` : elle lit l'état sans le modifier. Le saut et le drift ne sont plus ici : ce sont des commandes publiques, appelées par le controller.
   </Etape>
-  <Etape lignes="413-415" titre="Faire tourner une roue">
+  <Etape lignes="393-395" titre="Faire tourner une roue">
     Une fonction pour appliquer la rotation et le braquage à une roue, appelée quatre fois. Mieux vaut une fonction que quatre copies du même code.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.h" debut={422} fin={431}>
-  <Etape lignes="422-431" titre="Ce qu'on retient au démarrage">
+<CodePasAPas fichier="KartPawn.h" debut={402} fin={411}>
+  <Etape lignes="402-411" titre="Ce qu'on retient au démarrage">
     Une copie de la case de debug du GameMode, lue une fois. Puis les rotations de départ réglées dans le Blueprint : le code tourne les pièces « par-dessus », sans écraser ces réglages.
   </Etape>
 </CodePasAPas>
 
-<CodePasAPas fichier="KartPawn.h" debut={437} fin={445}>
-  <Etape lignes="437-445" titre="La caméra et un compteur de debug">
+<CodePasAPas fichier="KartPawn.h" debut={417} fin={425}>
+  <Etape lignes="417-425" titre="La caméra et un compteur de debug">
     Deux angles de caméra qui suivent le drift et la pente avec du retard. `SphereFloorHitCount` compte les fois où la sphère touche le sol. Le commentaire dit qu'il est affiché dans le debug, mais `ShowDebugInfo` ne l'affiche pas : il est seulement incrémenté.
   </Etape>
 </CodePasAPas>

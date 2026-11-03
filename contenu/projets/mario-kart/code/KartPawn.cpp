@@ -4,11 +4,6 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
-#include "Engine/LocalPlayer.h"
-#include "EnhancedInputComponent.h"
-#include "EnhancedInputSubsystems.h"
-#include "GameFramework/PlayerController.h"
-#include "InputActionValue.h"
 #include "KartGameMode.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Items/KartItemComponent.h"
@@ -173,47 +168,6 @@ void AKartPawn::ResetRaceProgress()
 	FinishTime = 0.f;
 }
 
-void AKartPawn::NotifyControllerChanged()
-{
-	Super::NotifyControllerChanged();
-
-	// On donne au joueur les touches du kart
-	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
-	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
-		{
-			Subsystem->AddMappingContext(KartMappingContext, 0);
-		}
-		
-	}
-}
-
-void AKartPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-{
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
-
-	UEnhancedInputComponent* EnhancedInput = Cast<UEnhancedInputComponent>(PlayerInputComponent);
-	if (EnhancedInput == nullptr)
-	{
-		return;
-	}
-
-	// Triggered = tant qu'on appuie, Completed = quand on lâche
-	EnhancedInput->BindAction(ThrottleAction, ETriggerEvent::Triggered, this, &AKartPawn::OnThrottle);
-	EnhancedInput->BindAction(ThrottleAction, ETriggerEvent::Completed, this, &AKartPawn::OnThrottleReleased);
-
-	EnhancedInput->BindAction(SteerAction, ETriggerEvent::Triggered, this, &AKartPawn::OnSteer);
-	EnhancedInput->BindAction(SteerAction, ETriggerEvent::Completed, this, &AKartPawn::OnSteerReleased);
-
-	// Started = une seule fois au moment où on appuie
-	EnhancedInput->BindAction(DriftAction, ETriggerEvent::Started, this, &AKartPawn::OnDriftPressed);
-	EnhancedInput->BindAction(DriftAction, ETriggerEvent::Completed, this, &AKartPawn::OnDriftReleased);
-
-	EnhancedInput->BindAction(UseItemAction, ETriggerEvent::Started, this, &AKartPawn::OnUseItemPressed);
-
-	EnhancedInput->BindAction(JumpAction, ETriggerEvent::Started, this, &AKartPawn::OnJumpPressed);
-}
-
 void AKartPawn::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -226,7 +180,7 @@ void AKartPawn::Tick(float DeltaTime)
 		SteerInput = 0.f;
 	}
 
-	// Tête-à-queue : il doit passer avant les autres étapes, car il efface les touches et freine le kart
+	// Tête-à-queue : il doit passer avant les autres étapes, car il efface les commandes du joueur
 	UpdateSpinOut(DeltaTime);
 
 	// Chaque étape est une petite fonction, appelée dans l'ordre
@@ -248,51 +202,21 @@ void AKartPawn::Tick(float DeltaTime)
 	}
 }
 
-// ==================== Input ====================
+// ==================== Commandes ====================
+// Appelées par le controller (le joueur, ou plus tard une IA) : le kart ne sait pas qui le pilote
 
-void AKartPawn::OnThrottle(const FInputActionValue& Value)
+void AKartPawn::SetThrottleInput(float Value)
 {
-	ThrottleInput = Value.Get<float>();
+	// Clamp garde la valeur entre -1 et 1 : aucun controller ne peut demander d'accélérer « 5 fois plus fort »
+	ThrottleInput = FMath::Clamp(Value, -1.f, 1.f);
 }
 
-void AKartPawn::OnThrottleReleased(const FInputActionValue& Value)
+void AKartPawn::SetSteerInput(float Value)
 {
-	ThrottleInput = 0.f;
+	SteerInput = FMath::Clamp(Value, -1.f, 1.f);
 }
 
-void AKartPawn::OnSteer(const FInputActionValue& Value)
-{
-	SteerInput = Value.Get<float>();
-}
-
-void AKartPawn::OnSteerReleased(const FInputActionValue& Value)
-{
-	SteerInput = 0.f;
-}
-
-void AKartPawn::OnDriftPressed(const FInputActionValue& Value)
-{
-	// Le drift ne démarre que si on est au sol (StartDrift le vérifie)
-	if (bCanMove)
-	{
-		StartDrift();
-	}
-}
-
-void AKartPawn::OnDriftReleased(const FInputActionValue& Value)
-{
-	EndDrift();
-}
-
-void AKartPawn::OnJumpPressed(const FInputActionValue& Value)
-{
-	if (bCanMove)
-	{
-		Jump();
-	}
-}
-
-void AKartPawn::OnUseItemPressed(const FInputActionValue& Value)
+void AKartPawn::UseItem()
 {
 	// Pas d'objet pendant le compte à rebours ni pendant un tête-à-queue
 	if (bCanMove && !IsSpinningOut())
@@ -683,8 +607,8 @@ void AKartPawn::Jump()
 		return;
 	}
 
-	// Pas de saut pendant un tête-à-queue
-	if (IsSpinningOut())
+	// Pas de saut pendant le compte à rebours ni pendant un tête-à-queue
+	if (!bCanMove || IsSpinningOut())
 	{
 		return;
 	}
@@ -704,8 +628,8 @@ void AKartPawn::StartDrift()
 		return;
 	}
 
-	// Pas de drift pendant un tête-à-queue
-	if (IsSpinningOut())
+	// Pas de drift pendant le compte à rebours ni pendant un tête-à-queue
+	if (!bCanMove || IsSpinningOut())
 	{
 		return;
 	}
