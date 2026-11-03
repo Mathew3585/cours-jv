@@ -13,18 +13,71 @@ export type EcranLecteur =
   | { type: "texte"; section?: string; titre: string; contenu: ReactNode; fichier?: string }
   | { type: "code"; section?: string; titre: string; contenu: ReactNode; fichier: string; debut: number; fin: number }
   | { type: "quiz" }
-  | { type: "question"; id: string };
+  | { type: "question"; id: string }
+  | { type: "fichier"; fichier: string; precedent?: string; ligne: number };
 
 const taillesCode = [13, 14.5, 16, 18];
 
 function titreEcran(e: EcranLecteur) {
   if (e.type === "quiz") return "Quiz de la leçon";
   if (e.type === "question") return "Question libre";
+  if (e.type === "fichier") return e.precedent ? `Passe à ${e.fichier}` : `Ouvre ${e.fichier}`;
   return e.titre;
 }
 
 function Pastille({ children }: { children: ReactNode }) {
   return <span className="rounded-full bg-orange-pale px-2.5 py-1 text-xs font-semibold text-orange-texte">{children}</span>;
+}
+
+const extension = (f: string) => f.slice(f.lastIndexOf(".") + 1);
+const base = (f: string) => f.slice(0, f.lastIndexOf("."));
+
+/** Écran de transition : dit dans quel fichier écrire la suite. */
+function EcranFichier({ fichier, precedent, ligne }: { fichier: string; precedent?: string; ligne: number }) {
+  const memeClasse = precedent && base(precedent) === base(fichier);
+  const versCpp = memeClasse && extension(precedent!) === "h" && extension(fichier) === "cpp";
+
+  let titre: string;
+  let texte: string;
+  if (precedent) {
+    titre = `Change de fichier : ouvre ${fichier}`;
+    texte = versCpp
+      ? `Le header ${precedent} est terminé : il déclare ce que contient la classe. Ouvre maintenant ${fichier}, juste à côté : c'est là qu'on écrit le code de chaque fonction déclarée dans le .h.`
+      : `On a fini avec ${precedent}. La suite s'écrit dans ${fichier}.`;
+  } else if (ligne <= 1) {
+    titre = `Ouvre ${fichier}`;
+    texte =
+      extension(fichier) === "h"
+        ? `On commence par le header : il déclare tout ce que contient la classe. Ouvre ${fichier} dans ton projet et suis-le ligne par ligne.`
+        : `Ouvre ${fichier} dans ton projet. On le suit depuis la première ligne.`;
+  } else {
+    titre = `On continue dans ${fichier}`;
+    texte = `Reprends ${fichier} là où tu en étais : on repart de la ligne ${ligne}.`;
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-5">
+      <div className="flex items-center gap-3">
+        {precedent && (
+          <>
+            <span className="rounded-xl border border-ligne-2 bg-creme-2 px-3.5 py-2 font-mono text-[15px] text-muet line-through decoration-ligne-3">{precedent}</span>
+            <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#bf500c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </>
+        )}
+        <span className="flex items-center gap-2.5 rounded-xl bg-encre px-4 py-2.5 font-mono text-[17px] text-[#f1e4d3] shadow-[0_12px_28px_-16px_rgba(42,30,20,0.7)]">
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f6a56c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+            <path d="M14 3v5h5" />
+          </svg>
+          {fichier}
+        </span>
+      </div>
+      <h2 className="font-display text-[30px] leading-tight font-extrabold text-balance md:text-[38px]">{titre}</h2>
+      <p className="max-w-[62ch] text-[19px] leading-relaxed text-encre-2">{texte}</p>
+    </div>
+  );
 }
 
 export function Lecteur({
@@ -212,6 +265,8 @@ export function Lecteur({
                     <h2 className="font-display text-[30px] leading-tight font-extrabold text-balance md:text-[38px]">{ecran.titre}</h2>
                     <div className="prose-lecon lecteur-intro">{ecran.contenu}</div>
                   </>
+                ) : ecran.type === "fichier" ? (
+                  <EcranFichier fichier={ecran.fichier} precedent={ecran.precedent} ligne={ecran.ligne} />
                 ) : ecran.type === "quiz" ? (
                   <QuizLecon />
                 ) : (

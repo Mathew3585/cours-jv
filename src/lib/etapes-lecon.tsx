@@ -8,7 +8,8 @@ export type EtapeLecteur =
   | { type: "texte"; section?: string; titre: string; contenu: ReactNode; fichier?: string }
   | { type: "code"; section?: string; titre: string; contenu: ReactNode; fichier: string; debut: number; fin: number }
   | { type: "quiz" }
-  | { type: "question"; id: string };
+  | { type: "question"; id: string }
+  | { type: "fichier"; fichier: string; precedent?: string; ligne: number };
 
 /** Nombre maximum de paragraphes par écran de texte, pour que tout tienne sans défiler. */
 const BLOCS_PAR_ECRAN = 3;
@@ -98,5 +99,17 @@ export function construireEtapes(Contenu: MDXContent, options: { quiz: boolean; 
     e.fichier = (apres ?? avant)?.type === "code" ? ((apres ?? avant) as { fichier: string }).fichier : undefined;
   }
 
-  return { etapes, fichiers };
+  // Un écran « change de fichier » avant la première étape de chaque fichier :
+  // les élèves recopient le code, ils doivent savoir dans quel fichier écrire.
+  const avecFichiers: EtapeLecteur[] = [];
+  let fichierCourant: string | undefined;
+  for (const e of etapes) {
+    if (e.type === "code" && e.fichier !== fichierCourant) {
+      avecFichiers.push({ type: "fichier", fichier: e.fichier, precedent: fichierCourant, ligne: e.debut });
+      fichierCourant = e.fichier;
+    }
+    avecFichiers.push(e);
+  }
+
+  return { etapes: avecFichiers, fichiers };
 }
