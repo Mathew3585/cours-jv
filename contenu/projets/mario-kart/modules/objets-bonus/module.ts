@@ -35,31 +35,123 @@ export const objetsBonus: Module = {
         questions: [
           {
             type: "qcm",
+            enonce: "La compilation échoue sur #include \"World/RotatingObject.h\" avec « Impossible d'ouvrir le fichier include ». Que manque-t-il ?",
+            choix: [
+              "Un #pragma once dans RotatingObject.h",
+              "La ligne PublicIncludePaths.Add(ModuleDirectory); dans KartGames.Build.cs",
+              "Un UCLASS() au-dessus de la classe",
+              "Il faut mettre tous les fichiers à la racine du dossier Source",
+            ],
+            bonne: 1,
+            explication:
+              "Cette ligne dit à Unreal de chercher les includes à partir du dossier du module : le chemin World/ devient alors valable.",
+          },
+          {
+            type: "qcm",
             enonce: "Pourquoi les meshes doivent-ils être attachés à AnimatedRoot et pas à Root ?",
             choix: [
-              "Parce que c'est AnimatedRoot qui tourne et flotte : ce qui est attaché à Root reste immobile",
               "Parce que Root n'accepte pas d'enfants",
               "Parce que Root est détruit au lancement du jeu",
               "Pour que la collision fonctionne",
+              "Parce que c'est AnimatedRoot qui tourne et flotte : ce qui est attaché à Root reste immobile",
+            ],
+            bonne: 3,
+            explication:
+              "Le Tick ne fait bouger qu'AnimatedRoot. Root reste à la position posée dans le niveau, c'est voulu : on y accroche ce qui ne doit pas bouger.",
+          },
+          {
+            type: "qcm",
+            enonce: "Pourquoi Root et AnimatedRoot sont-ils protected plutôt que private ?",
+            choix: [
+              "Pour qu'on puisse les modifier depuis le niveau",
+              "Pour que les classes enfants, comme AKartItemBox, puissent y attacher leurs composants",
+              "Parce qu'un composant ne peut pas être private",
+              "Pour les cacher dans l'éditeur",
+            ],
+            bonne: 1,
+            explication:
+              "protected rend un membre accessible à la classe et à ses enfants. Avec private, la boîte ne pourrait pas accrocher sa sphère à Root et son cube à AnimatedRoot.",
+          },
+          {
+            type: "code",
+            enonce: "Que se passe-t-il si on retire cette ligne du constructeur ?",
+            code: "// L'animation se fait dans Tick, à chaque frame\nPrimaryActorTick.bCanEverTick = true;",
+            choix: [
+              "Le Tick n'est jamais appelé : l'objet reste immobile",
+              "L'objet tourne mais ne flotte plus",
+              "La compilation échoue",
+              "Rien, le Tick est activé par défaut sur tous les acteurs",
             ],
             bonne: 0,
             explication:
-              "Le Tick ne fait bouger qu'AnimatedRoot. Root reste à la position posée dans le niveau, c'est voulu : on y accroche ce qui ne doit pas bouger.",
+              "Sans bCanEverTick = true, Unreal n'appelle jamais notre Tick, et c'est lui qui fait toute l'animation.",
+          },
+          {
+            type: "qcm",
+            enonce: "Pourquoi BobFrequency a-t-il ClampMin = \"0.01\" au lieu de \"0\" ?",
+            choix: [
+              "Parce qu'un float ne peut pas valoir 0",
+              "Pour que l'objet flotte toujours au moins un peu",
+              "Parce que le .cpp divise par BobFrequency (1 / BobFrequency) : 0 serait une division par zéro",
+              "Parce que le sinus ne marche pas avec 0",
+            ],
+            bonne: 2,
+            explication:
+              "BeginPlay tire un temps au hasard entre 0 et 1.f / BobFrequency. Pour arrêter le flottement, on décoche plutôt bEnableBobbing.",
+          },
+          {
+            type: "code",
+            enonce: "Dans le Blueprint, AnimatedRoot est placé 50 cm au-dessus de Root, et BobHeight vaut 20. Entre quelles hauteurs (par rapport à Root) le cube flotte-t-il ?",
+            code: "AnimatedRootBaseLocation = AnimatedRoot->GetRelativeLocation();",
+            choix: [
+              "Entre -20 et 20 cm",
+              "Entre 30 et 70 cm",
+              "Entre 50 et 70 cm",
+              "Entre 0 et 50 cm",
+            ],
+            bonne: 1,
+            explication:
+              "BeginPlay retient la position réglée dans le Blueprint (50 cm), et le Tick ajoute un décalage entre -20 et +20 autour de ce point.",
           },
           {
             type: "code",
             enonce: "BobHeight vaut 20. Entre quelles valeurs varie BobOffset ?",
             code: "const float BobOffset = FMath::Sin(AnimationTime * BobFrequency * 2.f * PI) * BobHeight;",
-            choix: ["Entre 0 et 20", "Entre -1 et 1", "Entre -20 et 20", "Entre 0 et 40"],
-            bonne: 2,
-            explication: "Le sinus varie entre -1 et 1. Multiplié par 20, le décalage va de -20 à +20 cm autour de la position de départ.",
+            choix: [
+              "Entre 0 et 20",
+              "Entre -1 et 1",
+              "Entre 0 et 40",
+              "Entre -20 et 20",
+            ],
+            bonne: 3,
+            explication:
+              "Le sinus varie entre -1 et 1. Multiplié par 20, le décalage va de -20 à +20 cm autour de la position de départ.",
           },
           {
             type: "qcm",
             enonce: "BobFrequency vaut 0,5. Combien de temps dure un aller-retour complet (monter puis redescendre) ?",
-            choix: ["0,5 seconde", "2 secondes", "1 seconde", "5 secondes"],
-            bonne: 1,
-            explication: "La fréquence est le nombre d'allers-retours par seconde. 0,5 par seconde, c'est un aller-retour toutes les 1 / 0,5 = 2 secondes.",
+            choix: [
+              "0,5 seconde",
+              "1 seconde",
+              "2 secondes",
+              "5 secondes",
+            ],
+            bonne: 2,
+            explication:
+              "La fréquence est le nombre d'allers-retours par seconde. 0,5 par seconde, c'est un aller-retour toutes les 1 / 0,5 = 2 secondes.",
+          },
+          {
+            type: "qcm",
+            enonce: "Avec RotationSpeed = (30, 90, 45), pourquoi la boîte culbute-t-elle au lieu de tourner sagement comme une toupie ?",
+            choix: [
+              "Parce que AddLocalRotation tourne autour des axes de l'objet : après un peu de Pitch, l'axe du Yaw est penché",
+              "Parce que le sinus du flottement fait aussi tourner l'objet",
+              "Parce que les valeurs sont des centimètres et pas des degrés",
+              "Parce que FRandRange change la vitesse à chaque image",
+            ],
+            bonne: 0,
+            explication:
+              "Les trois axes tournent en même temps, autour des axes de l'objet lui-même. Avec (0, 90, 0), il ne reste que le Yaw : une simple toupie.",
           },
           {
             type: "vrai-faux",
@@ -68,18 +160,6 @@ export const objetsBonus: Module = {
             bonne: 0,
             explication:
               "Elles partent toutes avec AnimationTime = 0 et la même rotation de départ. Avec un départ au hasard, chacune commence à un moment différent de l'animation.",
-          },
-          {
-            type: "qcm",
-            enonce: "Pourquoi Root et AnimatedRoot sont-ils protected plutôt que private ?",
-            choix: [
-              "Pour qu'on puisse les modifier depuis le niveau",
-              "Parce qu'un composant ne peut pas être private",
-              "Pour les cacher dans l'éditeur",
-              "Pour que les classes enfants, comme AKartItemBox, puissent y attacher leurs composants",
-            ],
-            bonne: 3,
-            explication: "protected rend un membre accessible à la classe et à ses enfants. La boîte accroche sa sphère à Root et son cube à AnimatedRoot.",
           },
         ],
       },
@@ -105,15 +185,91 @@ export const objetsBonus: Module = {
         questions: [
           {
             type: "qcm",
+            enonce: "Dans le système d'objets, quelle classe garde l'objet que le kart a en main ?",
+            choix: [
+              "AKartItemBox, la boîte",
+              "UKartItemPoolData, la table de tirage",
+              "UKartItemData, l'objet",
+              "UKartItemComponent, la poche",
+            ],
+            bonne: 3,
+            explication:
+              "La poche garde l'objet et l'utilise. La boîte donne, la table choisit au hasard, et l'objet sait seulement faire son effet.",
+          },
+          {
+            type: "qcm",
+            enonce: "Qu'est-ce qu'un Data Asset ?",
+            choix: [
+              "Un acteur posé dans le niveau",
+              "Un fichier créé dans le Content Browser qui ne contient que des données : un asset = un objet du jeu",
+              "Un Blueprint avec un Event Graph",
+              "Une variable rangée dans le kart",
+            ],
+            bonne: 1,
+            explication:
+              "DA_Item_Turbo, DA_Item_TripleTurbo… sont des fichiers de données. Le kart ne sait même pas quels objets existent.",
+          },
+          {
+            type: "qcm",
+            enonce: "Pourquoi KartItemData.h se contente-t-il de « class AKartPawn; » ?",
+            choix: [
+              "Parce que AKartPawn est déclaré dans DataAsset.h",
+              "Parce qu'un Data Asset n'a pas le droit d'inclure un Pawn",
+              "Parce que le header n'utilise AKartPawn qu'en pointeur, dans le paramètre d'Activate",
+              "Parce que AKartPawn est une classe abstraite",
+            ],
+            bonne: 2,
+            explication:
+              "Pour un pointeur, savoir que la classe existe suffit. Les enfants qui appellent une fonction du kart, comme le turbo, incluent KartPawn.h dans leur .cpp.",
+          },
+          {
+            type: "qcm",
             enonce: "Que se passe-t-il quand tu crées un Data Asset dans l'éditeur et que tu cherches la classe KartItemData ?",
             choix: [
               "Elle apparaît en premier dans la liste",
               "Unreal plante",
-              "Elle n'apparaît pas, à cause de Abstract : seules ses classes enfants sont proposées",
               "Elle apparaît, mais grisée",
+              "Elle n'apparaît pas, à cause de Abstract : seules ses classes enfants sont proposées",
+            ],
+            bonne: 3,
+            explication:
+              "UCLASS(Abstract) interdit de créer un asset de cette classe. Un objet « en général » n'a pas d'effet : on choisit un enfant comme KartItemData_Boost.",
+          },
+          {
+            type: "code",
+            enonce: "Que permet BlueprintType dans cette ligne ?",
+            code: "UCLASS(Abstract, BlueprintType)\nclass KARTGAMES_API UKartItemData : public UPrimaryDataAsset",
+            choix: [
+              "Créer un asset de cette classe malgré Abstract",
+              "Utiliser ce type dans les Blueprints, par exemple pour une variable de type « Kart Item Data »",
+              "Transformer la classe en Blueprint",
+              "Rendre toutes ses variables modifiables dans l'éditeur",
+            ],
+            bonne: 1,
+            explication:
+              "BlueprintType rend le type utilisable dans les Blueprints. Abstract, lui, empêche toujours de créer un asset de la classe parente.",
+          },
+          {
+            type: "vrai-faux",
+            enonce: "Pour ajouter un triple turbo, il faut écrire une nouvelle classe C++.",
+            choix: ["Vrai", "Faux"],
+            bonne: 1,
+            explication:
+              "On crée un deuxième asset de la classe turbo avec Uses = 3. Les données changent, pas le code.",
+          },
+          {
+            type: "code",
+            enonce: "À quoi sert le mot virtual ici ?",
+            code: "virtual bool Activate(AKartPawn* Kart) const;",
+            choix: [
+              "À empêcher les enfants de modifier la fonction",
+              "À rendre la fonction appelable depuis un Blueprint",
+              "À permettre aux classes enfants de la remplacer : c'est leur version qui s'exécutera",
+              "À dire que la fonction n'a pas de code",
             ],
             bonne: 2,
-            explication: "UCLASS(Abstract) interdit de créer un asset de cette classe. On choisit un enfant comme KartItemData_Boost.",
+            explication:
+              "virtual autorise les enfants à redéfinir Activate avec override. Le parent a quand même un code (il renvoie false).",
           },
           {
             type: "qcm",
@@ -125,14 +281,8 @@ export const objetsBonus: Module = {
               "Pour pouvoir l'appeler depuis un Blueprint",
             ],
             bonne: 0,
-            explication: "Il n'existe qu'un DA_Item_Turbo en mémoire. Le const empêche de modifier l'asset : l'état propre à chaque kart est rangé dans sa poche.",
-          },
-          {
-            type: "vrai-faux",
-            enonce: "Pour ajouter un triple turbo, il faut écrire une nouvelle classe C++.",
-            choix: ["Vrai", "Faux"],
-            bonne: 1,
-            explication: "On crée un deuxième asset de la classe turbo avec Uses = 3. Les données changent, pas le code.",
+            explication:
+              "Il n'existe qu'un DA_Item_Turbo en mémoire. Le const empêche de modifier l'asset : l'état propre à chaque kart est rangé dans sa poche.",
           },
           {
             type: "code",
@@ -140,12 +290,13 @@ export const objetsBonus: Module = {
             code: "bool UKartItemData::Activate(AKartPawn* Kart) const\n{\n\treturn false;\n}",
             choix: [
               "true, pour que l'objet soit toujours consommé",
+              "false : le parent n'a pas d'effet, donc l'objet n'est pas consommé si un enfant oublie de la redéfinir",
               "nullptr, car il n'y a pas d'objet",
               "Elle ne compile pas : un parent ne peut pas avoir de code",
-              "false : le parent n'a pas d'effet, donc l'objet n'est pas consommé si un enfant oublie de la redéfinir",
             ],
-            bonne: 3,
-            explication: "false veut dire « pas utilisé ». La poche ne retire alors pas d'utilisation.",
+            bonne: 1,
+            explication:
+              "false veut dire « pas utilisé ». La poche ne retire alors pas d'utilisation, et on remarque vite le problème en testant.",
           },
         ],
       },
@@ -174,47 +325,123 @@ export const objetsBonus: Module = {
             enonce: "Dans KartItemData_Boost.h, pourquoi inclut-on Items/KartItemData.h au lieu d'une déclaration anticipée ?",
             choix: [
               "Parce que c'est plus rapide à compiler",
-              "Pour hériter d'une classe, le compilateur doit la connaître en entier",
               "Parce que UKartItemData est abstraite",
               "Ce n'est pas nécessaire, une déclaration anticipée suffirait",
+              "Pour hériter d'une classe, le compilateur doit la connaître en entier",
+            ],
+            bonne: 3,
+            explication:
+              "Une déclaration anticipée suffit pour un pointeur, pas pour hériter : le compilateur doit savoir ce que contient le parent.",
+          },
+          {
+            type: "vrai-faux",
+            enonce: "UKartItemData_Boost doit redéclarer DisplayName, Icon et Uses pour pouvoir les régler dans DA_Item_Turbo.",
+            choix: ["Vrai", "Faux"],
+            bonne: 1,
+            explication:
+              "Le turbo hérite de UKartItemData : il a déjà ces trois variables. Il n'ajoute que BoostDuration.",
+          },
+          {
+            type: "qcm",
+            enonce: "Que se passerait-il si on oubliait override sur Activate dans le turbo, en oubliant aussi le const ?",
+            choix: [
+              "Rien de grave : le turbo marche pareil",
+              "Le compilateur refuse",
+              "Ça compile, mais c'est une nouvelle fonction : la poche appellerait la version du parent, qui renvoie false",
+              "Le jeu plante au lancement",
+            ],
+            bonne: 2,
+            explication:
+              "Sans const, la signature est différente : ce n'est plus un remplacement. Sans override, le compilateur ne le signale pas. override sert justement à attraper cette erreur.",
+          },
+          {
+            type: "code",
+            enonce: "La poche appelle Activate avec Kart = nullptr. Que devient l'utilisation de l'objet ?",
+            code: "bool UKartItemData_Boost::Activate(AKartPawn* Kart) const\n{\n\tif (Kart == nullptr)\n\t{\n\t\treturn false;\n\t}\n\n\tKart->ApplyBoost(BoostDuration);\n\treturn true;\n}",
+            choix: [
+              "Elle n'est pas consommée : la fonction renvoie false",
+              "Elle est consommée, mais aucun turbo n'est lancé",
+              "Le jeu plante sur ApplyBoost",
+              "L'objet est retiré de la poche",
+            ],
+            bonne: 0,
+            explication:
+              "On vérifie le pointeur avant de s'en servir. false veut dire « pas utilisé » : la poche garde l'utilisation.",
+          },
+          {
+            type: "qcm",
+            enonce: "Pourquoi FKartItemPoolEntry est-elle une USTRUCT qui contient GENERATED_BODY() ?",
+            choix: [
+              "Pour qu'on puisse en créer un asset dans le Content Browser",
+              "Pour qu'Unreal sache l'afficher dans l'éditeur, ligne par ligne dans la table",
+              "Parce qu'une structure doit avoir des fonctions",
+              "Pour qu'elle hérite de UKartItemData",
             ],
             bonne: 1,
-            explication: "Une déclaration anticipée suffit pour un pointeur, pas pour hériter : le compilateur doit savoir ce que contient le parent.",
+            explication:
+              "USTRUCT et GENERATED_BODY() font connaître la structure au moteur : l'éditeur peut alors afficher chaque ligne (objet et poids). Le préfixe F est la convention des structures.",
           },
           {
             type: "qcm",
             enonce: "Une table contient : turbo (poids 3), triple turbo (poids 1). Quelle est la chance d'obtenir le triple turbo ?",
-            choix: ["1 sur 4", "1 sur 3", "1 sur 2", "1 %"],
-            bonne: 0,
-            explication: "Total des poids = 4. Le triple turbo a 1 part sur 4, donc 25 %.",
+            choix: [
+              "1 sur 3",
+              "1 sur 2",
+              "1 %",
+              "1 sur 4",
+            ],
+            bonne: 3,
+            explication:
+              "Total des poids = 4. Le triple turbo a 1 part sur 4, donc 25 %. Un poids est une part, pas un pourcentage.",
+          },
+          {
+            type: "code",
+            enonce: "Que veulent dire const et & dans cette boucle ?",
+            code: "for (const FKartItemPoolEntry& Entry : Entries)",
+            choix: [
+              "& copie chaque ligne, const la rend modifiable",
+              "La boucle parcourt chaque ligne sans la copier (&) et sans la modifier (const)",
+              "La boucle ne parcourt que les lignes valides",
+              "Ils rendent la boucle plus lente mais plus sûre",
+            ],
+            bonne: 1,
+            explication:
+              "& évite de copier la ligne, const promet de ne pas la changer. Les lignes invalides sont filtrées par le if, pas par la boucle.",
           },
           {
             type: "code",
             enonce: "Turbo 50, Piège 30, Projectile 20, dans cet ordre. Roll vaut 85. Quel objet sort ?",
             code: "Roll -= Entry.Weight;\nif (Roll < 0.f)\n{\n\treturn Entry.Item;\n}",
-            choix: ["Turbo", "Piège", "Projectile", "Aucun"],
+            choix: [
+              "Turbo",
+              "Piège",
+              "Projectile",
+              "Aucun",
+            ],
             bonne: 2,
-            explication: "85 - 50 = 35, 35 - 30 = 5, encore positifs. 5 - 20 = -15 : c'est le projectile.",
+            explication:
+              "85 - 50 = 35, 35 - 30 = 5, encore positifs. 5 - 20 = -15 : c'est le projectile.",
           },
           {
             type: "vrai-faux",
             enonce: "Une ligne de la table avec un poids de 0 peut quand même sortir.",
             choix: ["Vrai", "Faux"],
             bonne: 1,
-            explication: "Les lignes de poids 0 (ou sans objet) sont ignorées dans la somme et dans la boucle de tirage avec continue.",
+            explication:
+              "Les lignes de poids 0 (ou sans objet) sont ignorées dans la somme et sautées avec continue dans la boucle de tirage.",
           },
           {
             type: "qcm",
-            enonce: "Que se passerait-il si on oubliait override sur Activate dans le turbo, en se trompant aussi en oubliant le const ?",
+            enonce: "Après la boucle, pourquoi la fonction renvoie-t-elle LastValidItem plutôt que nullptr ?",
             choix: [
-              "Rien de grave : le turbo marche pareil",
-              "Ça compile, mais c'est une nouvelle fonction : la poche appellerait la version du parent, qui renvoie false",
-              "Le compilateur refuse",
-              "Le jeu plante au lancement",
+              "Parce que le dernier objet est toujours le plus rare",
+              "Pour que la table vide renvoie quand même un objet",
+              "Parce qu'avec les arrondis, Roll peut tomber pile sur le total : aucune soustraction ne devient négative",
+              "Pour que le dernier objet sorte plus souvent",
             ],
-            bonne: 1,
+            bonne: 2,
             explication:
-              "Sans const, la signature est différente : ce n'est plus un remplacement. Sans override, le compilateur ne le signale pas. override sert justement à attraper cette erreur.",
+              "C'est une sécurité contre les erreurs d'arrondi des nombres à virgule. Une table sans ligne valide, elle, a déjà renvoyé nullptr plus haut.",
           },
         ],
       },
@@ -240,29 +467,70 @@ export const objetsBonus: Module = {
         questions: [
           {
             type: "qcm",
+            enonce: "Pourquoi UKartItemComponent hérite-t-il de UActorComponent et pas de USceneComponent ?",
+            choix: [
+              "Parce que la poche n'a besoin ni de position ni de forme : c'est seulement de la logique",
+              "Parce qu'un USceneComponent ne peut pas avoir de delegate",
+              "Parce que UActorComponent tourne plus vite",
+              "Parce que USceneComponent est réservé à la caméra",
+            ],
+            bonne: 0,
+            explication:
+              "UActorComponent est la brique de code sans position. Les SceneComponent (mesh, caméra) ont une place dans le monde, ce qui ne sert à rien pour une poche.",
+          },
+          {
+            type: "code",
+            enonce: "Le kart a déjà un turbo et roule dans une boîte. Que renvoie TryGiveRandomItem ?",
+            code: "if (Pool == nullptr || HasItem() || bRouletteRunning)\n{\n\treturn false;\n}",
+            choix: [
+              "true, et le turbo est remplacé par un nouvel objet",
+              "true, et le kart a deux objets",
+              "false, et rien ne change dans la poche",
+              "false, et la poche se vide",
+            ],
+            bonne: 2,
+            explication:
+              "HasItem() est vrai : la fonction refuse dès la première ligne. Une seule chose en poche à la fois.",
+          },
+          {
+            type: "qcm",
             enonce: "Quand l'objet que va recevoir le kart est-il choisi ?",
             choix: [
               "À la fin de la roulette, dans FinishRoulette",
               "Quand le joueur appuie sur la touche",
-              "Par le widget du HUD",
               "Au début, dans TryGiveRandomItem : la roulette n'est qu'une animation",
+              "Par le widget du HUD",
             ],
-            bonne: 3,
-            explication: "PickRandomItem est appelé tout de suite et le résultat est gardé dans PendingItem. FinishRoulette ne fait que le donner.",
+            bonne: 2,
+            explication:
+              "PickRandomItem est appelé tout de suite et le résultat est gardé dans PendingItem. FinishRoulette ne fait que le donner.",
+          },
+          {
+            type: "code",
+            enonce: "RouletteDuration vaut 0 dans le Blueprint du kart. Que se passe-t-il ?",
+            code: "if (RouletteDuration > 0.f)\n{\n\tGetWorld()->GetTimerManager().SetTimer(RouletteTimer, this, &UKartItemComponent::FinishRoulette, RouletteDuration, false);\n}\nelse\n{\n\tFinishRoulette();\n}",
+            choix: [
+              "Le timer ne se lance pas et l'objet n'arrive jamais",
+              "FinishRoulette est appelée tout de suite : l'objet arrive sans attendre",
+              "La roulette dure 2 secondes, la valeur par défaut",
+              "Le timer se répète en boucle",
+            ],
+            bonne: 1,
+            explication:
+              "Le else appelle FinishRoulette directement. Le false du SetTimer, lui, veut dire que le timer ne se répète pas.",
           },
           {
             type: "qcm",
-            enonce: "Le kart a un triple turbo (UsesLeft = 3). Combien de fois OnItemChanged est-il envoyé s'il utilise les trois ?",
-            choix: ["1 fois", "2 fois", "3 fois", "Jamais"],
-            bonne: 2,
-            explication: "Chaque utilisation passe par SetItem : 3 → 2, puis 2 → 1, puis 1 → poche vide. Trois Broadcast.",
-          },
-          {
-            type: "vrai-faux",
-            enonce: "UKartItemComponent doit connaître la classe UKartItemData_Boost pour utiliser un turbo.",
-            choix: ["Vrai", "Faux"],
-            bonne: 1,
-            explication: "Il appelle Activate sur un UKartItemData. Grâce au polymorphisme, c'est la version du turbo qui s'exécute, sans que le composant la connaisse.",
+            enonce: "Pourquoi PendingItem a-t-il un UPROPERTY() sans aucune option ?",
+            choix: [
+              "Pour l'afficher dans le panneau Details",
+              "Pour pouvoir le modifier dans un Blueprint",
+              "Il ne sert à rien, on pourrait l'enlever",
+              "Pour que le ramasse-miettes d'Unreal sache qu'on garde un pointeur vers cet objet",
+            ],
+            bonne: 3,
+            explication:
+              "Un pointeur vers un UObject doit être déclaré en UPROPERTY pour que le moteur le suive. Sans option, il reste invisible dans l'éditeur.",
           },
           {
             type: "code",
@@ -275,19 +543,55 @@ export const objetsBonus: Module = {
               "Le kart perd son objet",
             ],
             bonne: 0,
-            explication: "bRouletteRunning est vrai : on sort. Le timer continue et l'objet arrivera normalement.",
+            explication:
+              "bRouletteRunning est vrai : on sort. Le timer continue et l'objet arrivera normalement.",
+          },
+          {
+            type: "vrai-faux",
+            enonce: "UKartItemComponent doit connaître la classe UKartItemData_Boost pour utiliser un turbo.",
+            choix: ["Vrai", "Faux"],
+            bonne: 1,
+            explication:
+              "Il appelle Activate sur un UKartItemData. Grâce au polymorphisme, c'est la version du turbo qui s'exécute, sans que le composant la connaisse.",
           },
           {
             type: "qcm",
-            enonce: "Pourquoi PendingItem a-t-il un UPROPERTY() sans aucune option ?",
+            enonce: "Activate renvoie false. Que devient UsesLeft ?",
             choix: [
-              "Pour l'afficher dans le panneau Details",
-              "Pour pouvoir le modifier dans un Blueprint",
-              "Il ne sert à rien, on pourrait l'enlever",
-              "Pour que le ramasse-miettes d'Unreal sache qu'on garde un pointeur vers cet objet",
+              "Il baisse de 1 quand même",
+              "Il passe à 0",
+              "Il ne change pas : UseItem sort avant de retirer une utilisation",
+              "Il remonte à la valeur Uses de l'asset",
             ],
-            bonne: 3,
-            explication: "Un pointeur vers un UObject doit être déclaré en UPROPERTY pour que le moteur le suive. Sans option, il reste invisible dans l'éditeur.",
+            bonne: 2,
+            explication:
+              "if (!CurrentItem->Activate(Kart)) return; : si l'objet n'a pas pu servir, on garde l'utilisation et SetItem n'est pas appelé.",
+          },
+          {
+            type: "qcm",
+            enonce: "Le kart a un triple turbo (UsesLeft = 3). Combien de fois OnItemChanged est-il envoyé pendant qu'il utilise les trois ?",
+            choix: [
+              "1 fois",
+              "2 fois",
+              "3 fois",
+              "Jamais",
+            ],
+            bonne: 2,
+            explication:
+              "Chaque utilisation passe par SetItem : 3 → 2, puis 2 → 1, puis 1 → poche vide. Trois Broadcast.",
+          },
+          {
+            type: "qcm",
+            enonce: "Pourquoi chaque changement d'objet passe-t-il par SetItem au lieu de modifier CurrentItem directement ?",
+            choix: [
+              "Parce que CurrentItem est const",
+              "SetItem est le seul endroit qui change l'objet : on est sûr que OnItemChanged est envoyé à chaque fois",
+              "Parce que SetItem lance la roulette",
+              "Pour que le Data Asset retienne le nombre d'utilisations",
+            ],
+            bonne: 1,
+            explication:
+              "Si on modifiait CurrentItem à plusieurs endroits, on risquerait d'oublier le Broadcast et le HUD afficherait un objet périmé.",
           },
         ],
       },
@@ -316,24 +620,53 @@ export const objetsBonus: Module = {
             enonce: "Où est écrit le code qui fait tourner la boîte à bonus ?",
             choix: [
               "Dans le Tick de AKartItemBox",
-              "Dans le Tick de ARotatingObject, dont la boîte hérite",
               "Dans le Blueprint BP_ItemBox",
+              "Dans le Tick de ARotatingObject, dont la boîte hérite",
               "Dans le kart",
             ],
-            bonne: 1,
-            explication: "AKartItemBox ne redéfinit pas Tick : c'est celui du parent qui s'exécute et anime AnimatedRoot.",
+            bonne: 2,
+            explication:
+              "AKartItemBox ne redéfinit pas Tick : c'est celui du parent qui s'exécute et anime AnimatedRoot.",
           },
           {
             type: "qcm",
-            enonce: "Pourquoi la boîte utilise-t-elle FindComponentByClass au lieu d'un Cast vers AKartPawn ?",
+            enonce: "Pourquoi peut-on écrire DetectionSphere->SetupAttachment(Root) dans le constructeur de AKartItemBox, alors que Root n'y est pas créé ?",
             choix: [
-              "Pour que n'importe quel acteur avec une poche à objets puisse prendre la boîte, pas seulement le kart",
-              "Parce que Cast ne marche pas dans un overlap",
-              "Parce que c'est plus rapide",
-              "Parce que le kart n'est pas un Actor",
+              "Parce que Root est créé automatiquement par Unreal pour tous les acteurs",
+              "Parce que le constructeur de ARotatingObject s'exécute avant : Root et AnimatedRoot existent déjà",
+              "Parce que SetupAttachment crée Root s'il n'existe pas",
+              "On ne peut pas : il faut le faire dans BeginPlay",
+            ],
+            bonne: 1,
+            explication:
+              "En C++, le constructeur du parent passe toujours d'abord. La boîte peut donc s'accrocher aux deux racines créées par ARotatingObject.",
+          },
+          {
+            type: "qcm",
+            enonce: "Que se passerait-il si la sphère de détection était attachée à AnimatedRoot au lieu de Root ?",
+            choix: [
+              "Rien, une sphère est pareille dans tous les sens",
+              "La boîte ne pourrait plus être prise",
+              "Le cube ne tournerait plus",
+              "La zone de détection monterait et descendrait avec le cube au lieu de rester en place",
+            ],
+            bonne: 3,
+            explication:
+              "AnimatedRoot tourne et flotte. Accrochée à Root, la racine fixe, la zone reste au même endroit pendant que le cube bouge.",
+          },
+          {
+            type: "code",
+            enonce: "Pourquoi le cube n'a-t-il aucune collision ?",
+            code: "BoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT(\"BoxMesh\"));\nBoxMesh->SetupAttachment(AnimatedRoot);\nBoxMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);",
+            choix: [
+              "Parce que c'est la sphère qui détecte, et le kart ne doit pas taper dans le cube",
+              "Pour qu'il soit invisible",
+              "Parce qu'un mesh attaché à AnimatedRoot ne peut pas avoir de collision",
+              "Pour qu'il ne tourne pas",
             ],
             bonne: 0,
-            explication: "La boîte ne dépend que du composant. Une IA ou un autre véhicule avec un UKartItemComponent pourrait la prendre sans changer la boîte.",
+            explication:
+              "Le cube est seulement visuel. Avec une collision, le kart rebondirait dessus au lieu de le traverser.",
           },
           {
             type: "vrai-faux",
@@ -344,17 +677,71 @@ export const objetsBonus: Module = {
               "C'est le BeginPlay du parent qui retient AnimatedRootBaseLocation et choisit le départ au hasard. Sans lui, la boîte flotterait autour de (0, 0, 0) relatif.",
           },
           {
+            type: "qcm",
+            enonce: "Pourquoi la boîte utilise-t-elle FindComponentByClass au lieu d'un Cast vers AKartPawn ?",
+            choix: [
+              "Parce que Cast ne marche pas dans un overlap",
+              "Pour que n'importe quel acteur avec une poche à objets puisse prendre la boîte, pas seulement le kart",
+              "Parce que c'est plus rapide",
+              "Parce que le kart n'est pas un Actor",
+            ],
+            bonne: 1,
+            explication:
+              "La boîte ne dépend que du composant. Une IA ou un autre véhicule avec un UKartItemComponent pourrait la prendre sans changer la boîte.",
+          },
+          {
+            type: "qcm",
+            enonce: "Un kart qui a déjà un objet roule dans la boîte. Que se passe-t-il ?",
+            choix: [
+              "La boîte reste en place, puisque TryGiveRandomItem a refusé",
+              "Son objet est remplacé",
+              "La boîte casse quand même et réapparaîtra, mais le kart ne reçoit rien de plus",
+              "Le kart reçoit un deuxième objet en attente",
+            ],
+            bonne: 2,
+            explication:
+              "La boîte ne regarde pas le résultat de TryGiveRandomItem : elle se cache et lance son timer dans tous les cas, comme dans ce genre de jeu.",
+          },
+          {
             type: "code",
-            enonce: "La boîte vient d'être prise. Pourquoi coupe-t-on aussi la collision ?",
-            code: "BoxMesh->SetVisibility(false, true);\nDetectionSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);",
+            enonce: "La boîte vient d'être prise. Pourquoi coupe-t-on aussi la collision de la sphère ?",
+            code: "BoxMesh->SetVisibility(bActive, true);\nDetectionSphere->SetCollisionEnabled(bActive ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);",
             choix: [
               "Pour économiser de la mémoire",
               "Pour que le timer de réapparition marche",
-              "Sinon un kart pourrait prendre la boîte alors qu'elle est invisible",
               "Ce n'est pas nécessaire",
+              "Sinon un kart pourrait prendre la boîte alors qu'elle est invisible",
+            ],
+            bonne: 3,
+            explication:
+              "Cacher le mesh ne change pas la détection. Sans NoCollision, la sphère invisible donnerait encore des objets.",
+          },
+          {
+            type: "qcm",
+            enonce: "Pourquoi RespawnDelay a-t-il ClampMin = \"0.1\" ?",
+            choix: [
+              "Pour que la boîte ne réapparaisse jamais trop vite pour le joueur",
+              "Parce qu'un timer de 0 seconde ne se lance pas : la boîte ne reviendrait jamais",
+              "Parce que les timers comptent en dixièmes de seconde",
+              "Pour que la boîte ait le temps de finir de tourner",
+            ],
+            bonne: 1,
+            explication:
+              "Le minimum protège contre une valeur qui casserait la réapparition. C'est le commentaire de la ligne 43 du header.",
+          },
+          {
+            type: "code",
+            enonce: "Où est écrite la fonction SetAnimationEnabled appelée ici ?",
+            code: "// Fonction héritée de ARotatingObject : inutile d'animer une boîte que personne ne voit\nSetAnimationEnabled(bActive);",
+            choix: [
+              "Dans AKartItemBox, juste au-dessus",
+              "Dans AActor",
+              "Dans ARotatingObject : la boîte en hérite et l'appelle comme si elle était à elle",
+              "Dans UKartItemComponent",
             ],
             bonne: 2,
-            explication: "Cacher le mesh ne change pas la détection. Sans NoCollision, la sphère invisible donnerait encore des objets.",
+            explication:
+              "SetAnimationEnabled est une fonction public de ARotatingObject. Un enfant peut appeler les fonctions public et protected de son parent.",
           },
         ],
       },
@@ -380,15 +767,29 @@ export const objetsBonus: Module = {
         questions: [
           {
             type: "qcm",
+            enonce: "Pourquoi KartPawn.h se contente-t-il de « class UKartItemComponent; » alors que KartPawn.cpp inclut Items/KartItemComponent.h ?",
+            choix: [
+              "Parce que le header ne garde qu'un pointeur ; le .cpp crée le composant et appelle ses fonctions",
+              "Parce que les composants ne peuvent pas être inclus dans un header",
+              "C'est un oubli, il faudrait l'inclure dans les deux",
+              "Parce que KartItemComponent.h inclut déjà KartPawn.h",
+            ],
+            bonne: 0,
+            explication:
+              "Annoncer la classe suffit pour un TObjectPtr. Pour CreateDefaultSubobject et UseItem, il faut la classe complète.",
+          },
+          {
+            type: "qcm",
             enonce: "Pourquoi ne fait-on pas de SetupAttachment pour ItemComponent dans le constructeur du kart ?",
             choix: [
               "On a oublié",
-              "Un ActorComponent n'a pas de position : il n'est attaché à rien",
               "Parce qu'il est créé dans BeginPlay",
+              "Un ActorComponent n'a pas de position : il n'est attaché à rien",
               "Parce qu'il est attaché automatiquement à la caméra",
             ],
-            bonne: 1,
-            explication: "SetupAttachment sert aux SceneComponent (meshes, caméra). Un UActorComponent n'est que de la logique.",
+            bonne: 2,
+            explication:
+              "SetupAttachment sert aux SceneComponent (meshes, caméra). Un UActorComponent n'est que de la logique.",
           },
           {
             type: "qcm",
@@ -396,18 +797,26 @@ export const objetsBonus: Module = {
             choix: [
               "Rien de différent",
               "La touche ne marche plus du tout",
-              "Le turbo dure trois fois plus longtemps",
               "En maintenant la touche, les trois turbos partent sur des images qui se suivent",
+              "Le turbo dure trois fois plus longtemps",
             ],
-            bonne: 3,
-            explication: "Triggered se déclenche à chaque image tant qu'on appuie. Started se déclenche une seule fois par appui.",
+            bonne: 2,
+            explication:
+              "Triggered se déclenche à chaque image tant qu'on appuie. Started se déclenche une seule fois par appui.",
           },
           {
-            type: "vrai-faux",
-            enonce: "Pour ajouter un nouvel objet (par exemple un super turbo de 3 secondes), il faut modifier AKartPawn.",
-            choix: ["Vrai", "Faux"],
+            type: "code",
+            enonce: "Le joueur appuie sur la touche d'objet pendant le « 3, 2, 1 ». Que se passe-t-il ?",
+            code: "if (bCanMove && !IsSpinningOut())\n{\n\tItemComponent->UseItem();\n}",
+            choix: [
+              "L'objet est utilisé, mais le kart ne bouge pas",
+              "Rien : bCanMove est faux, UseItem n'est pas appelée",
+              "L'objet est perdu",
+              "Le turbo est gardé en réserve pour le GO",
+            ],
             bonne: 1,
-            explication: "Il suffit d'un Data Asset de la classe turbo avec BoostDuration = 3, ajouté à une table. Le kart ne change pas.",
+            explication:
+              "Pendant le compte à rebours, bCanMove est faux : la condition échoue et la poche n'est pas sollicitée. Le joueur garde son objet.",
           },
           {
             type: "qcm",
@@ -415,11 +824,47 @@ export const objetsBonus: Module = {
             choix: [
               "Parce qu'une fonction ne peut pas changer de section",
               "Parce que StartBoost est const",
-              "Pour garder StartBoost interne au kart, et avoir une porte d'entrée publique où le kart peut ajouter ses propres vérifications",
               "Parce que les objets ne peuvent pas appeler de fonctions",
+              "Pour garder StartBoost interne au kart, et avoir une porte d'entrée publique où le kart peut ajouter ses propres vérifications",
+            ],
+            bonne: 3,
+            explication:
+              "ApplyBoost ignore déjà les durées nulles. Le kart décide de ce qui est accepté, les objets n'ont pas accès à l'intérieur.",
+          },
+          {
+            type: "code",
+            enonce: "Quelle différence y a-t-il entre le turbo d'objet et le turbo de drift ?",
+            code: "void AKartPawn::ApplyBoost(float Duration)\n{\n\tif (Duration > 0.f)\n\t{\n\t\tStartBoost(Duration);\n\t}\n}",
+            choix: [
+              "Le turbo d'objet est plus rapide",
+              "Le turbo d'objet n'élargit pas le champ de vision",
+              "Aucune sur l'effet : c'est le même StartBoost, seule la durée vient de l'asset",
+              "Le turbo d'objet ne marche qu'en ligne droite",
             ],
             bonne: 2,
-            explication: "ApplyBoost ignore déjà les durées nulles. Le kart décide de ce qui est accepté, les objets n'ont pas accès à l'intérieur.",
+            explication:
+              "ApplyBoost appelle StartBoost, le turbo du drift écrit au module 1 : même vitesse, même champ de vision élargi. BoostDuration est le seul réglage propre à l'objet.",
+          },
+          {
+            type: "vrai-faux",
+            enonce: "Pour ajouter un nouvel objet (par exemple un super turbo de 3 secondes), il faut modifier AKartPawn.",
+            choix: ["Vrai", "Faux"],
+            bonne: 1,
+            explication:
+              "Il suffit d'un Data Asset de la classe turbo avec BoostDuration = 3, ajouté à une table. Le kart ne change pas.",
+          },
+          {
+            type: "qcm",
+            enonce: "Tu as une boîte, tu reçois bien un turbo, mais appuyer sur E ne fait rien. Le code est correct. Que vérifies-tu ?",
+            choix: [
+              "Que IA_UseItem a une touche dans IMC_Default et qu'elle est choisie dans Use Item Action de BP_Kart",
+              "Que DA_Item_Turbo a Uses = 3",
+              "Que BP_ItemBox a bien une table de tirage",
+              "Que le GameMode utilise BP_KartPlayerController",
+            ],
+            bonne: 0,
+            explication:
+              "UseItemAction est une case vide tant qu'on ne lui donne pas IA_UseItem dans le Blueprint du kart, et l'action doit être liée à une touche dans l'Input Mapping Context.",
           },
         ],
       },
@@ -440,9 +885,15 @@ export const objetsBonus: Module = {
       {
         type: "qcm",
         enonce: "Quelle classe décide de l'effet d'un objet ?",
-        choix: ["La classe enfant de UKartItemData, dans Activate", "AKartPawn", "UKartItemComponent", "AKartItemBox"],
-        bonne: 0,
-        explication: "Chaque enfant de UKartItemData redéfinit Activate. Le kart et la poche ne savent pas ce que fait un objet.",
+        choix: [
+          "AKartPawn",
+          "UKartItemComponent",
+          "La classe enfant de UKartItemData, dans Activate",
+          "AKartItemBox",
+        ],
+        bonne: 2,
+        explication:
+          "Chaque enfant de UKartItemData redéfinit Activate. Le kart et la poche ne savent pas ce que fait un objet.",
       },
       {
         type: "qcm",
@@ -450,69 +901,157 @@ export const objetsBonus: Module = {
         choix: [
           "La boîte appelle Activate, puis la poche reçoit l'objet",
           "Le kart cherche la boîte la plus proche à chaque Tick",
-          "La table de tirage détecte le kart",
           "Overlap de la boîte, TryGiveRandomItem sur la poche, tirage dans la table, roulette, FinishRoulette, OnItemChanged",
+          "La table de tirage détecte le kart",
         ],
-        bonne: 3,
-        explication: "Tout part de l'overlap de la sphère. La poche tire tout de suite, attend la fin du timer, puis range l'objet et prévient les abonnés.",
+        bonne: 2,
+        explication:
+          "Tout part de l'overlap de la sphère. La poche tire tout de suite, attend la fin du timer, puis range l'objet et prévient les abonnés.",
+      },
+      {
+        type: "qcm",
+        enonce: "Le joueur appuie sur la touche avec un turbo en poche. Quel chemin suit l'appel ?",
+        choix: [
+          "OnUseItemPressed → StartBoost directement",
+          "OnUseItemPressed → ItemComponent->UseItem → CurrentItem->Activate(Kart) → Kart->ApplyBoost → StartBoost",
+          "La poche appelle StartBoost, puis Activate pour retirer une utilisation",
+          "Le Data Asset détecte l'appui et appelle ApplyBoost",
+        ],
+        bonne: 1,
+        explication:
+          "Le kart passe la main à la poche, la poche à l'objet, et l'objet revient au kart par sa porte d'entrée publique. Chaque classe ne fait que son travail.",
       },
       {
         type: "vrai-faux",
         enonce: "Un Data Asset existe une fois en mémoire et est partagé par tous ceux qui l'utilisent.",
         choix: ["Vrai", "Faux"],
         bonne: 0,
-        explication: "C'est pour ça qu'Activate est const et que le nombre d'utilisations restantes est rangé dans la poche de chaque kart.",
-      },
-      {
-        type: "qcm",
-        enonce: "Que contient AKartItemBox qui gère la rotation de la boîte ?",
-        choix: [
-          "Un Tick avec AddLocalRotation",
-          "Rien : la rotation vient de ARotatingObject, dont elle hérite",
-          "Un RotatingMovementComponent",
-          "Un timer qui la tourne toutes les secondes",
-        ],
-        bonne: 1,
-        explication: "La boîte hérite de Root, AnimatedRoot et du Tick qui anime. Elle n'écrit que sa propre logique.",
+        explication:
+          "C'est pour ça qu'Activate est const et que le nombre d'utilisations restantes est rangé dans la poche de chaque kart.",
       },
       {
         type: "code",
         enonce: "Pourquoi le compilateur refuse-t-il ce code ?",
         code: "bool UKartItemData_Boost::Activate(AKartPawn* Kart) const\n{\n\tUses = Uses - 1;\n\treturn true;\n}",
         choix: [
-          "Parce qu'une fonction const ne peut pas modifier les variables de l'objet",
           "Parce que Uses n'existe pas dans le turbo",
           "Parce qu'il manque override",
+          "Parce qu'une fonction const ne peut pas modifier les variables de l'objet",
           "Il ne refuse pas",
         ],
-        bonne: 0,
-        explication: "Activate est const : modifier Uses est interdit. C'est voulu, l'asset est partagé.",
+        bonne: 2,
+        explication:
+          "Activate est const : modifier Uses est interdit. C'est voulu, l'asset est partagé. Uses existe bien, hérité du parent.",
+      },
+      {
+        type: "code",
+        enonce: "Le kart reçoit DA_Item_TripleTurbo. Où le chiffre 3 est-il ensuite décompté à chaque utilisation ?",
+        code: "SetItem(PendingItem, PendingItem->Uses);",
+        choix: [
+          "Dans Uses, la variable du Data Asset",
+          "Dans UsesLeft, la variable de la poche de ce kart",
+          "Dans la table de tirage",
+          "Dans AKartPawn",
+        ],
+        bonne: 1,
+        explication:
+          "FinishRoulette copie Uses dans la poche. Ensuite seul UsesLeft baisse : l'asset, partagé par tous les karts, garde Uses = 3.",
+      },
+      {
+        type: "code",
+        enonce: "CurrentItem pointe vers DA_Item_Turbo. Quelle version d'Activate est exécutée ?",
+        code: "if (!CurrentItem->Activate(Kart))\n{\n\treturn;\n}",
+        choix: [
+          "UKartItemData::Activate, qui renvoie false, puisque CurrentItem est un UKartItemData*",
+          "Aucune, il faut d'abord un Cast vers UKartItemData_Boost",
+          "AKartPawn::ApplyBoost directement",
+          "UKartItemData_Boost::Activate, grâce au polymorphisme",
+        ],
+        bonne: 3,
+        explication:
+          "Activate est virtual et le turbo la redéfinit avec override : c'est la version de l'objet réel qui s'exécute, même à travers un pointeur vers le parent.",
+      },
+      {
+        type: "qcm",
+        enonce: "Que contient AKartItemBox qui gère la rotation de la boîte ?",
+        choix: [
+          "Un Tick avec AddLocalRotation",
+          "Un RotatingMovementComponent",
+          "Un timer qui la tourne toutes les secondes",
+          "Rien : la rotation vient de ARotatingObject, dont elle hérite",
+        ],
+        bonne: 3,
+        explication:
+          "La boîte hérite de Root, AnimatedRoot et du Tick qui anime. Elle n'écrit que sa propre logique.",
+      },
+      {
+        type: "vrai-faux",
+        enonce: "Quand la boîte est prise, son cube s'arrête de tourner grâce à une fonction écrite dans AKartItemBox.",
+        choix: ["Vrai", "Faux"],
+        bonne: 1,
+        explication:
+          "SetBoxActive appelle SetAnimationEnabled(false), une fonction de ARotatingObject. Le Tick du parent voit bAnimate faux et sort tout de suite.",
+      },
+      {
+        type: "code",
+        enonce: "Un projectile sans poche à objets traverse la boîte. Que se passe-t-il ?",
+        code: "UKartItemComponent* ItemComponent = OtherActor != nullptr ? OtherActor->FindComponentByClass<UKartItemComponent>() : nullptr;\nif (ItemComponent == nullptr)\n{\n\treturn;\n}",
+        choix: [
+          "La boîte casse et le projectile reçoit un objet",
+          "Rien : FindComponentByClass renvoie nullptr, la fonction sort et la boîte reste en place",
+          "Le jeu plante, car le projectile n'est pas un kart",
+          "La boîte casse sans rien donner",
+        ],
+        bonne: 1,
+        explication:
+          "La boîte ne cherche pas un kart mais une poche. Sans UKartItemComponent, on sort avant de cacher la boîte.",
       },
       {
         type: "qcm",
         enonce: "Table : turbo (poids 2), triple turbo (poids 2), piège (poids 4). Quelle est la chance d'obtenir un turbo, simple ou triple ?",
-        choix: ["25 %", "33 %", "50 %", "75 %"],
+        choix: [
+          "25 %",
+          "33 %",
+          "50 %",
+          "75 %",
+        ],
         bonne: 2,
-        explication: "Total 8. Turbo 2 + triple turbo 2 = 4 parts sur 8, soit 50 %.",
+        explication:
+          "Total 8. Turbo 2 + triple turbo 2 = 4 parts sur 8, soit 50 %.",
+      },
+      {
+        type: "qcm",
+        enonce: "Pourquoi le résultat du tirage est-il rangé dans PendingItem pendant la roulette, et pas directement dans CurrentItem ?",
+        choix: [
+          "Pour que le joueur ne puisse pas utiliser l'objet avant la fin de la roulette, et que le HUD ne le montre qu'à ce moment",
+          "Parce que CurrentItem ne peut pas contenir un objet tiré au hasard",
+          "Pour pouvoir retirer un autre objet à la fin si le premier ne plaît pas",
+          "Parce que PickRandomItem ne peut écrire que dans PendingItem",
+        ],
+        bonne: 0,
+        explication:
+          "L'objet est choisi tout de suite mais n'arrive en poche qu'à FinishRoulette, via SetItem qui envoie OnItemChanged. Pendant ce temps HasItem() est faux et bRouletteRunning bloque la touche.",
       },
       {
         type: "qcm",
         enonce: "Quel est l'avantage de ranger les objets dans un composant plutôt que dans AKartPawn ?",
         choix: [
           "Le jeu tourne plus vite",
-          "Le kart reste lisible, et n'importe quel acteur avec le composant peut ramasser et utiliser des objets",
           "Les composants sont obligatoires pour utiliser des Data Assets",
+          "Le kart reste lisible, et n'importe quel acteur avec le composant peut ramasser et utiliser des objets",
           "Le composant est visible dans le niveau",
         ],
-        bonne: 1,
-        explication: "La boîte cherche le composant, pas le kart. La logique des objets est à un seul endroit.",
+        bonne: 2,
+        explication:
+          "La boîte cherche le composant, pas le kart. La logique des objets est à un seul endroit.",
       },
       {
         type: "vrai-faux",
         enonce: "Pour créer un triple turbo, on duplique DA_Item_Turbo et on met Uses à 3.",
         choix: ["Vrai", "Faux"],
         bonne: 0,
-        explication: "FinishRoulette donne à la poche le nombre d'utilisations lu dans l'asset. Aucune ligne de code en plus.",
+        explication:
+          "FinishRoulette donne à la poche le nombre d'utilisations lu dans l'asset. Aucune ligne de code en plus.",
       },
       {
         type: "qcm",
@@ -520,11 +1059,12 @@ export const objetsBonus: Module = {
         choix: [
           "La boîte tourne comme une toupie à 90 degrés par seconde",
           "La boîte se déplace de 30, 90 et 45 cm par seconde",
-          "Rien, il faut un FVector",
           "La boîte culbute dans tous les sens, en tournant autour de ses propres axes",
+          "Rien, il faut un FVector",
         ],
-        bonne: 3,
-        explication: "Les trois axes tournent en même temps, autour des axes de l'objet lui-même : il culbute.",
+        bonne: 2,
+        explication:
+          "Les trois axes tournent en même temps, autour des axes de l'objet lui-même : il culbute.",
       },
     ],
   },

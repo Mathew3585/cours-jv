@@ -41,7 +41,7 @@ On pourrait écrire un Data Asset pour le piège et un autre pour le projectile.
     On ne garde que le Yaw du kart, la direction vers laquelle il regarde. Dans une montée, le kart est penché : un projectile qui copierait ce Pitch partirait vers le ciel.
   </Etape>
   <Etape lignes="20-24" titre="Les options de création">
-    `Owner` : l'acteur créé saura quel kart l'a lancé. Le piège s'en servira pour ne pas toucher son lanceur tout de suite. `AlwaysSpawn` : on crée l'acteur même s'il touche déjà quelque chose (un mur, le kart). Sinon Unreal pourrait le déplacer ou refuser de le créer, et l'objet serait gaspillé.
+    `Owner` : l'acteur créé saura quel kart l'a lancé. Le piège s'en servira pour ne pas toucher son lanceur tout de suite. `AlwaysSpawn` : on crée l'acteur même s'il touche déjà quelque chose (un mur, le kart). Sinon Unreal pourrait le déplacer, ou refuser de le créer : `SpawnActor` renverrait alors `nullptr`, `Activate` renverrait `false` (ligne 27) et le joueur garderait son objet sans que rien ne se passe à l'écran.
   </Etape>
   <Etape lignes="26-28" titre="SpawnActor">
     <Terme id="spawnactor">SpawnActor</Terme> crée l'acteur dans le monde. Elle renvoie `nullptr` si la création échoue : dans ce cas, `Activate` renvoie `false` et l'objet n'est pas consommé.
