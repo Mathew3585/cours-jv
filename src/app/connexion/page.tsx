@@ -17,11 +17,8 @@ export default async function ConnexionPage() {
         <Logo taille="lg" />
         <Apparition className="relative flex max-w-[520px] flex-col gap-5">
           <h1 className="font-display text-[44px] leading-[1.02] font-extrabold tracking-tight md:text-[60px]">
-            Reprends là où tu t&apos;étais arrêté.
+            Cours code
           </h1>
-          <p className="text-lg leading-relaxed text-encre-2">
-            Tes cours de jeu vidéo, ton code expliqué ligne par ligne, et ta progression sauvegardée. En classe ou chez toi.
-          </p>
           <div className="flex flex-wrap gap-2">
             {["JV1", "JV2", "JV3"].map((n) => (
               <span key={n} className="rounded-full border border-ligne-2 bg-white px-3.5 py-1.5 text-sm font-semibold">

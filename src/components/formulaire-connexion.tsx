@@ -77,9 +77,6 @@ export function FormulaireConnexion() {
         <button type="submit" className="btn btn-pri min-h-[50px] text-base" disabled={envoiEnCours}>
           {envoiEnCours ? "Envoi du code…" : "Recevoir mon code"}
         </button>
-        <p className="rounded-2xl border border-ligne bg-white px-4 py-3.5 text-sm leading-normal text-encre-2">
-          Pas de mot de passe à retenir. Si ton adresse n&apos;est pas reconnue, demande à ton prof de t&apos;ajouter.
-        </p>
         <button type="button" onClick={() => setModeProf(true)} className="cursor-pointer self-center text-sm font-semibold text-orange-fonce underline">
           Je suis prof
         </button>
