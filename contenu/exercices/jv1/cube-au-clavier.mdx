@@ -1,0 +1,140 @@
+## Le contexte
+
+Avant d'avoir un vrai personnage, il faut savoir faire bouger quelque chose au clavier. Ici, un simple cube qui se déplace sur le sol avec les touches ZQSD (ou les flèches). C'est la base de presque tous les contrôles de jeu.
+
+Tu vas utiliser le nouvel **Input System**, le système d'entrées par défaut dans Unity 6.
+
+## Ce que tu dois faire
+
+1. Crée un sol : **GameObject › 3D Object › Plane**. Laisse-le en position 0, 0, 0.
+2. Crée un cube (**GameObject › 3D Object › Cube**), renomme-le `Joueur` et place-le à la position 0, 0.5, 0 pour qu'il soit posé sur le sol.
+3. Crée un script `DeplacementCube`, colle le code de départ, puis glisse-le sur le `Joueur`.
+4. Remplis les `// TODO` dans `Update`.
+5. Lance le jeu et clique une fois dans la vue **Game** pour qu'elle reçoive le clavier.
+
+<Encadre type="info" titre="Ancien système d'entrées">
+Si ton projet utilise encore l'ancien **Input Manager** (réglage **Edit › Project Settings › Player › Active Input Handling**), la ligne `using UnityEngine.InputSystem;` ne compile pas. L'équivalent avec l'ancien système :
+
+- `Keyboard.current.spaceKey.isPressed` devient `Input.GetKey(KeyCode.Space)`
+- `Keyboard.current.spaceKey.wasPressedThisFrame` devient `Input.GetKeyDown(KeyCode.Space)`
+- `Mouse.current.leftButton.wasPressedThisFrame` devient `Input.GetMouseButtonDown(0)`
+
+Dans les exercices, on utilise toujours le nouveau système.
+</Encadre>
+
+<Encadre type="piege" titre="Clavier AZERTY">
+Le nouvel Input System repère les touches par leur **place** sur un clavier américain (QWERTY), pas par la lettre écrite dessus. Sur ton clavier AZERTY, `wKey` est donc la touche **Z** et `aKey` est la touche **Q**. C'est pratique : `wKey`, `aKey`, `sKey`, `dKey` donnent directement ZQSD chez toi.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="DeplacementCube.cs">
+```cs
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class DeplacementCube : MonoBehaviour
+{
+    // Vitesse en mètres par seconde
+    [SerializeField] private float vitesse = 5f;
+
+    private void Update()
+    {
+        Vector3 direction = Vector3.zero;
+
+        // Avancer : Z sur AZERTY (wKey) ou flèche du haut
+        if (Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed)
+        {
+            direction.z += 1f;
+        }
+
+        // TODO 1 : reculer avec S (sKey) ou la flèche du bas
+
+        // TODO 2 : aller à gauche avec Q (aKey) ou la flèche de gauche,
+        //          et à droite avec D (dKey) ou la flèche de droite
+
+        // TODO 3 : déplacer le cube dans cette direction, à "vitesse" mètres par seconde
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Le cube avance avec Z, recule avec S, va à gauche avec Q et à droite avec D.
+- [ ] Les flèches du clavier marchent aussi.
+- [ ] Le cube s'arrête dès que tu lâches les touches.
+- [ ] En diagonale (Z + D en même temps), il ne va pas plus vite qu'en ligne droite.
+- [ ] Changer `vitesse` dans l'Inspector pendant que le jeu tourne change la vitesse du cube.
+
+## Si tu bloques
+
+<Indice titre="Les directions">
+Dans Unity, l'axe X va vers la droite, l'axe Z vers l'avant et l'axe Y vers le haut. Reculer, c'est retirer 1 sur Z. Aller à gauche, c'est retirer 1 sur X.
+</Indice>
+
+<Indice titre="Déplacer le cube">
+`transform.Translate(deplacement)` ajoute un déplacement à la position de l'objet. Le déplacement d'une image, c'est la direction multipliée par la vitesse et par `Time.deltaTime`.
+</Indice>
+
+<Indice titre="Le problème de la diagonale">
+Avec Z et D en même temps, `direction` vaut (1, 0, 1). Sa longueur est d'environ 1,41 : le cube va 41 % plus vite ! `direction.normalized` donne la même direction mais avec une longueur de 1.
+</Indice>
+
+<Solution>
+
+<Fichier nom="DeplacementCube.cs">
+```cs
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class DeplacementCube : MonoBehaviour
+{
+    [SerializeField] private float vitesse = 5f;
+
+    private void Update()
+    {
+        Vector3 direction = Vector3.zero;
+
+        if (Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed)
+        {
+            direction.z += 1f;
+        }
+
+        if (Keyboard.current.sKey.isPressed || Keyboard.current.downArrowKey.isPressed)
+        {
+            direction.z -= 1f;
+        }
+
+        if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed)
+        {
+            direction.x -= 1f;
+        }
+
+        if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed)
+        {
+            direction.x += 1f;
+        }
+
+        Vector3 deplacement = direction.normalized * vitesse * Time.deltaTime;
+        transform.Translate(deplacement, Space.World);
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** à chaque image, on repart d'une direction nulle et on ajoute une composante pour chaque touche enfoncée. Si tu appuies sur Z et S en même temps, les deux s'annulent et le cube ne bouge pas. `normalized` ramène la direction à une longueur de 1 pour que la diagonale ne soit pas plus rapide. Enfin, `vitesse * Time.deltaTime` donne la distance à parcourir pendant cette image.
+
+`Space.World` indique que la direction est exprimée dans le repère du monde. Sans lui, si le cube était tourné, « avancer » suivrait son propre avant.
+
+<Encadre type="info">
+`isPressed` est vrai **tant que** la touche est enfoncée. Pour une action qui ne doit se faire qu'une fois (sauter, tirer), on utilise plutôt `wasPressedThisFrame`, qui n'est vrai que pendant l'image où la touche vient d'être enfoncée.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute un sprint : quand **Shift gauche** (`leftShiftKey`) est enfoncé, la vitesse est doublée.
+- Empêche le cube de sortir du sol avec `Mathf.Clamp` sur sa position X et Z.
+- Fais tourner le cube pour qu'il regarde dans la direction où il va, avec `transform.forward = direction` (seulement si la direction n'est pas nulle).

@@ -1,0 +1,345 @@
+## Le contexte
+
+Le joueur, les ennemis, une caisse destructible, un tonneau explosif : tout ce qui peut prendre des dégâts a besoin de points de vie. Plutôt que de recopier le même code dans chaque classe, on écrit **un seul composant** qu'on ajoute à n'importe quel acteur, exactement comme `KartItemComponent` est la poche du kart dans le module « Boîtes et objets bonus » de Mario Kart.
+
+Ce composant ne décide pas de ce qui se passe à la mort (un ennemi disparaît, le joueur réapparaît, une caisse lâche un objet). Il se contente de **prévenir** avec un délégué, et chaque acteur réagit comme il veut. Tu vas aussi utiliser le système de dégâts intégré à Unreal : `UGameplayStatics::ApplyDamage` d'un côté, l'événement `OnTakeAnyDamage` de l'autre.
+
+## Ce que tu dois faire
+
+Tu vas écrire deux classes :
+
+- `UComposantVie` : le composant qui gère la vie et prévient quand elle change ou tombe à zéro.
+- `AZoneDegats` : une flaque de lave qui inflige des dégâts toutes les demi-secondes à tout ce qui se tient dedans.
+
+1. Crée `UComposantVie` (New C++ Class › Actor Component) et `AZoneDegats` (Actor). Recopie les deux headers.
+2. Remplis les `// TODO` de `ComposantVie.cpp` : initialiser la vie, écouter les dégâts de l'acteur propriétaire, diffuser les deux délégués.
+3. Remplis les `// TODO` de `ZoneDegats.cpp` : tenir la liste des acteurs présents, et leur appliquer des dégâts avec un timer en boucle.
+4. Dans l'éditeur, ajoute le composant **Composant Vie** à ton personnage et à un Blueprint « mannequin » (un simple cube). Dans leurs Event Graphs, branche **On Vie Changee** sur un Print String, et **On Mort** sur un Print String (pour le joueur) ou un Destroy Actor (pour le mannequin).
+5. Pose une `AZoneDegats` dans le niveau, avec un plan rouge comme mesh, et marche dedans.
+
+<Encadre type="info" titre="Pourquoi pas une fonction Degats() à nous ?">
+On pourrait appeler directement `Vie->PrendreDegats(10)`. Mais avec `ApplyDamage`, la lave n'a même pas besoin de savoir que le composant existe : elle tape sur un acteur, et c'est l'acteur qui transmet. Elle pourra donc aussi blesser un acteur qui gère ses dégâts autrement.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="ComposantVie.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "ComposantVie.generated.h"
+
+class UDamageType;
+class AController;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnVieChangee, float, VieActuelle, float, VieMax);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMort, AActor*, Tueur);
+
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+class MONPROJET_API UComposantVie : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UComposantVie();
+
+	// Diffusé à chaque fois que la vie change (dégâts ou soin)
+	UPROPERTY(BlueprintAssignable, Category = "Vie")
+	FOnVieChangee OnVieChangee;
+
+	// Diffusé une seule fois, quand la vie tombe à zéro
+	UPROPERTY(BlueprintAssignable, Category = "Vie")
+	FOnMort OnMort;
+
+	UFUNCTION(BlueprintCallable, Category = "Vie")
+	void Soigner(float Montant);
+
+	UFUNCTION(BlueprintPure, Category = "Vie")
+	bool EstMort() const { return VieActuelle <= 0.f; }
+
+	UFUNCTION(BlueprintPure, Category = "Vie")
+	float GetVie() const { return VieActuelle; }
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Vie", meta = (ClampMin = "1"))
+	float VieMax = 100.f;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Vie")
+	float VieActuelle = 0.f;
+
+private:
+	// Même signature que l'événement OnTakeAnyDamage de AActor
+	UFUNCTION()
+	void RecevoirDegats(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
+		AController* InstigatedBy, AActor* DamageCauser);
+};
+```
+</Fichier>
+
+<Fichier nom="ComposantVie.cpp">
+```cpp
+#include "ComposantVie.h"
+#include "GameFramework/Actor.h"
+
+UComposantVie::UComposantVie()
+{
+	// Pas besoin de Tick : tout se passe sur événement
+	PrimaryComponentTick.bCanEverTick = false;
+}
+
+void UComposantVie::BeginPlay()
+{
+	Super::BeginPlay();
+	// TODO 1 : remplir la vie, puis brancher RecevoirDegats sur l'événement OnTakeAnyDamage du propriétaire
+}
+
+void UComposantVie::RecevoirDegats(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
+	AController* InstigatedBy, AActor* DamageCauser)
+{
+	// TODO 2 : ignorer les dégâts nuls ou si on est déjà mort
+	// TODO 3 : retirer la vie (sans descendre sous 0), prévenir avec OnVieChangee,
+	// et si la vie atteint 0, prévenir avec OnMort
+}
+
+void UComposantVie::Soigner(float Montant)
+{
+	// TODO 4 : un mort ne se soigne pas. Sinon, ajouter la vie (sans dépasser VieMax) et prévenir
+}
+```
+</Fichier>
+
+<Fichier nom="ZoneDegats.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "ZoneDegats.generated.h"
+
+class UBoxComponent;
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API AZoneDegats : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AZoneDegats();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, Category = "Degats")
+	TObjectPtr<UBoxComponent> Zone;
+
+	UPROPERTY(VisibleAnywhere, Category = "Degats")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	UPROPERTY(EditAnywhere, Category = "Degats")
+	float DegatsParTic = 10.f;
+
+	// Temps entre deux tics de dégâts, en secondes
+	UPROPERTY(EditAnywhere, Category = "Degats", meta = (ClampMin = "0.1"))
+	float Intervalle = 0.5f;
+
+private:
+	UFUNCTION()
+	void EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void SortieZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex);
+
+	void InfligerDegats();
+
+	// Les acteurs actuellement dans la zone
+	UPROPERTY()
+	TArray<TObjectPtr<AActor>> Victimes;
+
+	FTimerHandle TimerDegats;
+};
+```
+</Fichier>
+
+<Fichier nom="ZoneDegats.cpp">
+```cpp
+#include "ZoneDegats.h"
+#include "Components/BoxComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/DamageType.h"
+#include "TimerManager.h"
+
+AZoneDegats::AZoneDegats()
+{
+	Zone = CreateDefaultSubobject<UBoxComponent>(TEXT("Zone"));
+	RootComponent = Zone;
+	Zone->SetBoxExtent(FVector(200.f, 200.f, 50.f));
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	Mesh->SetupAttachment(Zone);
+	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void AZoneDegats::BeginPlay()
+{
+	Super::BeginPlay();
+	Zone->OnComponentBeginOverlap.AddDynamic(this, &AZoneDegats::EntreeZone);
+	Zone->OnComponentEndOverlap.AddDynamic(this, &AZoneDegats::SortieZone);
+	// TODO 5 : lancer un timer en boucle qui appelle InfligerDegats toutes les Intervalle secondes
+}
+
+void AZoneDegats::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	// TODO 6 : ajouter l'acteur à la liste (une seule fois, même s'il a plusieurs composants)
+}
+
+void AZoneDegats::SortieZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex)
+{
+	// TODO 6 (suite) : le retirer de la liste
+}
+
+void AZoneDegats::InfligerDegats()
+{
+	// TODO 7 : appliquer DegatsParTic à chaque victime avec UGameplayStatics::ApplyDamage
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] En marchant dans la lave, le Print String de ton personnage affiche 90, 80, 70… deux fois par seconde.
+- [ ] En sortant de la lave, les dégâts s'arrêtent.
+- [ ] Le mannequin posé dans la lave disparaît quand sa vie arrive à 0, et l'éditeur ne plante pas à ce moment-là.
+- [ ] **On Mort** n'est diffusé qu'une seule fois, même si l'acteur reste dans la lave.
+- [ ] Changer **Vie Max** sur le mannequin (par exemple 30) le fait mourir plus vite que le joueur.
+- [ ] Appeler **Soigner** depuis un Blueprint (une touche de test suffit) fait remonter la vie, jamais au-dessus de **Vie Max**.
+
+## Si tu bloques
+
+<Indice titre="Écouter les dégâts du propriétaire">
+Le composant appartient à un acteur : `GetOwner()`. Tout `AActor` a un délégué `OnTakeAnyDamage`, diffusé chaque fois que quelqu'un lui applique des dégâts. Branche-le avec `AddDynamic`, comme tu branches un overlap. La signature de `RecevoirDegats` est déjà la bonne.
+</Indice>
+
+<Indice titre="Diffuser un délégué">
+Un délégué se déclenche avec `Broadcast(...)`, en lui passant les valeurs annoncées dans le `DECLARE_DYNAMIC_MULTICAST_DELEGATE`. Pour `OnVieChangee`, c'est la vie actuelle et la vie max. Pour `OnMort`, c'est l'acteur responsable : `DamageCauser` convient très bien. Pour garder la vie entre 0 et `VieMax`, utilise `FMath::Clamp`.
+</Indice>
+
+<Indice titre="La liste des victimes">
+`Victimes.AddUnique(OtherActor)` ajoute seulement si l'acteur n'y est pas encore. `Victimes.Remove(OtherActor)` l'enlève. Dans `InfligerDegats`, les paramètres d'`ApplyDamage` sont : la victime, les dégâts, le controller responsable (`nullptr` ici), l'acteur responsable (`this`) et le type de dégâts (`UDamageType::StaticClass()`).
+</Indice>
+
+<Indice titre="Le plantage à la mort du mannequin">
+Quand le mannequin meurt pendant `InfligerDegats`, il est détruit, donc il sort de la zone, donc `SortieZone` le retire de `Victimes`... pendant que ta boucle `for` parcourt ce même tableau. Unreal n'aime pas du tout qu'on modifie un tableau pendant qu'on le parcourt. Parcours plutôt une **copie**.
+</Indice>
+
+<Solution>
+
+<Fichier nom="ComposantVie.cpp">
+```cpp
+void UComposantVie::BeginPlay()
+{
+	Super::BeginPlay();
+
+	VieActuelle = VieMax;
+	if (AActor* Proprietaire = GetOwner())
+	{
+		Proprietaire->OnTakeAnyDamage.AddDynamic(this, &UComposantVie::RecevoirDegats);
+	}
+}
+
+void UComposantVie::RecevoirDegats(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
+	AController* InstigatedBy, AActor* DamageCauser)
+{
+	if (Damage <= 0.f || EstMort())
+	{
+		return;
+	}
+
+	VieActuelle = FMath::Clamp(VieActuelle - Damage, 0.f, VieMax);
+	OnVieChangee.Broadcast(VieActuelle, VieMax);
+
+	if (EstMort())
+	{
+		OnMort.Broadcast(DamageCauser);
+	}
+}
+
+void UComposantVie::Soigner(float Montant)
+{
+	if (Montant <= 0.f || EstMort())
+	{
+		return;
+	}
+
+	VieActuelle = FMath::Clamp(VieActuelle + Montant, 0.f, VieMax);
+	OnVieChangee.Broadcast(VieActuelle, VieMax);
+}
+```
+</Fichier>
+
+<Fichier nom="ZoneDegats.cpp">
+```cpp
+void AZoneDegats::BeginPlay()
+{
+	Super::BeginPlay();
+	Zone->OnComponentBeginOverlap.AddDynamic(this, &AZoneDegats::EntreeZone);
+	Zone->OnComponentEndOverlap.AddDynamic(this, &AZoneDegats::SortieZone);
+	GetWorldTimerManager().SetTimer(TimerDegats, this, &AZoneDegats::InfligerDegats, Intervalle, true);
+}
+
+void AZoneDegats::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (OtherActor && OtherActor != this)
+	{
+		Victimes.AddUnique(OtherActor);
+	}
+}
+
+void AZoneDegats::SortieZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex)
+{
+	Victimes.Remove(OtherActor);
+}
+
+void AZoneDegats::InfligerDegats()
+{
+	// Une copie : ApplyDamage peut tuer et détruire une victime, ce qui modifie Victimes
+	const TArray<TObjectPtr<AActor>> Copie = Victimes;
+	for (AActor* Victime : Copie)
+	{
+		if (IsValid(Victime))
+		{
+			UGameplayStatics::ApplyDamage(Victime, DegatsParTic, nullptr, this, UDamageType::StaticClass());
+		}
+	}
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** la lave et le composant ne se connaissent pas. La lave appelle `ApplyDamage` sur un acteur. Unreal appelle alors `TakeDamage` sur cet acteur, qui diffuse `OnTakeAnyDamage`. Le composant, branché sur ce délégué depuis son `BeginPlay`, retire la vie et diffuse à son tour ses propres délégués, que le Blueprint écoute. Le test `EstMort()` au début de `RecevoirDegats` garantit que `OnMort` n'est diffusé qu'une fois. Enfin, `IsValid` et la copie du tableau protègent contre les victimes détruites en cours de route.
+
+<Encadre type="retenir">
+Un composant qui **prévient** avec un délégué au lieu d'**agir** lui-même est réutilisable partout. C'est le même principe que le GameMode de Mario Kart, qui annonce le départ sans toucher aux karts.
+</Encadre>
+
+<Encadre type="piege">
+Si `OnTakeAnyDamage` n'est jamais diffusé, vérifie que la case **Can be Damaged** de l'acteur est cochée (elle l'est par défaut). Une fois décochée, `ApplyDamage` ne fait plus rien sur cet acteur.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Affiche la vie du joueur dans une barre de progression UMG, branchée sur `OnVieChangee`, comme le HUD de Mario Kart écoute le GameMode.
+- Ajoute une courte invincibilité après chaque coup (un timer qui remet un booléen à `false`).
+- Crée un `UDamageType` enfant `UDegatsFeu`, et fais que le composant ignore les dégâts de feu si une case `bResisteAuFeu` est cochée.

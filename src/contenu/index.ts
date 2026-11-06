@@ -1,9 +1,45 @@
 import { marioKart } from "../../contenu/projets/mario-kart/projet";
 import { dico } from "../../contenu/dico";
-import type { Lecon, Module, Projet, QuestionLibre, Quiz } from "./types";
+import { exercicesJV1 } from "../../contenu/exercices/jv1";
+import { exercicesJV2 } from "../../contenu/exercices/jv2";
+import { exercicesJV3 } from "../../contenu/exercices/jv3";
+import type { Difficulte, Exercice, Lecon, Module, Niveau, Projet, QuestionLibre, Quiz } from "./types";
 
 export const projets: Projet[] = [marioKart];
 export { dico };
+
+export const niveaux: { niveau: Niveau; techno: string }[] = [
+  { niveau: "JV1", techno: "Unity · C#" },
+  { niveau: "JV2", techno: "Unreal Engine 5 · Blueprints" },
+  { niveau: "JV3", techno: "Unreal Engine 5 · C++" },
+];
+
+export const difficultes: { id: Difficulte; label: string; ton: "vert" | "ambre" | "orange" | "rouge" }[] = [
+  { id: "facile", label: "Facile", ton: "vert" },
+  { id: "moyen", label: "Moyen", ton: "ambre" },
+  { id: "difficile", label: "Difficile", ton: "orange" },
+  { id: "expert", label: "Expert", ton: "rouge" },
+];
+
+const ordreDifficulte = (d: Difficulte) => difficultes.findIndex((x) => x.id === d);
+
+/** Tous les exercices bonus, triés par niveau puis par difficulté (l'ordre des fichiers est gardé dans une difficulté). */
+export const exercices: Exercice[] = [...exercicesJV1, ...exercicesJV2, ...exercicesJV3]
+  .map((e, i) => ({ e, i }))
+  .sort((a, b) => a.e.niveau.localeCompare(b.e.niveau) || ordreDifficulte(a.e.difficulte) - ordreDifficulte(b.e.difficulte) || a.i - b.i)
+  .map(({ e }) => e);
+
+export function idExercice(e: Pick<Exercice, "niveau" | "slug">) {
+  return `${e.niveau.toLowerCase()}/${e.slug}`;
+}
+
+export function exercicesDuNiveau(niveau: Niveau) {
+  return exercices.filter((e) => e.niveau === niveau);
+}
+
+export function trouverExercice(id: string) {
+  return exercices.find((e) => idExercice(e) === id);
+}
 
 export function idLecon(projet: string, module: string, lecon: string) {
   return `${projet}/${module}/${lecon}`;

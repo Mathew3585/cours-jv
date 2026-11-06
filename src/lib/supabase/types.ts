@@ -58,6 +58,8 @@ export type DefiRendu = {
   created_at: string;
 };
 
+export type ExerciceFait = { eleve_id: string; exercice_id: string; fait_le: string };
+
 export type Message = {
   id: number;
   eleve_id: string;
@@ -80,6 +82,7 @@ export type Database = {
       reponses_libres: Table<ReponseLibre, "eleve_id" | "question_id" | "reponse">;
       defis_rendus: Table<DefiRendu, "eleve_id" | "defi_id">;
       messages: Table<Message, "eleve_id" | "texte">;
+      exercices_faits: Table<ExerciceFait, "eleve_id" | "exercice_id">;
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };

@@ -248,3 +248,59 @@ input:-webkit-autofill {
     @apply font-display text-[22px] font-bold;
   }
 }
+
+/* Exercices bonus : page qui défile, indices et solution dépliables */
+.prose-exercice {
+  counter-reset: indice;
+}
+.prose-exercice > :is(.bloc-code, details, aside, table) {
+  max-width: 84ch;
+}
+.prose-exercice > h2 + * {
+  margin-top: 0.75rem;
+}
+.prose-exercice .depliable-contenu > * + * {
+  margin-top: 0.85rem;
+}
+.prose-exercice .depliable-contenu h3 {
+  margin-top: 1.5rem;
+}
+.prose-exercice .indice {
+  counter-increment: indice;
+}
+.prose-exercice .indice + .indice {
+  margin-top: 0.6rem;
+}
+.prose-exercice .indice-numero::before {
+  content: "Indice " counter(indice);
+}
+.depliable > summary {
+  list-style: none;
+}
+.depliable > summary::-webkit-details-marker {
+  display: none;
+}
+.depliable[open] > summary .chevron {
+  transform: rotate(180deg);
+}
+.prose-exercice .contains-task-list {
+  list-style: none;
+  padding-left: 0.2rem;
+}
+.prose-exercice .task-list-item input {
+  margin-right: 0.6rem;
+  accent-color: var(--color-vert);
+  transform: translateY(1px);
+}
+.prose-exercice table {
+  border-collapse: collapse;
+  font-size: 15px;
+}
+.prose-exercice :is(th, td) {
+  border: 1px solid var(--color-ligne);
+  padding: 0.45rem 0.8rem;
+  text-align: left;
+}
+.prose-exercice th {
+  background: var(--color-creme-2);
+}

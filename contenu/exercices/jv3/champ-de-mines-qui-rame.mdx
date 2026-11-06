@@ -1,0 +1,476 @@
+## Le contexte
+
+Un champ de 400 mines. Chaque mine clignote de plus en plus vite quand le joueur approche, explose s'il marche dessus, et déclenche ses voisines en réaction en chaîne. Le game designer adore. Le problème : avec le champ de mines dans le niveau, le jeu tombe à 10 images par seconde, même quand le joueur est à l'autre bout de la carte.
+
+Le code fonctionne, il n'y a aucun crash. Il est juste **beaucoup trop lent**. Ton travail : mesurer, trouver ce qui coûte cher, et le corriger sans rien changer à ce que voit le joueur. C'est un vrai travail de programmeur gameplay en fin de production.
+
+## Ce que tu dois faire
+
+**Ce que tu observes :** avec le champ de mines, les FPS s'écroulent. Plus on met de mines, pire c'est : avec 200 mines ça rame, avec 400 c'est injouable. Et plus la partie dure, plus le jeu ralentit, même sans bouger.
+
+**Ce qui est attendu :** le même comportement visible (clignotement, explosion, réaction en chaîne), mais un temps de calcul du Game thread presque identique avec ou sans champ de mines quand le joueur est loin, et toujours fluide quand il est au milieu.
+
+Il y a **5 problèmes de performance** dans `Mine.cpp`. Le spawner `AChampDeMines` est correct, tu n'as pas à le modifier.
+
+Méthode imposée :
+
+1. **Mesure d'abord.** Lance le jeu, ouvre la console (touche ²) et tape `stat unit`. Note le temps **Game** (le code gameplay) avec et sans champ de mines (`NbParCote` à 0). Tape aussi `stat game` et regarde la ligne du temps de Tick.
+2. Repère les problèmes un par un dans le code. Pour chacun, note pourquoi il coûte cher.
+3. Corrige, puis **mesure à nouveau** après chaque correction. Note les chiffres.
+
+<Encadre type="info" titre="Le matériau de la mine">
+Crée un matériau avec un paramètre scalaire nommé `Intensite`, multiplié par une couleur rouge et branché dans **Emissive Color**. Mets-le sur le mesh du Blueprint enfant de `AMine`.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="ChampDeMines.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "ChampDeMines.generated.h"
+
+class AMine;
+
+UCLASS()
+class MONPROJET_API AChampDeMines : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AChampDeMines();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(EditAnywhere, Category = "Champ")
+	TSubclassOf<AMine> ClasseMine;
+
+	UPROPERTY(EditAnywhere, Category = "Champ", meta = (ClampMin = "0"))
+	int32 NbParCote = 20;
+
+	UPROPERTY(EditAnywhere, Category = "Champ")
+	float Espacement = 300.f;
+};
+```
+</Fichier>
+
+<Fichier nom="ChampDeMines.cpp">
+```cpp
+#include "ChampDeMines.h"
+#include "Mine.h"
+#include "Engine/World.h"
+
+AChampDeMines::AChampDeMines()
+{
+	PrimaryActorTick.bCanEverTick = false;
+	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Racine"));
+}
+
+void AChampDeMines::BeginPlay()
+{
+	Super::BeginPlay();
+	if (!ClasseMine)
+	{
+		return;
+	}
+
+	for (int32 X = 0; X < NbParCote; ++X)
+	{
+		for (int32 Y = 0; Y < NbParCote; ++Y)
+		{
+			const FVector Position = GetActorLocation() + FVector(X * Espacement, Y * Espacement, 0.f);
+			GetWorld()->SpawnActor<AMine>(ClasseMine, Position, FRotator::ZeroRotator);
+		}
+	}
+}
+```
+</Fichier>
+
+<Fichier nom="Mine.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Mine.generated.h"
+
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API AMine : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AMine();
+	virtual void Tick(float DeltaTime) override;
+
+	void Exploser();
+
+protected:
+	UPROPERTY(VisibleAnywhere, Category = "Mine")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	// En dessous de cette distance, la mine clignote
+	UPROPERTY(EditAnywhere, Category = "Mine")
+	float RayonAlerte = 600.f;
+
+	// En dessous de cette distance, elle explose
+	UPROPERTY(EditAnywhere, Category = "Mine")
+	float RayonDeclenchement = 80.f;
+
+	// Les mines à cette distance sautent aussi
+	UPROPERTY(EditAnywhere, Category = "Mine")
+	float RayonChaine = 350.f;
+
+	UPROPERTY(EditAnywhere, Category = "Mine")
+	float Degats = 50.f;
+
+private:
+	UPROPERTY()
+	TArray<TObjectPtr<AMine>> Voisines;
+
+	float Temps = 0.f;
+	bool bExplosee = false;
+	FTimerHandle TimerChaine;
+};
+```
+</Fichier>
+
+<Fichier nom="Mine.cpp">
+```cpp
+#include "Mine.h"
+#include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "GameFramework/Character.h"
+#include "Kismet/GameplayStatics.h"
+#include "DrawDebugHelpers.h"
+#include "TimerManager.h"
+
+AMine::AMine()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	Mesh->SetCollisionProfileName(TEXT("NoCollision"));
+	RootComponent = Mesh;
+}
+
+void AMine::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// Trouver le joueur
+	TArray<AActor*> Personnages;
+	UGameplayStatics::GetAllActorsOfClass(this, ACharacter::StaticClass(), Personnages);
+	if (Personnages.Num() == 0)
+	{
+		return;
+	}
+	AActor* Joueur = Personnages[0];
+
+	const float Distance = FVector::Dist(Joueur->GetActorLocation(), GetActorLocation());
+	UE_LOG(LogTemp, Log, TEXT("%s : joueur à %.0f cm"), *GetName(), Distance);
+
+	// Clignote de plus en plus vite quand le joueur approche
+	Temps += DeltaTime;
+	const float Frequence = FMath::GetMappedRangeValueClamped(
+		FVector2f(RayonAlerte, RayonDeclenchement), FVector2f(2.f, 15.f), Distance);
+	const float Intensite = Distance < RayonAlerte ? (FMath::Sin(Temps * Frequence) * 0.5f + 0.5f) * 20.f : 0.f;
+
+	UMaterialInstanceDynamic* Materiau = UMaterialInstanceDynamic::Create(Mesh->GetMaterial(0), this);
+	Materiau->SetScalarParameterValue(TEXT("Intensite"), Intensite);
+	Mesh->SetMaterial(0, Materiau);
+
+	// Préparer la liste des voisines pour la réaction en chaîne
+	Voisines.Reset();
+	TArray<AActor*> ToutesLesMines;
+	UGameplayStatics::GetAllActorsOfClass(this, AMine::StaticClass(), ToutesLesMines);
+	for (AActor* Autre : ToutesLesMines)
+	{
+		if (Autre != this && FVector::Dist(Autre->GetActorLocation(), GetActorLocation()) < RayonChaine)
+		{
+			Voisines.Add(Cast<AMine>(Autre));
+		}
+	}
+
+	if (Distance < RayonDeclenchement)
+	{
+		Exploser();
+	}
+}
+
+void AMine::Exploser()
+{
+	if (bExplosee)
+	{
+		return;
+	}
+	bExplosee = true;
+
+	DrawDebugSphere(GetWorld(), GetActorLocation(), RayonChaine, 16, FColor::Orange, false, 1.f);
+	UGameplayStatics::ApplyRadialDamage(this, Degats, GetActorLocation(), RayonChaine, nullptr, TArray<AActor*>(), this);
+
+	// Réaction en chaîne : chaque voisine saute un peu plus tard
+	for (AMine* Voisine : Voisines)
+	{
+		if (IsValid(Voisine) && !Voisine->bExplosee)
+		{
+			Voisine->GetWorldTimerManager().SetTimer(Voisine->TimerChaine, Voisine, &AMine::Exploser, 0.15f, false);
+		}
+	}
+
+	Destroy();
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Le joueur loin du champ : le temps Game de `stat unit` est presque le même qu'avec `NbParCote` à 0.
+- [ ] Le joueur au milieu du champ : le jeu reste fluide.
+- [ ] Le clignotement, l'explosion et la réaction en chaîne marchent exactement comme avant.
+- [ ] Après 5 minutes de jeu, les performances n'ont pas baissé. La commande `obj list class=MaterialInstanceDynamic` montre un nombre stable (environ un par mine).
+- [ ] L'Output Log ne se remplit plus de centaines de lignes par seconde.
+- [ ] Tu as noté, pour chacun des 5 problèmes, le temps Game avant et après sa correction.
+
+## Si tu bloques
+
+<Indice titre="Compter ce qui se passe à chaque image">
+Prends une feuille. Avec 400 mines, combien de fois `Tick` est-il appelé par image ? Dans chaque Tick, `GetAllActorsOfClass` parcourt **tous les acteurs du niveau**. Et la boucle des voisines parcourt les 400 mines. Multiplie : 400 × 400, c'est 160 000 calculs de distance à chaque image, juste pour une liste qui ne change presque jamais.
+</Indice>
+
+<Indice titre="Ce qui coûte cher sans en avoir l'air">
+Un `UE_LOG` écrit une ligne de texte dans un fichier et dans la console : 400 par image, c'est 24 000 lignes par seconde. Et `UMaterialInstanceDynamic::Create` crée un nouvel objet à chaque appel. Regarde bien quel matériau parent il reçoit au deuxième appel...
+</Indice>
+
+<Indice titre="Faire travailler la mine seulement quand il le faut">
+Une mine loin du joueur ne fait rien de visible. Elle n'a pas besoin de Tick. Une sphère de détection (`USphereComponent` de rayon `RayonAlerte`, en overlap avec les Pawns) peut prévenir la mine quand le joueur entre et sort. Il suffit alors d'activer ou de couper le Tick avec `SetActorTickEnabled`.
+</Indice>
+
+<Indice titre="Les voisines">
+La liste des voisines n'est utile qu'au moment où la mine explose, et les mines ne bougent pas. Calcule-la **dans** `Exploser` (c'est rare), ou une seule fois au début.
+</Indice>
+
+<Indice titre="Unreal Insights pour aller plus loin">
+`stat unit` dit **combien** de temps prend le Game thread, pas **où**. Pour voir chaque fonction, lance Unreal Insights (menu Tools › Run Unreal Insights), puis tape `trace.start` dans la console du jeu. Tu verras `AMine::Tick` occuper presque toute la frame.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Mine.h (corrigé)">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Mine.generated.h"
+
+class UStaticMeshComponent;
+class USphereComponent;
+class UMaterialInstanceDynamic;
+
+UCLASS()
+class MONPROJET_API AMine : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AMine();
+	virtual void Tick(float DeltaTime) override;
+
+	void Exploser();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, Category = "Mine")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	UPROPERTY(VisibleAnywhere, Category = "Mine")
+	TObjectPtr<USphereComponent> Detection;
+
+	UPROPERTY(EditAnywhere, Category = "Mine")
+	float RayonAlerte = 600.f;
+
+	UPROPERTY(EditAnywhere, Category = "Mine")
+	float RayonDeclenchement = 80.f;
+
+	UPROPERTY(EditAnywhere, Category = "Mine")
+	float RayonChaine = 350.f;
+
+	UPROPERTY(EditAnywhere, Category = "Mine")
+	float Degats = 50.f;
+
+private:
+	UFUNCTION()
+	void EntreeDetection(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void SortieDetection(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex);
+
+	// Le matériau dynamique, créé une seule fois
+	UPROPERTY()
+	TObjectPtr<UMaterialInstanceDynamic> Materiau;
+
+	// Le joueur qui est dans la zone d'alerte (faible : il peut être détruit)
+	TWeakObjectPtr<AActor> JoueurProche;
+
+	float Temps = 0.f;
+	bool bExplosee = false;
+	FTimerHandle TimerChaine;
+};
+```
+</Fichier>
+
+<Fichier nom="Mine.cpp (corrigé)">
+```cpp
+#include "Mine.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/SphereComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
+#include "EngineUtils.h"
+#include "DrawDebugHelpers.h"
+#include "TimerManager.h"
+
+AMine::AMine()
+{
+	PrimaryActorTick.bCanEverTick = true;
+	// Problème 5 : la mine ne tick pas tant que personne n'est proche
+	PrimaryActorTick.bStartWithTickEnabled = false;
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	Mesh->SetCollisionProfileName(TEXT("NoCollision"));
+	RootComponent = Mesh;
+
+	Detection = CreateDefaultSubobject<USphereComponent>(TEXT("Detection"));
+	Detection->SetupAttachment(Mesh);
+	Detection->SetCollisionProfileName(TEXT("OverlapOnlyPawn"));
+}
+
+void AMine::BeginPlay()
+{
+	Super::BeginPlay();
+
+	Detection->SetSphereRadius(RayonAlerte);
+	Detection->OnComponentBeginOverlap.AddDynamic(this, &AMine::EntreeDetection);
+	Detection->OnComponentEndOverlap.AddDynamic(this, &AMine::SortieDetection);
+
+	// Problème 3 : un seul matériau dynamique, créé une fois
+	Materiau = Mesh->CreateAndSetMaterialInstanceDynamic(0);
+}
+
+void AMine::EntreeDetection(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	// Problème 1 : le joueur est donné par l'overlap, plus besoin de le chercher
+	APawn* Pawn = Cast<APawn>(OtherActor);
+	if (Pawn && Pawn->IsPlayerControlled())
+	{
+		JoueurProche = Pawn;
+		SetActorTickEnabled(true);
+	}
+}
+
+void AMine::SortieDetection(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex)
+{
+	if (OtherActor == JoueurProche.Get())
+	{
+		JoueurProche.Reset();
+		SetActorTickEnabled(false);
+		if (Materiau)
+		{
+			Materiau->SetScalarParameterValue(TEXT("Intensite"), 0.f);
+		}
+	}
+}
+
+void AMine::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	AActor* Joueur = JoueurProche.Get();
+	if (!Joueur)
+	{
+		SetActorTickEnabled(false);
+		return;
+	}
+
+	// Problème 2 : plus de UE_LOG à chaque image
+	const float Distance = FVector::Dist(Joueur->GetActorLocation(), GetActorLocation());
+
+	Temps += DeltaTime;
+	const float Frequence = FMath::GetMappedRangeValueClamped(
+		FVector2f(RayonAlerte, RayonDeclenchement), FVector2f(2.f, 15.f), Distance);
+	const float Intensite = (FMath::Sin(Temps * Frequence) * 0.5f + 0.5f) * 20.f;
+
+	if (Materiau)
+	{
+		Materiau->SetScalarParameterValue(TEXT("Intensite"), Intensite);
+	}
+
+	if (Distance < RayonDeclenchement)
+	{
+		Exploser();
+	}
+}
+
+void AMine::Exploser()
+{
+	if (bExplosee)
+	{
+		return;
+	}
+	bExplosee = true;
+
+	DrawDebugSphere(GetWorld(), GetActorLocation(), RayonChaine, 16, FColor::Orange, false, 1.f);
+	UGameplayStatics::ApplyRadialDamage(this, Degats, GetActorLocation(), RayonChaine, nullptr, TArray<AActor*>(), this);
+
+	// Problème 4 : les voisines ne sont cherchées qu'au moment de l'explosion, une seule fois
+	const float RayonChaineCarre = FMath::Square(RayonChaine);
+	for (TActorIterator<AMine> It(GetWorld()); It; ++It)
+	{
+		AMine* Voisine = *It;
+		if (Voisine != this && IsValid(Voisine) && !Voisine->bExplosee
+			&& FVector::DistSquared(Voisine->GetActorLocation(), GetActorLocation()) < RayonChaineCarre)
+		{
+			Voisine->GetWorldTimerManager().SetTimer(Voisine->TimerChaine, Voisine, &AMine::Exploser, 0.15f, false);
+		}
+	}
+
+	Destroy();
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :**
+
+**Problème 1, chercher le joueur à chaque image.** `GetAllActorsOfClass` parcourt tous les acteurs du niveau. Appelé 400 fois par image, c'est énorme pour une information que l'overlap de la sphère de détection donne gratuitement, une seule fois, au moment où le joueur entre.
+
+**Problème 2, le `UE_LOG` dans le Tick.** Écrire du texte est lent : formater la chaîne, l'écrire dans le fichier de log, l'afficher dans la console. 400 lignes par image suffisent à faire tomber les FPS. Un log dans un Tick, ça se retire toujours après le débogage.
+
+**Problème 3, le matériau dynamique recréé à chaque image.** Chaque appel à `UMaterialInstanceDynamic::Create` crée un nouvel objet : 24 000 objets par seconde que le ramasse-miettes devra détruire, d'où des saccades et un jeu qui ralentit avec le temps. Pire : au deuxième appel, `GetMaterial(0)` renvoie le matériau dynamique de l'image d'avant, qui devient le parent du nouveau. On construit une chaîne de parents de plus en plus longue. `CreateAndSetMaterialInstanceDynamic` une fois au `BeginPlay`, puis seulement `SetScalarParameterValue`, règle tout.
+
+**Problème 4, les voisines recalculées à chaque image.** 400 mines × 400 mines, c'est 160 000 distances par image, pour une liste qui ne sert qu'une fois, à l'explosion. On la calcule au moment où on en a besoin. Un parcours des mines lors d'une explosion est négligeable. On compare aussi les distances au carré, pour éviter 400 racines carrées.
+
+**Problème 5, toutes les mines tickent tout le temps.** Même une mine à 1 km du joueur exécutait son Tick. Avec `bStartWithTickEnabled = false` et `SetActorTickEnabled`, seules les quelques mines proches du joueur travaillent. Le coût du champ devient presque nul quand on est loin.
+
+<Encadre type="retenir" titre="Les réflexes performance">
+Avant de corriger, mesure (`stat unit`, `stat game`, Unreal Insights). Dans un Tick, méfie-toi de tout ce qui **cherche** (`GetAllActorsOfClass`, `TActorIterator`), **crée** (`NewObject`, `SpawnActor`, `Create`) ou **écrit** (`UE_LOG`, `AddOnScreenDebugMessage`). Et demande-toi toujours : cet acteur a-t-il vraiment besoin de Tick en ce moment ?
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Monte à 2 500 mines (`NbParCote` à 50). Qu'est-ce qui coûte encore cher ? Essaie `PrimaryActorTick.TickInterval` pour faire clignoter les mines lointaines 10 fois par seconde au lieu de 60.
+- Remplace les 400 acteurs par un seul acteur avec un `UInstancedStaticMeshComponent` : un seul mesh dessiné 400 fois. Compare le temps **Draw** dans `stat unit`.
+- Fais le clignotement entièrement dans le matériau (avec un nœud Time) : le C++ n'envoie plus qu'une valeur de distance, seulement quand elle change beaucoup.

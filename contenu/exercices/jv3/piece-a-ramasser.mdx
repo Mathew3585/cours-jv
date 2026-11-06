@@ -1,0 +1,184 @@
+## Le contexte
+
+Des pièces qui tournent sur elles-mêmes et disparaissent quand on passe dessus : c'est le premier objet qu'on code dans presque tous les jeux. Le joueur doit savoir combien il en reste à trouver.
+
+Pour afficher un texte vite fait à l'écran, sans créer de widget, Unreal a un outil de débogage très pratique : `GEngine->AddOnScreenDebugMessage`. C'est parfait pour tester une idée avant de faire une vraie interface comme dans le module « Widgets HUD » de Mario Kart.
+
+## Ce que tu dois faire
+
+1. Crée une classe C++ `APiece` qui hérite de `AActor`.
+2. Recopie le header donné plus bas.
+3. Dans le `.cpp`, remplis les trois `// TODO`.
+4. Crée un Blueprint enfant `BP_Piece`, donne-lui un mesh (un cylindre aplati), et places-en cinq ou six dans le niveau.
+5. Lance le jeu et ramasse-les toutes.
+
+## Le code de départ
+
+<Fichier nom="Piece.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Piece.generated.h"
+
+class USphereComponent;
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API APiece : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	APiece();
+	virtual void Tick(float DeltaTime) override;
+
+protected:
+	virtual void BeginPlay() override;
+
+	// La zone qui détecte le joueur
+	UPROPERTY(VisibleAnywhere, Category = "Piece")
+	TObjectPtr<USphereComponent> Zone;
+
+	// Le mesh visible, qui tourne
+	UPROPERTY(VisibleAnywhere, Category = "Piece")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	// Vitesse de rotation en degrés par seconde
+	UPROPERTY(EditAnywhere, Category = "Piece")
+	float VitesseRotation = 180.f;
+
+private:
+	UFUNCTION()
+	void EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+};
+```
+</Fichier>
+
+<Fichier nom="Piece.cpp">
+```cpp
+#include "Piece.h"
+#include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/Engine.h"
+
+APiece::APiece()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	Zone = CreateDefaultSubobject<USphereComponent>(TEXT("Zone"));
+	RootComponent = Zone;
+	Zone->SetSphereRadius(60.f);
+	Zone->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	Mesh->SetupAttachment(Zone);
+	// Le mesh ne doit pas bloquer le joueur : seule la zone compte
+	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void APiece::BeginPlay()
+{
+	Super::BeginPlay();
+	Zone->OnComponentBeginOverlap.AddDynamic(this, &APiece::EntreeZone);
+}
+
+void APiece::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	// TODO 1 : faire tourner le Mesh (et seulement lui) autour de l'axe vertical
+}
+
+void APiece::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	// TODO 2 : ne rien faire si ce n'est pas un Pawn
+
+	// TODO 3 : compter les pièces encore présentes dans le niveau,
+	// afficher "Il reste X pieces" (ou "Bravo !" s'il n'en reste plus), puis détruire cette pièce
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Les pièces tournent sur elles-mêmes, à la même vitesse quel que soit le nombre d'images par seconde.
+- [ ] Passer sur une pièce la fait disparaître.
+- [ ] Un message en haut à gauche indique combien il en reste, et il **remplace** le message précédent au lieu de s'empiler.
+- [ ] La dernière pièce affiche un message de victoire.
+- [ ] Ton personnage ne se cogne pas contre les pièces.
+
+## Si tu bloques
+
+<Indice titre="Tourner proprement">
+`Mesh->AddLocalRotation(FRotator(Pitch, Yaw, Roll))` ajoute une rotation. L'axe vertical, c'est le Yaw. Pense à multiplier la vitesse par `DeltaTime`, sinon la pièce tourne plus vite sur un PC rapide.
+</Indice>
+
+<Indice titre="Compter les pièces">
+`UGameplayStatics::GetAllActorsOfClass(this, APiece::StaticClass(), Tableau)` remplit un `TArray` avec toutes les pièces du niveau. Attention : au moment où tu comptes, la pièce qu'on vient de ramasser n'est pas encore détruite.
+</Indice>
+
+<Indice titre="Un message qui se remplace">
+Le premier paramètre de `AddOnScreenDebugMessage` est une **clé**. Avec -1, chaque message s'ajoute sous le précédent. Avec un nombre fixe (par exemple 1), un nouveau message remplace l'ancien qui avait la même clé. Les paramètres suivants sont la durée d'affichage, la couleur et le texte (un `FString`, que tu peux fabriquer avec `FString::Printf`).
+</Indice>
+
+<Solution>
+
+<Fichier nom="Piece.cpp">
+```cpp
+void APiece::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	Mesh->AddLocalRotation(FRotator(0.f, VitesseRotation * DeltaTime, 0.f));
+}
+
+void APiece::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (!Cast<APawn>(OtherActor))
+	{
+		return;
+	}
+
+	TArray<AActor*> Pieces;
+	UGameplayStatics::GetAllActorsOfClass(this, APiece::StaticClass(), Pieces);
+	const int32 Restantes = Pieces.Num() - 1; // celle-ci est encore dans le tableau
+
+	if (GEngine)
+	{
+		if (Restantes > 0)
+		{
+			GEngine->AddOnScreenDebugMessage(1, 3.f, FColor::Yellow, FString::Printf(TEXT("Il reste %d pieces"), Restantes));
+		}
+		else
+		{
+			GEngine->AddOnScreenDebugMessage(1, 5.f, FColor::Green, TEXT("Bravo, tu as tout ramasse !"));
+		}
+	}
+
+	Destroy();
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** seul le `Mesh` tourne, la zone reste immobile, donc la détection ne bouge pas. Au moment de l'overlap, `GetAllActorsOfClass` trouve toutes les pièces, y compris celle qu'on touche : d'où le `- 1`. La clé `1` fait que chaque nouveau message écrase le précédent. Enfin, on vérifie `GEngine` avant de l'utiliser, parce que c'est un pointeur global qui peut être nul (par exemple sur un serveur dédié).
+
+<Encadre type="piege" titre="Pas d'accents dans TEXT()">
+Les caractères accentués dans `TEXT("...")` peuvent s'afficher bizarrement selon l'encodage du fichier. Pour du débogage, écris sans accents.
+</Encadre>
+
+<Encadre type="info">
+`GetAllActorsOfClass` parcourt tous les acteurs du niveau : c'est lent. Une fois par ramassage, ça va. Dans un `Tick`, ce serait une mauvaise idée.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute une `UPROPERTY` `Valeur` (1 pour une pièce de bronze, 5 pour une pièce d'or) et garde un vrai score dans ton GameMode, comme le chrono de `KartGameMode`.
+- Fais flotter la pièce de haut en bas avec un sinus en plus de la rotation.
+- Joue un son au ramassage avec `UGameplayStatics::PlaySoundAtLocation`.

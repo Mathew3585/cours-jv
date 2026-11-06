@@ -1,0 +1,123 @@
+## Le contexte
+
+Une pièce qui tourne sur elle-même et flotte doucement de haut en bas : on en voit dans presque tous les jeux de plateforme. C'est l'exercice parfait pour écrire ton premier script qui bouge un objet à chaque image.
+
+Tu vas découvrir deux choses importantes : `Time.deltaTime`, qui rend le mouvement indépendant de la vitesse de ton PC, et `[SerializeField]`, qui permet de régler ton script depuis l'Inspector sans toucher au code.
+
+## Ce que tu dois faire
+
+1. Dans ta scène, crée un cube : **GameObject › 3D Object › Cube**. Renomme-le `Piece`.
+2. Dans la fenêtre **Project**, fais clic droit › **Create › MonoBehaviour Script** (ou **Create › Scripting › MonoBehaviour Script** selon ta version) et nomme-le `Toupie`. Le nom du fichier doit être exactement le même que celui de la classe.
+3. Double-clique sur le script pour l'ouvrir, et remplace son contenu par le code de départ.
+4. Glisse le script `Toupie` depuis la fenêtre Project sur le cube dans la Hierarchy. Il apparaît maintenant comme un composant dans l'Inspector du cube.
+5. Remplis les deux `// TODO`.
+6. Lance le jeu avec le bouton Play et regarde ton cube.
+
+<Encadre type="info" titre="C'est quoi [SerializeField] ?">
+Une variable `private` est invisible dans l'Inspector. Si tu écris `[SerializeField]` devant, Unity l'affiche quand même et tu peux changer sa valeur à la souris. La valeur écrite dans le code n'est que la valeur de départ : c'est celle de l'Inspector qui compte en jeu.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="Toupie.cs">
+```cs
+using UnityEngine;
+
+public class Toupie : MonoBehaviour
+{
+    // Vitesse de rotation, en degrés par seconde
+    [SerializeField] private float vitesseRotation = 90f;
+
+    // De combien l'objet monte et descend, en mètres
+    [SerializeField] private float hauteurFlottement = 0.25f;
+
+    // Nombre d'allers-retours par seconde (à peu près)
+    [SerializeField] private float vitesseFlottement = 2f;
+
+    private Vector3 positionDepart;
+
+    private void Start()
+    {
+        // On retient où l'objet a été posé dans la scène
+        positionDepart = transform.position;
+    }
+
+    private void Update()
+    {
+        // TODO 1 : faire tourner l'objet autour de l'axe vertical (Y)
+        //          à vitesseRotation degrés par seconde
+
+        // TODO 2 : faire monter et descendre l'objet autour de positionDepart
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Le cube tourne sur lui-même autour de l'axe vertical, à vitesse régulière.
+- [ ] Il monte et descend doucement, sans dériver vers le haut ou vers le bas avec le temps.
+- [ ] Si tu passes `vitesseRotation` à 360 dans l'Inspector, il fait un tour complet par seconde.
+- [ ] Si tu mets `hauteurFlottement` à 0, il tourne sans bouger de place.
+
+## Si tu bloques
+
+<Indice titre="Tourner">
+Le composant `transform` a une fonction `Rotate` qui ajoute une rotation à l'objet. Tu lui donnes trois angles : autour de X, de Y et de Z. Seul l'angle autour de Y nous intéresse.
+</Indice>
+
+<Indice titre="Des degrés par seconde">
+`Update` est appelé à chaque image. Si tu tournes de 90 degrés à chaque image, à 60 images par seconde ça fait 5400 degrés par seconde ! Multiplie par `Time.deltaTime`, le temps écoulé depuis l'image précédente (environ 0,016 seconde à 60 FPS). Résultat : 90 degrés par seconde, quelle que soit la vitesse du PC.
+</Indice>
+
+<Indice titre="Monter et descendre">
+`Mathf.Sin` renvoie une valeur qui oscille entre -1 et 1. Si tu lui donnes `Time.time` (le temps depuis le lancement du jeu), elle fait des vagues régulières. Multiplie le résultat par `hauteurFlottement` et ajoute-le à la hauteur de départ. Attention : on ne fait pas `+=`, on recalcule la position à partir de `positionDepart` à chaque image.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Toupie.cs">
+```cs
+using UnityEngine;
+
+public class Toupie : MonoBehaviour
+{
+    [SerializeField] private float vitesseRotation = 90f;
+    [SerializeField] private float hauteurFlottement = 0.25f;
+    [SerializeField] private float vitesseFlottement = 2f;
+
+    private Vector3 positionDepart;
+
+    private void Start()
+    {
+        positionDepart = transform.position;
+    }
+
+    private void Update()
+    {
+        // TODO 1 : rotation autour de Y, en degrés par seconde
+        transform.Rotate(0f, vitesseRotation * Time.deltaTime, 0f);
+
+        // TODO 2 : décalage vertical qui oscille entre -hauteur et +hauteur
+        float decalage = Mathf.Sin(Time.time * vitesseFlottement) * hauteurFlottement;
+        transform.position = positionDepart + Vector3.up * decalage;
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** `Rotate` ajoute un petit angle à chaque image. Grâce à `Time.deltaTime`, la somme de tous ces petits angles fait bien `vitesseRotation` degrés en une seconde, que le jeu tourne à 30 ou à 200 images par seconde.
+
+Pour le flottement, on ne déplace pas l'objet petit à petit : on recalcule sa position exacte à chaque image à partir de `positionDepart`. `Mathf.Sin` revient toujours entre -1 et 1, donc l'objet ne peut jamais dériver.
+
+<Encadre type="retenir">
+Tout ce qui bouge en continu dans `Update` (déplacement, rotation, compte à rebours) doit être multiplié par `Time.deltaTime`. Sinon, le jeu va plus vite sur un PC rapide.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute un réglage `[SerializeField] private Vector3 axe` pour pouvoir choisir l'axe de rotation depuis l'Inspector.
+- Duplique le cube (Ctrl+D) plusieurs fois et donne à chacun une vitesse différente : chaque copie a ses propres réglages.
+- Fais grossir et rétrécir l'objet avec `transform.localScale` et le même principe que le flottement.

@@ -1,0 +1,279 @@
+## Le contexte
+
+« Appuie sur E pour interagir » : ouvrir une porte, lire une note, actionner un levier, allumer une lampe. Pour savoir **ce que le joueur regarde**, on lance un rayon invisible (un **line trace**) depuis la caméra, droit devant, sur quelques mètres. Si le rayon touche un objet interactif, on l'active.
+
+Tu vas coder un interrupteur qui allume et éteint une lampe, et un PlayerController qui gère la touche E. Ça ressemble beaucoup au module « Le controller prend les commandes » de Mario Kart : c'est le controller qui lit les touches, pas le pawn. Avantage : ça marche avec n'importe quel personnage.
+
+## Ce que tu dois faire
+
+1. Crée `AInterrupteurLumiere` (Actor) et `AControleurInteraction` (Player Controller). Recopie les deux headers.
+2. Remplis les `// TODO` des deux `.cpp`.
+3. Dans l'éditeur :
+   - crée une Input Action `IA_Interagir` (type **Digital (bool)**) et un Input Mapping Context `IMC_Interaction` où la touche **E** déclenche `IA_Interagir` ;
+   - crée un Blueprint enfant `BP_ControleurInteraction` et remplis ses deux cases **Contexte Interaction** et **Action Interagir** ;
+   - dans ton GameMode (ou dans World Settings), mets `BP_ControleurInteraction` comme **Player Controller Class** ;
+   - crée `BP_Interrupteur` (un cube comme bouton), pose-le près d'un mur.
+4. Lance le jeu, regarde l'interrupteur, appuie sur E.
+
+<Encadre type="info" titre="Le module Enhanced Input">
+Ton fichier `.Build.cs` doit contenir `"EnhancedInput"` dans `PublicDependencyModuleNames`. Si tu as fait Mario Kart dans ce projet, c'est déjà le cas.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="InterrupteurLumiere.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "InterrupteurLumiere.generated.h"
+
+class UStaticMeshComponent;
+class UPointLightComponent;
+
+UCLASS()
+class MONPROJET_API AInterrupteurLumiere : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AInterrupteurLumiere();
+
+	// Allume si c'était éteint, éteint si c'était allumé
+	void Basculer();
+
+protected:
+	virtual void BeginPlay() override;
+
+	// Le bouton qu'on vise. Il doit bloquer le canal Visibility.
+	UPROPERTY(VisibleAnywhere, Category = "Interrupteur")
+	TObjectPtr<UStaticMeshComponent> Bouton;
+
+	UPROPERTY(VisibleAnywhere, Category = "Interrupteur")
+	TObjectPtr<UPointLightComponent> Lampe;
+
+	UPROPERTY(EditAnywhere, Category = "Interrupteur")
+	bool bAllumeeAuDepart = false;
+
+private:
+	bool bAllumee = false;
+};
+```
+</Fichier>
+
+<Fichier nom="InterrupteurLumiere.cpp">
+```cpp
+#include "InterrupteurLumiere.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/PointLightComponent.h"
+
+AInterrupteurLumiere::AInterrupteurLumiere()
+{
+	Bouton = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Bouton"));
+	RootComponent = Bouton;
+
+	Lampe = CreateDefaultSubobject<UPointLightComponent>(TEXT("Lampe"));
+	Lampe->SetupAttachment(Bouton);
+	Lampe->SetRelativeLocation(FVector(0.f, 0.f, 200.f));
+	Lampe->SetIntensity(5000.f);
+	// Une lumière qu'on allume en jeu doit être Movable
+	Lampe->SetMobility(EComponentMobility::Movable);
+}
+
+void AInterrupteurLumiere::BeginPlay()
+{
+	Super::BeginPlay();
+	// TODO 1 : appliquer l'état de départ à bAllumee et à la lampe
+}
+
+void AInterrupteurLumiere::Basculer()
+{
+	// TODO 2 : inverser bAllumee et rendre la lampe visible ou invisible
+}
+```
+</Fichier>
+
+<Fichier nom="ControleurInteraction.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/PlayerController.h"
+#include "ControleurInteraction.generated.h"
+
+class UInputMappingContext;
+class UInputAction;
+
+UCLASS()
+class MONPROJET_API AControleurInteraction : public APlayerController
+{
+	GENERATED_BODY()
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void SetupInputComponent() override;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Interaction")
+	TObjectPtr<UInputMappingContext> ContexteInteraction;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Interaction")
+	TObjectPtr<UInputAction> ActionInteragir;
+
+	// Longueur du rayon, en cm, depuis la caméra
+	UPROPERTY(EditDefaultsOnly, Category = "Interaction")
+	float Portee = 600.f;
+
+private:
+	void Interagir();
+};
+```
+</Fichier>
+
+<Fichier nom="ControleurInteraction.cpp">
+```cpp
+#include "ControleurInteraction.h"
+#include "InterrupteurLumiere.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "InputMappingContext.h"
+#include "Engine/LocalPlayer.h"
+#include "Engine/World.h"
+#include "DrawDebugHelpers.h"
+
+void AControleurInteraction::BeginPlay()
+{
+	Super::BeginPlay();
+	// TODO 3 : ajouter ContexteInteraction au sous-système Enhanced Input du joueur local
+}
+
+void AControleurInteraction::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+	// TODO 4 : brancher ActionInteragir (au moment où on appuie) sur la fonction Interagir
+}
+
+void AControleurInteraction::Interagir()
+{
+	// TODO 5 : récupérer la position et la rotation de la caméra,
+	// lancer un rayon droit devant sur Portee cm en ignorant son propre pawn, et le dessiner
+
+	// TODO 6 : si le rayon a touché un AInterrupteurLumiere, le basculer
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Appuyer sur E en regardant l'interrupteur allume la lampe, appuyer encore l'éteint.
+- [ ] Une ligne de débogage montre le rayon : verte si elle touche quelque chose, rouge sinon.
+- [ ] Appuyer sur E en regardant ailleurs, ou de trop loin, ne fait rien.
+- [ ] Rester appuyé sur E ne fait pas clignoter la lampe : un appui, un changement.
+- [ ] Cocher **Allumee Au Depart** sur un interrupteur posé dans le niveau le fait démarrer allumé.
+- [ ] Ça marche quel que soit le pawn utilisé (ton personnage, ou un `DefaultPawn` qui vole).
+
+## Si tu bloques
+
+<Indice titre="Allumer et éteindre">
+Une lumière est un composant de scène : `Lampe->SetVisibility(true)` l'allume, `SetVisibility(false)` l'éteint. Dans `BeginPlay`, copie `bAllumeeAuDepart` dans `bAllumee`, puis applique-le.
+</Indice>
+
+<Indice titre="Le contexte et la touche">
+Le sous-système s'obtient avec `ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer())`. Ensuite, `AddMappingContext(Contexte, Priorite)`. Pour la touche, `InputComponent` est déjà créé par `Super::SetupInputComponent()` : il suffit de le convertir en `UEnhancedInputComponent` et d'appeler `BindAction`. Quel `ETriggerEvent` se déclenche une seule fois quand on appuie ?
+</Indice>
+
+<Indice titre="Où regarde la caméra ?">
+Un PlayerController sait où est la caméra de son joueur : `GetPlayerViewPoint(Position, Rotation)` remplit les deux variables que tu lui passes. `Rotation.Vector()` donne la direction du regard, de longueur 1. La fin du rayon est donc `Position + Direction × Portee`.
+</Indice>
+
+<Indice titre="Le rayon">
+`GetWorld()->LineTraceSingleByChannel(Impact, Debut, Fin, ECC_Visibility, Params)`. Avec une caméra à la troisième personne, le rayon part de derrière ton personnage : ajoute `GetPawn()` aux acteurs ignorés de `Params` pour qu'il ne s'arrête pas sur toi. Ensuite, `Cast` de `Impact.GetActor()` vers l'interrupteur.
+</Indice>
+
+<Solution>
+
+<Fichier nom="InterrupteurLumiere.cpp">
+```cpp
+void AInterrupteurLumiere::BeginPlay()
+{
+	Super::BeginPlay();
+	bAllumee = bAllumeeAuDepart;
+	Lampe->SetVisibility(bAllumee);
+}
+
+void AInterrupteurLumiere::Basculer()
+{
+	bAllumee = !bAllumee;
+	Lampe->SetVisibility(bAllumee);
+}
+```
+</Fichier>
+
+<Fichier nom="ControleurInteraction.cpp">
+```cpp
+void AControleurInteraction::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (UEnhancedInputLocalPlayerSubsystem* Sous = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+	{
+		if (ContexteInteraction)
+		{
+			Sous->AddMappingContext(ContexteInteraction, 1);
+		}
+	}
+}
+
+void AControleurInteraction::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+
+	if (UEnhancedInputComponent* Entrees = Cast<UEnhancedInputComponent>(InputComponent))
+	{
+		if (ActionInteragir)
+		{
+			Entrees->BindAction(ActionInteragir, ETriggerEvent::Started, this, &AControleurInteraction::Interagir);
+		}
+	}
+}
+
+void AControleurInteraction::Interagir()
+{
+	FVector PositionCamera;
+	FRotator RotationCamera;
+	GetPlayerViewPoint(PositionCamera, RotationCamera);
+
+	const FVector Fin = PositionCamera + RotationCamera.Vector() * Portee;
+
+	FCollisionQueryParams Params;
+	if (APawn* MonPawn = GetPawn())
+	{
+		Params.AddIgnoredActor(MonPawn);
+	}
+
+	FHitResult Impact;
+	const bool bTouche = GetWorld()->LineTraceSingleByChannel(Impact, PositionCamera, Fin, ECC_Visibility, Params);
+	DrawDebugLine(GetWorld(), PositionCamera, bTouche ? Impact.ImpactPoint : Fin,
+		bTouche ? FColor::Green : FColor::Red, false, 1.f, 0, 1.f);
+
+	if (AInterrupteurLumiere* Interrupteur = Cast<AInterrupteurLumiere>(Impact.GetActor()))
+	{
+		Interrupteur->Basculer();
+	}
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** le PlayerController possède à la fois les touches et le point de vue de la caméra, il a donc tout ce qu'il faut pour savoir « ce que le joueur regarde quand il appuie ». `ETriggerEvent::Started` ne se déclenche qu'une fois par appui, contrairement à `Triggered` qui se répète tant qu'on reste appuyé (c'était voulu pour accélérer le kart, pas ici). Le rayon part de la caméra et non du personnage, pour viser ce qui est au centre de l'écran. Si le rayon ne touche rien, `Impact.GetActor()` vaut `nullptr`, le `Cast` aussi, et rien ne se passe.
+
+<Encadre type="piege">
+Si E ne fait rien du tout, vérifie dans l'ordre : le GameMode utilise bien `BP_ControleurInteraction`, ses deux cases sont remplies, et **Project Settings › Input › Default Input Component Class** vaut `EnhancedInputComponent`. Sinon le `Cast` de `InputComponent` échoue sans bruit.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Rends le système général : crée une interface `UInterface` `Interactible` avec une fonction `Interagir`, implémente-la dans l'interrupteur et dans une porte, et fais que le controller appelle l'interface au lieu de caster vers une classe précise.
+- Affiche « E : allumer » au centre de l'écran quand le joueur regarde un interrupteur (un rayon lancé dans le `Tick`, pas seulement à l'appui).
+- Relie un interrupteur à plusieurs lampes déjà posées dans le niveau avec une `UPROPERTY(EditInstanceOnly)` de type `TArray<TObjectPtr<APointLight>>`.

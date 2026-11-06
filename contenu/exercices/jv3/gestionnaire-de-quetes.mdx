@@ -1,0 +1,505 @@
+## Le contexte
+
+« Ramasse 5 champignons », puis « Bats 3 slimes », puis « Parle au forgeron ». Un système de quêtes doit répondre à trois questions : où sont stockées les quêtes, qui les fait avancer, et qui est prévenu quand elles avancent. Et il doit **survivre aux changements de niveau** : si tu ramasses 3 champignons dans la forêt puis entres dans le village, la quête doit toujours en être à 3.
+
+Les acteurs d'un niveau sont détruits quand on change de niveau. Le GameMode aussi. Ce qui reste, c'est le `UGameInstance`, créé au lancement du jeu et détruit seulement à la fermeture. Unreal permet de lui greffer des **subsystems** : des classes que le moteur crée et détruit tout seul, et que n'importe quel acteur ou Blueprint retrouve en une ligne. C'est l'outil idéal pour un gestionnaire de quêtes.
+
+## Ce que tu dois faire
+
+Tu construis un mini-système complet en quatre parties.
+
+1. **Les données** (`QuetesTypes.h`) : une `enum class` pour l'état d'une quête, une `USTRUCT` qui décrit une quête (identifiant, titre, événement attendu, objectif, quête suivante) et une `USTRUCT` pour sa progression.
+2. **Le catalogue** (`UCatalogueQuetes`, un `UDataAsset`) : la liste de toutes les quêtes du jeu, remplie dans l'éditeur. Tu as déjà fait des Data Assets pour les objets bonus de Mario Kart.
+3. **Le subsystem** (`UQuetesSubsystem`, un `UGameInstanceSubsystem`) :
+   - à son `Initialize`, il charge le catalogue dont le chemin est écrit dans `DefaultGame.ini`, et démarre les quêtes marquées « au lancement » ;
+   - `DemarrerQuete(Id)` passe une quête de Inactive à EnCours ;
+   - `SignalerEvenement(Evenement, Quantite)` fait avancer **toutes** les quêtes en cours qui attendent cet événement, et termine celles qui atteignent leur objectif ;
+   - une quête terminée démarre sa quête suivante, s'il y en a une ;
+   - trois délégués préviennent qui veut : `OnQueteDemarree`, `OnQueteProgression`, `OnQueteTerminee`.
+4. **Un émetteur** (`AObjetDeQuete`) : un objet ramassable qui signale son événement (par exemple « Ramasser.Champignon ») puis disparaît.
+
+Enfin, crée en Blueprint un petit widget « journal ». À sa construction, il lit **GetQuetesEnCours** (les quêtes démarrées au lancement l'ont été avant que le widget existe). Ensuite, il se met à jour en écoutant les trois délégués (nœud **Get Game Instance Subsystem**, puis **Bind Event**).
+
+<Encadre type="info" titre="Écrire le chemin du catalogue dans DefaultGame.ini">
+Le subsystem n'est pas un acteur : impossible de lui choisir un asset dans un panneau Details. On écrit donc le chemin dans le fichier de configuration `Config/DefaultGame.ini` de ton projet. Fais un clic droit sur ton Data Asset › **Copy Reference** pour obtenir le chemin exact, puis ajoute à la fin du fichier :
+
+```ini
+[/Script/MonProjet.QuetesSubsystem]
+Catalogue=/Game/Quetes/DA_Catalogue.DA_Catalogue
+```
+
+Remplace `MonProjet` par le nom de ton module (sans `_API`), et redémarre l'éditeur après chaque modification de ce fichier.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="QuetesTypes.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "QuetesTypes.generated.h"
+
+UENUM(BlueprintType)
+enum class EEtatQuete : uint8
+{
+	Inactive,
+	EnCours,
+	Terminee
+};
+
+USTRUCT(BlueprintType)
+struct FDefinitionQuete
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quete")
+	FName Id;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quete")
+	FText Titre;
+
+	// L'événement qui fait avancer la quête, par exemple Ramasser.Champignon
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quete")
+	FName Evenement;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quete", meta = (ClampMin = "1"))
+	int32 Objectif = 1;
+
+	// Démarrée automatiquement à la fin de celle-ci (laisser vide si aucune)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quete")
+	FName QueteSuivante;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quete")
+	bool bDemarrerAuLancement = false;
+};
+
+USTRUCT(BlueprintType)
+struct FProgressionQuete
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Quete")
+	FName Id;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Quete")
+	EEtatQuete Etat = EEtatQuete::Inactive;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Quete")
+	int32 Progression = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Quete")
+	int32 Objectif = 1;
+};
+```
+</Fichier>
+
+<Fichier nom="CatalogueQuetes.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "QuetesTypes.h"
+#include "CatalogueQuetes.generated.h"
+
+UCLASS(BlueprintType)
+class MONPROJET_API UCatalogueQuetes : public UDataAsset
+{
+	GENERATED_BODY()
+
+public:
+	// TitleProperty : dans l'éditeur, chaque ligne du tableau affiche son Id
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quetes", meta = (TitleProperty = "Id"))
+	TArray<FDefinitionQuete> Quetes;
+};
+```
+</Fichier>
+
+<Fichier nom="QuetesSubsystem.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "QuetesTypes.h"
+#include "QuetesSubsystem.generated.h"
+
+class UCatalogueQuetes;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQueteDemarree, FName, IdQuete);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnQueteProgression, FName, IdQuete, int32, Progression, int32, Objectif);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQueteTerminee, FName, IdQuete);
+
+// Config = Game : les UPROPERTY(Config) sont lues dans DefaultGame.ini
+UCLASS(Config = Game)
+class MONPROJET_API UQuetesSubsystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+
+	// Raccourci pour le C++ : UQuetesSubsystem::Get(this)
+	static UQuetesSubsystem* Get(const UObject* ContexteMonde);
+
+	UFUNCTION(BlueprintCallable, Category = "Quetes")
+	bool DemarrerQuete(FName IdQuete);
+
+	UFUNCTION(BlueprintCallable, Category = "Quetes")
+	void SignalerEvenement(FName Evenement, int32 Quantite = 1);
+
+	UFUNCTION(BlueprintPure, Category = "Quetes")
+	FProgressionQuete GetProgression(FName IdQuete) const;
+
+	UFUNCTION(BlueprintPure, Category = "Quetes")
+	TArray<FProgressionQuete> GetQuetesEnCours() const;
+
+	UFUNCTION(BlueprintPure, Category = "Quetes")
+	FText GetTitre(FName IdQuete) const;
+
+	UPROPERTY(BlueprintAssignable, Category = "Quetes")
+	FOnQueteDemarree OnQueteDemarree;
+
+	UPROPERTY(BlueprintAssignable, Category = "Quetes")
+	FOnQueteProgression OnQueteProgression;
+
+	UPROPERTY(BlueprintAssignable, Category = "Quetes")
+	FOnQueteTerminee OnQueteTerminee;
+
+private:
+	void TerminerQuete(FName IdQuete);
+
+	// Lu dans DefaultGame.ini
+	UPROPERTY(Config)
+	TSoftObjectPtr<UCatalogueQuetes> Catalogue;
+
+	// TODO : deux TMap indexées par l'Id de quête,
+	// une pour les définitions, une pour les progressions
+};
+```
+</Fichier>
+
+<Fichier nom="ObjetDeQuete.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "ObjetDeQuete.generated.h"
+
+class USphereComponent;
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API AObjetDeQuete : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AObjetDeQuete();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, Category = "Quete")
+	TObjectPtr<USphereComponent> Zone;
+
+	UPROPERTY(VisibleAnywhere, Category = "Quete")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	UPROPERTY(EditAnywhere, Category = "Quete")
+	FName Evenement = TEXT("Ramasser.Champignon");
+
+private:
+	UFUNCTION()
+	void EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+};
+```
+</Fichier>
+
+Les fichiers `QuetesSubsystem.cpp` et `ObjetDeQuete.cpp` sont à écrire en entier.
+
+## C'est réussi quand…
+
+- [ ] Au lancement, la quête marquée « au lancement » apparaît dans le journal sans aucun nœud dans le Level Blueprint.
+- [ ] Ramasser un champignon fait passer le journal de 0 / 5 à 1 / 5.
+- [ ] Deux quêtes en cours qui attendent le même événement avancent toutes les deux.
+- [ ] À 5 / 5, la quête passe en Terminee, `OnQueteTerminee` est déclenché une seule fois, et la quête suivante démarre.
+- [ ] Ramasser un champignon de plus après la fin de la quête ne change rien.
+- [ ] Tu ramasses 3 champignons, tu changes de niveau avec Open Level : le journal affiche toujours 3 / 5.
+- [ ] Une faute de frappe dans un Id (quête inconnue) affiche un avertissement dans l'Output Log, sans planter.
+
+## Si tu bloques
+
+<Indice titre="Retrouver le subsystem">
+En Blueprint : nœud **Get Game Instance Subsystem**, classe `QuetesSubsystem`. En C++ : `GetWorld()->GetGameInstance()->GetSubsystem<UQuetesSubsystem>()`. Ta fonction statique `Get` fait juste ça, avec des vérifications de pointeurs nuls, pour pouvoir l'appeler depuis n'importe quel objet qui a un monde.
+</Indice>
+
+<Indice titre="Charger le catalogue">
+Un `TSoftObjectPtr` ne contient qu'un chemin, l'asset n'est pas forcément chargé. `Catalogue.LoadSynchronous()` le charge et renvoie le pointeur, ou `nullptr` si le chemin est vide ou faux. Pense à afficher un `UE_LOG` dans ce cas : c'est l'erreur la plus fréquente.
+</Indice>
+
+<Indice titre="Ranger les quêtes">
+Avec `TMap<FName, FDefinitionQuete> Definitions` et `TMap<FName, FProgressionQuete> Progressions`, retrouver une quête par son Id se fait en une ligne : `FProgressionQuete* P = Progressions.Find(IdQuete);`. `Find` renvoie `nullptr` si la clé n'existe pas. Mets les deux TMap en `UPROPERTY()`.
+</Indice>
+
+<Indice titre="Ne pas modifier ce qu'on parcourt">
+Dans `SignalerEvenement`, tu parcours `Progressions`. Si, pendant ce parcours, tu termines une quête, qui démarre la suivante, qui prévient un Blueprint, qui signale à son tour un événement... tu modifies la collection en plein parcours. Fais en deux temps : la boucle met seulement à jour les nombres et note les Id concernés dans un `TArray<FName>`. Après la boucle, tu déclenches les délégués et tu termines les quêtes.
+</Indice>
+
+<Indice titre="Le chemin dans l'ini ne marche pas">
+Le nom de la section doit être exactement `/Script/` + nom du module + `.` + nom de la classe **sans** le U. Vérifie aussi que la ligne est dans `DefaultGame.ini` et pas dans `DefaultEngine.ini`, puis redémarre l'éditeur.
+</Indice>
+
+<Solution>
+
+<Fichier nom="QuetesSubsystem.h (les TMap)">
+```cpp
+private:
+	void TerminerQuete(FName IdQuete);
+
+	UPROPERTY(Config)
+	TSoftObjectPtr<UCatalogueQuetes> Catalogue;
+
+	UPROPERTY()
+	TMap<FName, FDefinitionQuete> Definitions;
+
+	UPROPERTY()
+	TMap<FName, FProgressionQuete> Progressions;
+```
+</Fichier>
+
+<Fichier nom="QuetesSubsystem.cpp">
+```cpp
+#include "QuetesSubsystem.h"
+#include "CatalogueQuetes.h"
+#include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
+#include "Engine/World.h"
+
+void UQuetesSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+
+	UCatalogueQuetes* Cat = Catalogue.LoadSynchronous();
+	if (!Cat)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Quetes : catalogue introuvable. Vérifie DefaultGame.ini."));
+		return;
+	}
+
+	for (const FDefinitionQuete& Def : Cat->Quetes)
+	{
+		if (Def.Id.IsNone() || Definitions.Contains(Def.Id))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Quetes : Id vide ou en double (%s)"), *Def.Id.ToString());
+			continue;
+		}
+		Definitions.Add(Def.Id, Def);
+
+		FProgressionQuete Progression;
+		Progression.Id = Def.Id;
+		Progression.Objectif = FMath::Max(Def.Objectif, 1);
+		Progressions.Add(Def.Id, Progression);
+	}
+
+	for (const TPair<FName, FDefinitionQuete>& Paire : Definitions)
+	{
+		if (Paire.Value.bDemarrerAuLancement)
+		{
+			DemarrerQuete(Paire.Key);
+		}
+	}
+}
+
+UQuetesSubsystem* UQuetesSubsystem::Get(const UObject* ContexteMonde)
+{
+	const UWorld* Monde = GEngine ? GEngine->GetWorldFromContextObject(ContexteMonde, EGetWorldErrorMode::ReturnNull) : nullptr;
+	const UGameInstance* Instance = Monde ? Monde->GetGameInstance() : nullptr;
+	return Instance ? Instance->GetSubsystem<UQuetesSubsystem>() : nullptr;
+}
+
+bool UQuetesSubsystem::DemarrerQuete(FName IdQuete)
+{
+	FProgressionQuete* Progression = Progressions.Find(IdQuete);
+	if (!Progression)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Quetes : quête inconnue %s"), *IdQuete.ToString());
+		return false;
+	}
+	if (Progression->Etat != EEtatQuete::Inactive)
+	{
+		return false;
+	}
+
+	Progression->Etat = EEtatQuete::EnCours;
+	Progression->Progression = 0;
+	OnQueteDemarree.Broadcast(IdQuete);
+	return true;
+}
+
+void UQuetesSubsystem::SignalerEvenement(FName Evenement, int32 Quantite)
+{
+	if (Evenement.IsNone() || Quantite <= 0)
+	{
+		return;
+	}
+
+	// Temps 1 : on met à jour les nombres, sans prévenir personne
+	TArray<FName> Avancees;
+	TArray<FName> ATerminer;
+	for (TPair<FName, FProgressionQuete>& Paire : Progressions)
+	{
+		FProgressionQuete& Progression = Paire.Value;
+		if (Progression.Etat != EEtatQuete::EnCours)
+		{
+			continue;
+		}
+
+		const FDefinitionQuete* Def = Definitions.Find(Paire.Key);
+		if (!Def || Def->Evenement != Evenement)
+		{
+			continue;
+		}
+
+		Progression.Progression = FMath::Min(Progression.Progression + Quantite, Progression.Objectif);
+		Avancees.Add(Paire.Key);
+		if (Progression.Progression >= Progression.Objectif)
+		{
+			ATerminer.Add(Paire.Key);
+		}
+	}
+
+	// Temps 2 : la boucle est finie, on peut prévenir le monde entier
+	for (const FName& Id : Avancees)
+	{
+		const FProgressionQuete& Progression = Progressions[Id];
+		OnQueteProgression.Broadcast(Id, Progression.Progression, Progression.Objectif);
+	}
+	for (const FName& Id : ATerminer)
+	{
+		TerminerQuete(Id);
+	}
+}
+
+void UQuetesSubsystem::TerminerQuete(FName IdQuete)
+{
+	FProgressionQuete* Progression = Progressions.Find(IdQuete);
+	if (!Progression || Progression->Etat != EEtatQuete::EnCours)
+	{
+		return;
+	}
+
+	Progression->Etat = EEtatQuete::Terminee;
+
+	// On copie avant de prévenir : un écouteur pourrait appeler d'autres fonctions du subsystem
+	const FDefinitionQuete* Def = Definitions.Find(IdQuete);
+	const FName Suivante = Def ? Def->QueteSuivante : NAME_None;
+
+	OnQueteTerminee.Broadcast(IdQuete);
+
+	if (!Suivante.IsNone())
+	{
+		DemarrerQuete(Suivante);
+	}
+}
+
+FProgressionQuete UQuetesSubsystem::GetProgression(FName IdQuete) const
+{
+	if (const FProgressionQuete* Progression = Progressions.Find(IdQuete))
+	{
+		return *Progression;
+	}
+	return FProgressionQuete();
+}
+
+TArray<FProgressionQuete> UQuetesSubsystem::GetQuetesEnCours() const
+{
+	TArray<FProgressionQuete> Resultat;
+	for (const TPair<FName, FProgressionQuete>& Paire : Progressions)
+	{
+		if (Paire.Value.Etat == EEtatQuete::EnCours)
+		{
+			Resultat.Add(Paire.Value);
+		}
+	}
+	return Resultat;
+}
+
+FText UQuetesSubsystem::GetTitre(FName IdQuete) const
+{
+	if (const FDefinitionQuete* Def = Definitions.Find(IdQuete))
+	{
+		return Def->Titre;
+	}
+	return FText::FromName(IdQuete);
+}
+```
+</Fichier>
+
+<Fichier nom="ObjetDeQuete.cpp">
+```cpp
+#include "ObjetDeQuete.h"
+#include "QuetesSubsystem.h"
+#include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "GameFramework/Pawn.h"
+
+AObjetDeQuete::AObjetDeQuete()
+{
+	PrimaryActorTick.bCanEverTick = false;
+
+	Zone = CreateDefaultSubobject<USphereComponent>(TEXT("Zone"));
+	Zone->InitSphereRadius(60.f);
+	Zone->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+	RootComponent = Zone;
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	Mesh->SetupAttachment(Zone);
+	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void AObjetDeQuete::BeginPlay()
+{
+	Super::BeginPlay();
+	Zone->OnComponentBeginOverlap.AddDynamic(this, &AObjetDeQuete::EntreeZone);
+}
+
+void AObjetDeQuete::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (!Cast<APawn>(OtherActor))
+	{
+		return;
+	}
+
+	if (UQuetesSubsystem* Quetes = UQuetesSubsystem::Get(this))
+	{
+		Quetes->SignalerEvenement(Evenement, 1);
+	}
+	Destroy();
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** le subsystem ne connaît aucun acteur, et les acteurs ne connaissent aucune quête. Un champignon dit seulement « Ramasser.Champignon s'est produit ». C'est le subsystem qui sait quelles quêtes attendent cet événement. Tu peux donc ajouter dix quêtes qui parlent de champignons sans retoucher le champignon, et un même événement fait avancer plusieurs quêtes à la fois.
+
+Les délégués font le lien dans l'autre sens : le journal, un son de réussite ou une récompense s'abonnent à `OnQueteTerminee` sans que le subsystem sache qu'ils existent.
+
+Le subsystem est créé par le moteur en même temps que le `UGameInstance`, et détruit avec lui à la fermeture du jeu. Il survit donc à tous les Open Level, et ses `TMap` gardent la progression.
+
+Le découpage en deux temps de `SignalerEvenement` protège contre la modification d'une collection en plein parcours. Il évite aussi un effet subtil : sans lui, une quête suivante démarrée pendant la boucle et qui attend le même événement pourrait avancer avec le champignon qui a terminé la précédente.
+
+<Encadre type="piege" titre="Un acteur C++ qui écoute le subsystem">
+Le subsystem vit plus longtemps que les acteurs. Si un acteur C++ s'abonne avec `AddDynamic` dans son `BeginPlay`, retire-le avec `RemoveDynamic` dans son `EndPlay`. Unreal ignore les objets détruits dans un délégué dynamique, mais leurs entrées restent dans la liste jusqu'au prochain nettoyage, et un objet qui n'est que caché ou désactivé continuerait, lui, à recevoir les appels.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Sauvegarde la progression des quêtes avec un `USaveGame` : un `TMap` de progressions se sérialise très bien s'il est en `UPROPERTY`.
+- Remplace les `FName` d'événement par des `FGameplayTag` (module `GameplayTags`) : les fautes de frappe deviennent impossibles, et une quête « Tuer.Ennemi » peut accepter « Tuer.Ennemi.Slime » grâce à `MatchesTag`.
+- Ajoute des quêtes à plusieurs objectifs (« 5 champignons ET 2 fleurs ») avec un `TArray` d'objectifs dans `FDefinitionQuete`.

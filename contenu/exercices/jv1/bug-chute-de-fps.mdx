@@ -1,0 +1,378 @@
+## Le contexte
+
+Avec 10 ennemis, ton jeu tourne à 200 images par seconde. Avec 300, il rame à 20. Aucune erreur dans la Console, le jeu fait exactement ce qu'il doit faire… mais lentement. C'est le bug le plus courant dans un vrai projet, et le plus traître : rien ne s'affiche en rouge.
+
+Pour le trouver, on ne devine pas : on **mesure**. Unity a un outil pour ça, le **Profiler**. Il te dit, image par image, combien de millisecondes prend chaque méthode, et combien de mémoire elle **alloue**.
+
+<Encadre type="info" titre="Le ramasse-miettes (GC)">
+En C#, chaque `new` d'une classe, chaque concaténation de `string`, chaque tableau renvoyé par une méthode réserve un peu de mémoire. Quand il y en a trop, le **Garbage Collector** (GC, le « ramasse-miettes ») met le jeu en pause pour faire le ménage. Ça donne des saccades régulières. Un bon script de gameplay alloue **0 octet** par image dans son `Update`.
+</Encadre>
+
+Ici, 300 ennemis se rassemblent autour d'un appât qui tourne en rond. Quand l'appât passe près d'eux, ils clignotent en rouge et le suivent. Un compteur affiche combien sont en alerte. Tout marche, mais c'est catastrophique pour les performances.
+
+## Ce que tu dois faire
+
+**Mise en place :**
+
+1. Un grand **Plane** `Sol` (Scale 6, 1, 6).
+2. Une **Capsule** avec le script `EnnemiLent`, un matériau blanc, et le Tag `Ennemi` (crée-le avec **Tag › Add Tag**). Glisse-la dans le Project pour en faire un prefab, puis supprime-la de la scène.
+3. Un objet vide `Remplisseur` en (0, 0, 0) avec le script `Remplisseur`, et ton prefab dans `Prefab Ennemi`. Il crée 300 ennemis au lancement.
+4. Une **Sphere** `Appat` jaune avec le script `Appat`, posée en (0, 0.5, 0).
+5. Un Canvas avec un **Text - TextMeshPro**, et un objet vide `Compteur` avec le script `CompteurAlerte`.
+6. Une caméra placée haut au-dessus de la scène, tournée vers le bas.
+
+**Mesurer avant de corriger :**
+
+1. Dans la vue Game, clique sur **Stats** (en haut à droite) : note les FPS.
+2. Ouvre **Window › Analysis › Profiler**. Lance le jeu, laisse tourner 5 secondes, puis clique sur un pic du graphique **CPU Usage** pour mettre le jeu en pause sur cette image.
+3. En bas, passe en vue **Hierarchy**. Clique sur la colonne **Time ms** pour trier, et déplie `PlayerLoop` jusqu'à trouver `EnnemiLent.Update()` et `CompteurAlerte.Update()`. Regarde aussi la colonne **GC Alloc**.
+4. Note les chiffres : tu les compareras à la fin.
+
+**Le symptôme :** FPS très bas, colonne **GC Alloc** pleine de kilo-octets à chaque image, saccades régulières.
+
+**Ce qui est attendu :** exactement le même comportement à l'écran, mais `EnnemiLent.Update()` doit allouer **0 B** par image, et `CompteurAlerte.Update()` aussi, sauf aux images où le nombre affiché change.
+
+Il y a **6 problèmes** de performance, répartis dans `EnnemiLent` et `CompteurAlerte`. `Appat` et `Remplisseur` sont corrects.
+
+## Le code de départ
+
+<Fichier nom="Appat.cs">
+```cs
+using UnityEngine;
+
+public class Appat : MonoBehaviour
+{
+    [SerializeField] private float rayon = 12f;
+    [SerializeField] private float vitesseAngulaire = 0.4f;
+
+    private Vector3 centre;
+
+    private void Start()
+    {
+        centre = transform.position;
+    }
+
+    private void Update()
+    {
+        // Un cercle parfait, toujours le même : pratique pour comparer avant/après
+        float angle = Time.time * vitesseAngulaire;
+        transform.position = centre + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * rayon;
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="Remplisseur.cs">
+```cs
+using UnityEngine;
+
+public class Remplisseur : MonoBehaviour
+{
+    [SerializeField] private EnnemiLent prefabEnnemi;
+    [SerializeField] private int colonnes = 20;
+    [SerializeField] private int lignes = 15;
+    [SerializeField] private float espacement = 1.5f;
+
+    // Awake : les ennemis existent avant le Start de tous les autres scripts
+    private void Awake()
+    {
+        Vector3 depart = transform.position - new Vector3(colonnes, 0f, lignes) * espacement * 0.5f;
+
+        for (int x = 0; x < colonnes; x++)
+        {
+            for (int z = 0; z < lignes; z++)
+            {
+                Vector3 position = depart + new Vector3(x * espacement, 1f, z * espacement);
+                Instantiate(prefabEnnemi, position, Quaternion.identity, transform);
+            }
+        }
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="EnnemiLent.cs">
+```cs
+using System.Collections;
+using UnityEngine;
+
+public class EnnemiLent : MonoBehaviour
+{
+    [SerializeField] private float vitesse = 1.5f;
+    [SerializeField] private float rayonAlerte = 5f;
+    [SerializeField] private float rayonEcartement = 1.2f;
+    [SerializeField] private Color couleurAlerte = Color.red;
+
+    public bool EnAlerte { get; private set; }
+
+    private Color couleurNormale;
+
+    private void Start()
+    {
+        couleurNormale = GetComponent<Renderer>().material.color;
+    }
+
+    private void Update()
+    {
+        Transform appat = FindFirstObjectByType<Appat>().transform;
+        Renderer rendu = GetComponent<Renderer>();
+
+        float distance = Vector3.Distance(transform.position, appat.position);
+        EnAlerte = distance < rayonAlerte;
+
+        if (EnAlerte)
+        {
+            Debug.Log(name + " a repéré l'appât !");
+            StartCoroutine(Clignoter(rendu));
+
+            Vector3 cible = new Vector3(appat.position.x, transform.position.y, appat.position.z);
+            transform.position = Vector3.MoveTowards(transform.position, cible, vitesse * Time.deltaTime);
+        }
+
+        // S'écarter des voisins trop proches
+        Collider[] proches = Physics.OverlapSphere(transform.position, rayonEcartement);
+        foreach (Collider autre in proches)
+        {
+            if (autre.gameObject != gameObject && autre.tag == "Ennemi")
+            {
+                Vector3 ecart = transform.position - autre.transform.position;
+                ecart.y = 0f;
+                transform.position += ecart.normalized * Time.deltaTime;
+            }
+        }
+    }
+
+    private IEnumerator Clignoter(Renderer rendu)
+    {
+        rendu.material.color = couleurAlerte;
+        yield return new WaitForSeconds(0.15f);
+        rendu.material.color = couleurNormale;
+        yield return new WaitForSeconds(0.15f);
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="CompteurAlerte.cs">
+```cs
+using System.Linq;
+using TMPro;
+using UnityEngine;
+
+public class CompteurAlerte : MonoBehaviour
+{
+    [SerializeField] private TMP_Text texte;
+
+    private void Update()
+    {
+        EnnemiLent[] ennemis = FindObjectsByType<EnnemiLent>(FindObjectsSortMode.None);
+        int enAlerte = ennemis.Where(e => e.EnAlerte).Count();
+        texte.text = "En alerte : " + enAlerte + " / " + ennemis.Length;
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Le comportement à l'écran est le même : les ennemis proches de l'appât le suivent en clignotant, s'écartent les uns des autres, et redeviennent blancs quand il s'éloigne.
+- [ ] Dans le Profiler, la colonne **GC Alloc** de `EnnemiLent.Update()` affiche 0 B.
+- [ ] `CompteurAlerte.Update()` affiche 0 B sur la plupart des images.
+- [ ] La Console ne reçoit plus des centaines de messages par seconde.
+- [ ] Le temps de `EnnemiLent.Update()` a fortement baissé par rapport à ta première mesure, et les FPS ont nettement augmenté.
+
+## Si tu bloques
+
+<Indice titre="Commence par ce qui se répète 300 fois">
+Tout ce qui est dans `EnnemiLent.Update()` est fait 300 fois par image, soit 18 000 fois par seconde à 60 FPS. Pour chaque ligne, demande-toi : « est-ce que le résultat change d'une image à l'autre ? » Si non, calcule-le **une fois** (dans `Awake` ou `Start`) et garde-le dans une variable.
+</Indice>
+
+<Indice titre="Chercher et récupérer">
+`FindFirstObjectByType` parcourt **tous** les objets de la scène pour trouver le bon. `GetComponent` est plus rapide, mais reste inutile à refaire si le composant ne change jamais. Et `Debug.Log` est très lent, surtout dans l'éditeur : chaque appel construit un `string`, capture la pile d'appels et écrit dans la Console.
+</Indice>
+
+<Indice titre="La coroutine et ses WaitForSeconds">
+Combien de coroutines `Clignoter` sont démarrées par seconde quand 50 ennemis sont en alerte ? Une coroutine devrait démarrer **au moment où l'ennemi passe en alerte**, boucler tant qu'il y est, et s'arrêter quand il en sort. Et chaque `new WaitForSeconds` est un objet alloué : tu peux en créer un seul, dans un champ `static readonly`, et le réutiliser.
+</Indice>
+
+<Indice titre="Les allocations cachées">
+Trois lignes allouent sans en avoir l'air. `Physics.OverlapSphere` renvoie un **nouveau tableau** à chaque appel : sa variante `Physics.OverlapSphereNonAlloc` remplit un tableau que tu lui fournis. `autre.tag` crée un nouveau `string` à chaque lecture : `autre.CompareTag("Ennemi")` compare sans rien créer. Dans le compteur, `FindObjectsByType` renvoie un nouveau tableau, `.Where(...)` de LINQ crée des objets, et la concaténation crée un nouveau `string`.
+</Indice>
+
+<Indice titre="Le texte du compteur">
+Assigner `texte.text` force TextMeshPro à refaire toute la mise en page du texte, même si c'est le même. Garde en mémoire le dernier nombre affiché, et ne réécris le texte que s'il a changé.
+</Indice>
+
+<Solution>
+
+<Fichier nom="EnnemiLent.cs">
+```cs
+using System.Collections;
+using UnityEngine;
+
+public class EnnemiLent : MonoBehaviour
+{
+    // Partagés par tous les ennemis : alloués une seule fois pour tout le jeu
+    private static readonly Collider[] tamponProches = new Collider[16];
+    private static readonly WaitForSeconds attenteClignotement = new WaitForSeconds(0.15f);
+
+    [SerializeField] private float vitesse = 1.5f;
+    [SerializeField] private float rayonAlerte = 5f;
+    [SerializeField] private float rayonEcartement = 1.2f;
+    [SerializeField] private Color couleurAlerte = Color.red;
+
+    public bool EnAlerte { get; private set; }
+
+    private Transform appat;
+    private Renderer rendu;
+    private Color couleurNormale;
+    private Coroutine clignotement;
+
+    private void Awake()
+    {
+        // Problème 2 : GetComponent une seule fois
+        rendu = GetComponent<Renderer>();
+        couleurNormale = rendu.material.color;
+    }
+
+    private void Start()
+    {
+        // Problème 1 : on cherche l'appât une seule fois
+        Appat trouve = FindFirstObjectByType<Appat>();
+        if (trouve != null)
+        {
+            appat = trouve.transform;
+        }
+    }
+
+    private void Update()
+    {
+        if (appat == null)
+        {
+            return;
+        }
+
+        float distance = Vector3.Distance(transform.position, appat.position);
+        bool alerte = distance < rayonAlerte;
+
+        // Problème 4 : on ne réagit qu'au CHANGEMENT d'état, pas à chaque image
+        if (alerte != EnAlerte)
+        {
+            EnAlerte = alerte;
+            if (EnAlerte)
+            {
+                clignotement = StartCoroutine(Clignoter());
+            }
+            else
+            {
+                if (clignotement != null)
+                {
+                    StopCoroutine(clignotement);
+                    clignotement = null;
+                }
+                rendu.material.color = couleurNormale;
+            }
+        }
+
+        // Problème 3 : plus de Debug.Log à chaque image
+
+        if (EnAlerte)
+        {
+            Vector3 cible = new Vector3(appat.position.x, transform.position.y, appat.position.z);
+            transform.position = Vector3.MoveTowards(transform.position, cible, vitesse * Time.deltaTime);
+        }
+
+        // Problème 5 : on remplit un tableau existant au lieu d'en créer un, et CompareTag au lieu de .tag
+        int nombre = Physics.OverlapSphereNonAlloc(transform.position, rayonEcartement, tamponProches);
+        for (int i = 0; i < nombre; i++)
+        {
+            Collider autre = tamponProches[i];
+            if (autre.gameObject != gameObject && autre.CompareTag("Ennemi"))
+            {
+                Vector3 ecart = transform.position - autre.transform.position;
+                ecart.y = 0f;
+                transform.position += ecart.normalized * Time.deltaTime;
+            }
+        }
+    }
+
+    private IEnumerator Clignoter()
+    {
+        while (true)
+        {
+            rendu.material.color = couleurAlerte;
+            yield return attenteClignotement;
+            rendu.material.color = couleurNormale;
+            yield return attenteClignotement;
+        }
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="CompteurAlerte.cs">
+```cs
+using TMPro;
+using UnityEngine;
+
+public class CompteurAlerte : MonoBehaviour
+{
+    [SerializeField] private TMP_Text texte;
+
+    private EnnemiLent[] ennemis;
+    private int dernierCompte = -1;
+
+    private void Start()
+    {
+        // Le Remplisseur a créé les ennemis dans son Awake : ils existent tous ici
+        ennemis = FindObjectsByType<EnnemiLent>(FindObjectsSortMode.None);
+    }
+
+    private void Update()
+    {
+        // Problème 6 : une boucle simple au lieu de LINQ, et le texte seulement s'il change
+        int enAlerte = 0;
+        for (int i = 0; i < ennemis.Length; i++)
+        {
+            if (ennemis[i].EnAlerte)
+            {
+                enAlerte++;
+            }
+        }
+
+        if (enAlerte != dernierCompte)
+        {
+            dernierCompte = enAlerte;
+            texte.text = "En alerte : " + enAlerte + " / " + ennemis.Length;
+        }
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** les six problèmes, du plus coûteux au moins coûteux en général :
+
+1. **`FindFirstObjectByType` dans `Update`.** 300 recherches dans toute la scène à chaque image. L'appât ne change jamais : on le cherche une fois dans `Start`.
+2. **`GetComponent` dans `Update`.** Moins grave, mais 18 000 appels par seconde pour récupérer toujours le même composant. On le garde dans un champ, dans `Awake`.
+3. **`Debug.Log` à chaque image.** Chaque message construit un `string`, capture la pile d'appels et s'affiche dans la Console. Avec 50 ennemis en alerte, ça fait 3 000 messages par seconde, et c'est souvent **le** problème le plus lourd dans l'éditeur.
+4. **La coroutine relancée à chaque image.** Tant qu'un ennemi est en alerte, il démarrait une nouvelle coroutine à chaque image, chacune avec deux `new WaitForSeconds`. Des centaines de coroutines vivaient en même temps et se battaient pour la couleur. Maintenant : une seule coroutine qui boucle, démarrée à l'entrée en alerte et arrêtée à la sortie, et un seul `WaitForSeconds` partagé.
+5. **`OverlapSphere` et `.tag`.** `OverlapSphere` crée un nouveau tableau à chaque appel, `.tag` crée un nouveau `string` à chaque lecture. `OverlapSphereNonAlloc` remplit un tampon qui existe déjà et renvoie le nombre de résultats. Ce tampon est `static` : un seul pour les 300 ennemis, ce qui ne pose aucun problème puisque les `Update` s'exécutent les uns après les autres, jamais en même temps.
+6. **Le compteur.** `FindObjectsByType` crée un tableau de 300 éléments à chaque image, LINQ alloue ses propres objets, et la concaténation crée un `string` neuf. On garde le tableau, on compte avec une boucle `for`, et on ne touche au texte que si le nombre a changé.
+
+Remarque que `Remplisseur` crée les ennemis dans `Awake` : c'est ce qui garantit que `CompteurAlerte.Start` les trouve tous. S'il les créait dans `Start`, le compteur pourrait passer avant lui et trouver un tableau vide.
+
+<Encadre type="piege" titre="Mesure dans les bonnes conditions">
+L'éditeur ajoute beaucoup de travail : la fenêtre Scene ouverte, la Hierarchy qui se met à jour avec 300 objets, l'Inspector. Pour une mesure plus juste, ferme la vue Scene pendant les tests, ou fais un **Development Build** avec **Autoconnect Profiler** coché et profile le jeu compilé.
+</Encadre>
+
+<Encadre type="retenir">
+Dans `Update` : **pas de Find**, **pas de GetComponent** sur un composant qui ne change pas, **pas de Debug.Log** permanent, **pas de StartCoroutine** sans condition de changement, et **pas de `new`** (tableaux, listes, `string`, LINQ) quand une version sans allocation existe. Et surtout : mesure avec le Profiler avant de corriger, pour corriger ce qui compte vraiment.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- `rendu.material` crée une copie du matériau pour chaque ennemi : 300 matériaux différents empêchent Unity de les dessiner ensemble. Utilise un `MaterialPropertyBlock` avec `rendu.SetPropertyBlock(...)` pour changer la couleur sans dupliquer le matériau (la propriété s'appelle `_BaseColor` en URP).
+- Les ennemis n'ont pas besoin de tester l'écartement à chaque image : fais-le une image sur trois, en décalant chaque ennemi avec `Time.frameCount % 3`.
+- Pousse le test à 2 000 ennemis. Regarde ce qui devient le plus lourd dans le Profiler, puis renseigne-toi sur le **Job System** et **Burst**, qui répartissent ce genre de calcul sur tous les cœurs du processeur.

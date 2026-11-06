@@ -1,0 +1,115 @@
+## Le contexte
+
+Si tu ranges la caméra comme enfant du joueur, elle le suit... mais de façon raide : chaque petit mouvement secoue tout l'écran. Dans la plupart des jeux, la caméra suit le joueur avec un léger retard, comme si elle était attachée par un élastique. C'est beaucoup plus agréable à regarder.
+
+Tu vas écrire ce script de caméra, et découvrir `LateUpdate`, une fonction appelée après tous les `Update`.
+
+## Ce que tu dois faire
+
+1. Reprends la scène de l'exercice « Déplacer un cube au clavier », avec ton `Joueur` qui bouge.
+2. Place la **Main Camera** au-dessus et en arrière du joueur, par exemple en 0, 6, -8, et tourne-la de 35 degrés sur X pour qu'elle regarde vers le bas. Vérifie dans la vue Game que le joueur est bien au centre.
+3. Vérifie que la caméra n'est **pas** un enfant du joueur dans la Hierarchy.
+4. Crée un script `CameraSuiveuse`, colle le code de départ et glisse-le sur la **Main Camera**.
+5. Glisse le `Joueur` depuis la Hierarchy dans le champ **Cible** du script.
+6. Remplis les `// TODO`.
+
+## Le code de départ
+
+<Fichier nom="CameraSuiveuse.cs">
+```cs
+using UnityEngine;
+
+public class CameraSuiveuse : MonoBehaviour
+{
+    // L'objet à suivre, à glisser dans l'Inspector
+    [SerializeField] private Transform cible;
+
+    // Temps approximatif pour rattraper la cible, en secondes. 0 = pas de retard.
+    [SerializeField] private float tempsLissage = 0.3f;
+
+    // L'écart entre la caméra et la cible, calculé au départ
+    private Vector3 decalage;
+
+    // Utilisée par SmoothDamp pour se souvenir de la vitesse de la caméra
+    private Vector3 vitesseCamera = Vector3.zero;
+
+    private void Start()
+    {
+        // TODO 1 : calculer l'écart entre la caméra et la cible au lancement
+    }
+
+    private void LateUpdate()
+    {
+        // TODO 2 : calculer où la caméra devrait être (position de la cible + décalage)
+
+        // TODO 3 : rapprocher la caméra de cette position en douceur
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Au lancement, l'image ne saute pas : la caméra garde exactement le cadrage que tu as réglé dans la scène.
+- [ ] Quand le joueur bouge, la caméra le suit avec un petit retard, sans à-coup.
+- [ ] Quand il s'arrête, la caméra finit par se recentrer doucement sur lui.
+- [ ] Avec `tempsLissage` à 0, la caméra suit le joueur sans aucun retard.
+- [ ] Avec `tempsLissage` à 1, le retard est bien plus visible.
+
+## Si tu bloques
+
+<Indice titre="Le décalage">
+Le décalage, c'est le vecteur qui va de la cible à la caméra : la position de la caméra moins celle de la cible. Si tu le calcules dans `Start`, la caméra gardera le cadrage que tu as choisi dans l'éditeur.
+</Indice>
+
+<Indice titre="La position voulue">
+À chaque image, la caméra voudrait être à `cible.position + decalage`. Si tu mets directement `transform.position` à cette valeur, la caméra suit, mais sans aucun retard.
+</Indice>
+
+<Indice titre="Suivre en douceur">
+`Vector3.SmoothDamp(positionActuelle, positionVoulue, ref vitesseCamera, tempsLissage)` renvoie une position un peu plus proche de la position voulue, en accélérant et en freinant de façon naturelle. Le mot `ref` est obligatoire : il permet à `SmoothDamp` de modifier `vitesseCamera` pour s'en souvenir à l'image suivante.
+</Indice>
+
+<Solution>
+
+<Fichier nom="CameraSuiveuse.cs">
+```cs
+using UnityEngine;
+
+public class CameraSuiveuse : MonoBehaviour
+{
+    [SerializeField] private Transform cible;
+    [SerializeField] private float tempsLissage = 0.3f;
+
+    private Vector3 decalage;
+    private Vector3 vitesseCamera = Vector3.zero;
+
+    private void Start()
+    {
+        decalage = transform.position - cible.position;
+    }
+
+    private void LateUpdate()
+    {
+        Vector3 positionVoulue = cible.position + decalage;
+        transform.position = Vector3.SmoothDamp(transform.position, positionVoulue, ref vitesseCamera, tempsLissage);
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** au lancement, on mesure l'écart entre la caméra et le joueur. Ensuite, à chaque image, on calcule où la caméra devrait être pour garder cet écart, et `SmoothDamp` l'en rapproche petit à petit. Plus le joueur est loin, plus la caméra va vite pour le rattraper, puis elle freine en arrivant. La rotation de la caméra ne change jamais : elle garde l'angle que tu lui as donné.
+
+On utilise `LateUpdate` et pas `Update` parce que Unity l'appelle **après** tous les `Update` de l'image. Le joueur a donc déjà bougé quand la caméra calcule sa position. Avec `Update`, selon l'ordre dans lequel Unity appelle les scripts, la caméra pourrait suivre la position de l'image d'avant, et l'image tremblerait.
+
+<Encadre type="piege" titre="Ça tremble avec un Rigidbody">
+Si ton joueur est déplacé par la physique (par exemple celui de l'exercice du saut), il bouge au rythme de la physique et non à chaque image. Coche **Interpolate** sur son Rigidbody pour que la caméra le suive sans trembler.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Essaie `Vector3.Lerp(transform.position, positionVoulue, 5f * Time.deltaTime)` à la place de `SmoothDamp` et compare l'effet.
+- Fais aussi regarder la caméra vers le joueur avec `transform.LookAt(cible)`, pour un effet de caméra de cinéma.
+- Avance la caméra un peu dans la direction où le joueur se déplace, pour qu'il voie mieux ce qui arrive devant lui.

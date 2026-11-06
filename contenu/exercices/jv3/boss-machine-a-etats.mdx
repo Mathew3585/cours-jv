@@ -1,0 +1,531 @@
+## Le contexte
+
+Un bon combat de boss se lit comme une partition : le boss poursuit, s'arrête pour **prévenir** qu'il va charger, fonce, s'assomme s'il rate et percute un mur (c'est le moment de frapper), puis entre dans une rage furieuse à mi-vie. Si tout ça est codé avec des `if` dans le Tick et une dizaine de booléens, le code devient vite impossible à suivre : le boss charge pendant qu'il est assommé, ou attaque après sa mort.
+
+La solution classique s'appelle une **machine à états** : le boss est toujours dans **un seul** état à la fois, chaque état a son comportement, et on passe d'un état à l'autre par une seule fonction, `ChangerEtat`. Le compte à rebours du GameMode de Mario Kart était déjà une petite machine à états (attente, compte à rebours, course, fin). Ici, tu en construis une vraie, avec entrée, sortie et minuteurs.
+
+## Ce que tu dois faire
+
+Voici les états et les transitions à respecter :
+
+```text
+Endormi     --(joueur à moins de DistanceReveil, ou boss touché)-->  Poursuite
+Poursuite   --(joueur à moins de DistanceCharge et charge rechargée)-->  Preparation
+Preparation --(après DureePreparation)-->  Charge
+Charge      --(mur devant)-->  Etourdi
+Charge      --(après DureeCharge)-->  Poursuite
+Etourdi     --(après DureeEtourdi)-->  Poursuite
+n'importe quel état vivant --(PV sous 50 %, une seule fois)-->  Rage  --(après DureeRage)-->  Poursuite
+n'importe quel état --(PV à 0)-->  Mort
+```
+
+1. Crée `ABoss` (hérite de `ACharacter`) avec le header donné.
+2. Écris `ChangerEtat` : c'est **la seule** fonction qui modifie `Etat`. Elle annule le minuteur de l'état précédent, appelle `SortirEtat`, change l'état, appelle `EntrerEtat`, puis déclenche le délégué `OnEtatChange`.
+3. Écris `EntrerEtat` (ce qui se passe une fois, à l'arrivée dans un état : vitesse, minuteur, direction de charge) et `SortirEtat` (ce qui se passe en partant : par exemple lancer la recharge de la charge).
+4. Dans `Tick`, un `switch` sur l'état appelle `TickPoursuite`, `TickPreparation` ou `TickCharge`. Les autres états ne font rien à chaque image.
+5. Pendant la charge, si le boss passe près du joueur, il lui inflige `DegatsCharge` (une seule fois par charge) et l'éjecte. Il détecte le mur avec un court line trace devant lui.
+6. Gère les dégâts dans `TakeDamage` : rien pendant la rage et la mort, double dégâts quand il est étourdi.
+7. En Rage, toutes les vitesses et durées utilisent `Multiplicateur`.
+8. Branche dans le Blueprint du boss `OnEtatChange` sur un son ou un changement de couleur, pour que le joueur **voie** chaque état.
+
+<Encadre type="info" titre="Pour tester">
+Pose ton boss (un Blueprint enfant de `ABoss` avec le mannequin) dans une arène fermée. Pour le frapper, ajoute une touche de test dans ton personnage : Get Actor Of Class (Boss) puis **Apply Damage** de 40. Le boss n'utilise pas de Nav Mesh : il fonce droit sur toi, c'est voulu dans une arène.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="Boss.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Character.h"
+#include "Boss.generated.h"
+
+UENUM(BlueprintType)
+enum class EEtatBoss : uint8
+{
+	Endormi,
+	Poursuite,
+	Preparation,
+	Charge,
+	Etourdi,
+	Rage,
+	Mort
+};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEtatBossChange, EEtatBoss, Ancien, EEtatBoss, Nouveau);
+
+UCLASS()
+class MONPROJET_API ABoss : public ACharacter
+{
+	GENERATED_BODY()
+
+public:
+	ABoss();
+	virtual void Tick(float DeltaTime) override;
+	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
+		AController* EventInstigator, AActor* DamageCauser) override;
+
+	UFUNCTION(BlueprintPure, Category = "Boss")
+	EEtatBoss GetEtat() const { return Etat; }
+
+	UFUNCTION(BlueprintPure, Category = "Boss")
+	float GetPourcentagePV() const { return PVMax > 0.f ? PV / PVMax : 0.f; }
+
+	UPROPERTY(BlueprintAssignable, Category = "Boss")
+	FOnEtatBossChange OnEtatChange;
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|Vie")
+	float PVMax = 300.f;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|Distances")
+	float DistanceReveil = 1500.f;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|Distances")
+	float DistanceCharge = 900.f;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|Vitesses")
+	float VitesseMarche = 300.f;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|Vitesses")
+	float VitesseCharge = 1800.f;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|Durees")
+	float DureePreparation = 0.8f;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|Durees")
+	float DureeCharge = 1.5f;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|Durees")
+	float DureeEtourdi = 3.f;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|Durees")
+	float DureeRage = 2.f;
+
+	// Temps minimum entre deux charges
+	UPROPERTY(EditAnywhere, Category = "Boss|Durees")
+	float RechargeCharge = 4.f;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|Combat")
+	float DegatsCharge = 30.f;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|Combat")
+	float MultiplicateurRage = 1.5f;
+
+	UPROPERTY(EditAnywhere, Category = "Boss|Debug")
+	bool bAfficherEtat = true;
+
+private:
+	// La seule fonction qui a le droit de modifier Etat
+	void ChangerEtat(EEtatBoss Nouveau);
+	void EntrerEtat(EEtatBoss NouvelEtat);
+	void SortirEtat(EEtatBoss AncienEtat);
+
+	void TickPoursuite(float DeltaTime);
+	void TickPreparation(float DeltaTime);
+	void TickCharge(float DeltaTime);
+
+	// Appelée quand le minuteur de l'état actuel se termine
+	void FinMinuteurEtat();
+	void ChargeRechargee();
+
+	APawn* GetJoueur() const;
+
+	EEtatBoss Etat = EEtatBoss::Endormi;
+	float PV = 0.f;
+	float Multiplicateur = 1.f;
+	bool bRageFaite = false;
+	bool bChargePrete = true;
+	bool bJoueurTouche = false;
+	FVector DirectionCharge = FVector::ForwardVector;
+
+	FTimerHandle TimerEtat;
+	FTimerHandle TimerRecharge;
+};
+```
+</Fichier>
+
+<Fichier nom="Boss.cpp">
+```cpp
+#include "Boss.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/DamageEvents.h"
+#include "TimerManager.h"
+
+ABoss::ABoss()
+{
+	PrimaryActorTick.bCanEverTick = true;
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+
+	bUseControllerRotationYaw = false;
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 540.f, 0.f);
+	GetCharacterMovement()->MaxAcceleration = 6000.f;
+}
+
+void ABoss::BeginPlay()
+{
+	Super::BeginPlay();
+	PV = PVMax;
+	EntrerEtat(Etat);
+}
+
+APawn* ABoss::GetJoueur() const
+{
+	return UGameplayStatics::GetPlayerPawn(this, 0);
+}
+
+// TODO : ChangerEtat, EntrerEtat, SortirEtat, FinMinuteurEtat, ChargeRechargee,
+//        Tick, TickPoursuite, TickPreparation, TickCharge, TakeDamage
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Le nom de l'état actuel s'affiche à l'écran et suit exactement le schéma des transitions.
+- [ ] Avant chaque charge, le boss s'arrête et se tourne vers toi pendant `DureePreparation` : tu as le temps de réagir.
+- [ ] Une charge qui te touche t'éjecte et ne t'inflige les dégâts qu'**une** fois.
+- [ ] Une charge qui finit dans un mur assomme le boss. Pendant ce temps, tes coups font double dégâts.
+- [ ] Le boss ne recharge jamais deux fois de suite sans attendre `RechargeCharge`.
+- [ ] À 50 % de PV, il passe en Rage une seule fois, est invulnérable pendant ce temps, puis tout va plus vite.
+- [ ] Mort, il ne bouge plus et ne réagit plus à rien, même si un ancien minuteur se termine.
+- [ ] Dans `Boss.cpp`, la variable `Etat` n'est modifiée qu'à **un seul** endroit : dans `ChangerEtat`.
+
+## Si tu bloques
+
+<Indice titre="Organiser les switch">
+Il y a trois `switch` sur l'état : un dans `EntrerEtat`, un dans `SortirEtat` et un dans `Tick`. Plus un quatrième dans `FinMinuteurEtat`, qui décide de l'état suivant selon l'état actuel : Preparation donne Charge, et Charge, Etourdi ou Rage donnent Poursuite. Pense au `default: break;` pour les états qui n'ont rien à faire.
+</Indice>
+
+<Indice titre="Le minuteur fantôme">
+Imagine : le boss entre en Charge, ce qui lance un minuteur de 1,5 seconde. Après 0,5 seconde, il percute un mur et passe en Etourdi. Une seconde plus tard, le vieux minuteur de la charge se termine... et renvoie le boss en Poursuite alors qu'il devait rester assommé 3 secondes. D'où la règle : `ChangerEtat` commence **toujours** par `GetWorldTimerManager().ClearTimer(TimerEtat)`. Un seul `TimerEtat` pour tous les états, c'est ce qui rend ce nettoyage facile.
+</Indice>
+
+<Indice titre="Faire avancer le boss">
+Un `ACharacter` possédé par une IA avance avec `AddMovementInput(Direction, 1.f)` à chaque image, comme un joueur. La vitesse maximale vient de `GetCharacterMovement()->MaxWalkSpeed` : c'est elle que tu changes dans `EntrerEtat`. Pour l'arrêter net : `GetCharacterMovement()->StopMovementImmediately()`.
+</Indice>
+
+<Indice titre="Détecter le mur pendant la charge">
+Un line trace de la position du boss vers `Position + DirectionCharge * (RayonCapsule + 80)`, sur le canal `ECC_Visibility`, en ignorant le boss et le joueur. S'il touche quelque chose, c'est un mur. `GetCapsuleComponent()->GetScaledCapsuleRadius()` te donne le rayon.
+</Indice>
+
+<Indice titre="Afficher l'état">
+`UEnum::GetValueAsString(Etat)` transforme une valeur d'`enum class` marquée `UENUM` en texte, par exemple « EEtatBoss::Charge ». Affiche-le avec `GEngine->AddOnScreenDebugMessage(1, 0.f, FColor::Yellow, Texte)` : la clé 1 remplace le message à chaque image au lieu d'en empiler.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Boss.cpp">
+```cpp
+#include "Boss.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/DamageEvents.h"
+#include "Engine/Engine.h"
+#include "TimerManager.h"
+
+ABoss::ABoss()
+{
+	PrimaryActorTick.bCanEverTick = true;
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+
+	bUseControllerRotationYaw = false;
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 540.f, 0.f);
+	GetCharacterMovement()->MaxAcceleration = 6000.f;
+}
+
+void ABoss::BeginPlay()
+{
+	Super::BeginPlay();
+	PV = PVMax;
+	EntrerEtat(Etat);
+}
+
+APawn* ABoss::GetJoueur() const
+{
+	return UGameplayStatics::GetPlayerPawn(this, 0);
+}
+
+// ---------- Transitions ----------
+
+void ABoss::ChangerEtat(EEtatBoss Nouveau)
+{
+	// On ne quitte jamais la mort, et on ne "change" pas vers l'état actuel
+	if (Etat == EEtatBoss::Mort || Nouveau == Etat)
+	{
+		return;
+	}
+
+	const EEtatBoss Ancien = Etat;
+
+	// Le minuteur de l'ancien état ne doit jamais se déclencher dans le nouveau
+	GetWorldTimerManager().ClearTimer(TimerEtat);
+
+	SortirEtat(Ancien);
+	Etat = Nouveau;
+	EntrerEtat(Nouveau);
+
+	OnEtatChange.Broadcast(Ancien, Nouveau);
+}
+
+void ABoss::EntrerEtat(EEtatBoss NouvelEtat)
+{
+	UCharacterMovementComponent* Mouvement = GetCharacterMovement();
+	FTimerManager& Minuteurs = GetWorldTimerManager();
+
+	switch (NouvelEtat)
+	{
+	case EEtatBoss::Endormi:
+		Mouvement->MaxWalkSpeed = 0.f;
+		break;
+
+	case EEtatBoss::Poursuite:
+		Mouvement->MaxWalkSpeed = VitesseMarche * Multiplicateur;
+		break;
+
+	case EEtatBoss::Preparation:
+		Mouvement->StopMovementImmediately();
+		Minuteurs.SetTimer(TimerEtat, this, &ABoss::FinMinuteurEtat, DureePreparation / Multiplicateur, false);
+		break;
+
+	case EEtatBoss::Charge:
+		// La direction est figée au départ : le joueur peut esquiver sur le côté
+		DirectionCharge = GetActorForwardVector().GetSafeNormal2D();
+		bJoueurTouche = false;
+		bChargePrete = false;
+		Mouvement->MaxWalkSpeed = VitesseCharge * Multiplicateur;
+		Minuteurs.SetTimer(TimerEtat, this, &ABoss::FinMinuteurEtat, DureeCharge, false);
+		break;
+
+	case EEtatBoss::Etourdi:
+		Mouvement->StopMovementImmediately();
+		Minuteurs.SetTimer(TimerEtat, this, &ABoss::FinMinuteurEtat, DureeEtourdi, false);
+		break;
+
+	case EEtatBoss::Rage:
+		Mouvement->StopMovementImmediately();
+		bRageFaite = true;
+		Multiplicateur = MultiplicateurRage;
+		Minuteurs.SetTimer(TimerEtat, this, &ABoss::FinMinuteurEtat, DureeRage, false);
+		break;
+
+	case EEtatBoss::Mort:
+		Mouvement->StopMovementImmediately();
+		Mouvement->DisableMovement();
+		Minuteurs.ClearAllTimersForObject(this);
+		GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		SetActorTickEnabled(false);
+		break;
+	}
+}
+
+void ABoss::SortirEtat(EEtatBoss AncienEtat)
+{
+	switch (AncienEtat)
+	{
+	case EEtatBoss::Charge:
+		// Quelle que soit la façon dont la charge finit, la recharge commence
+		GetCharacterMovement()->StopMovementImmediately();
+		GetWorldTimerManager().SetTimer(TimerRecharge, this, &ABoss::ChargeRechargee, RechargeCharge / Multiplicateur, false);
+		break;
+
+	default:
+		break;
+	}
+}
+
+void ABoss::FinMinuteurEtat()
+{
+	switch (Etat)
+	{
+	case EEtatBoss::Preparation:
+		ChangerEtat(EEtatBoss::Charge);
+		break;
+
+	case EEtatBoss::Charge:
+	case EEtatBoss::Etourdi:
+	case EEtatBoss::Rage:
+		ChangerEtat(EEtatBoss::Poursuite);
+		break;
+
+	default:
+		break;
+	}
+}
+
+void ABoss::ChargeRechargee()
+{
+	bChargePrete = true;
+}
+
+// ---------- Comportement à chaque image ----------
+
+void ABoss::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	switch (Etat)
+	{
+	case EEtatBoss::Endormi:
+		if (APawn* Joueur = GetJoueur())
+		{
+			if (FVector::Dist(Joueur->GetActorLocation(), GetActorLocation()) < DistanceReveil)
+			{
+				ChangerEtat(EEtatBoss::Poursuite);
+			}
+		}
+		break;
+
+	case EEtatBoss::Poursuite:
+		TickPoursuite(DeltaTime);
+		break;
+
+	case EEtatBoss::Preparation:
+		TickPreparation(DeltaTime);
+		break;
+
+	case EEtatBoss::Charge:
+		TickCharge(DeltaTime);
+		break;
+
+	default:
+		break;
+	}
+
+	if (bAfficherEtat && GEngine)
+	{
+		const FString Texte = FString::Printf(TEXT("%s  PV %.0f / %.0f"), *UEnum::GetValueAsString(Etat), PV, PVMax);
+		GEngine->AddOnScreenDebugMessage(1, 0.f, FColor::Yellow, Texte);
+	}
+}
+
+void ABoss::TickPoursuite(float DeltaTime)
+{
+	APawn* Joueur = GetJoueur();
+	if (!Joueur)
+	{
+		return;
+	}
+
+	FVector VersJoueur = Joueur->GetActorLocation() - GetActorLocation();
+	VersJoueur.Z = 0.f;
+	AddMovementInput(VersJoueur.GetSafeNormal(), 1.f);
+
+	if (bChargePrete && VersJoueur.Size() < DistanceCharge)
+	{
+		ChangerEtat(EEtatBoss::Preparation);
+	}
+}
+
+void ABoss::TickPreparation(float DeltaTime)
+{
+	// Immobile, il se tourne vers le joueur : c'est le signal pour le joueur
+	APawn* Joueur = GetJoueur();
+	if (!Joueur)
+	{
+		return;
+	}
+
+	const FVector VersJoueur = Joueur->GetActorLocation() - GetActorLocation();
+	const FRotator Voulue(0.f, VersJoueur.Rotation().Yaw, 0.f);
+	SetActorRotation(FMath::RInterpTo(GetActorRotation(), Voulue, DeltaTime, 10.f));
+}
+
+void ABoss::TickCharge(float DeltaTime)
+{
+	AddMovementInput(DirectionCharge, 1.f);
+
+	APawn* Joueur = GetJoueur();
+
+	// Le joueur est percuté ?
+	if (Joueur && !bJoueurTouche)
+	{
+		const float Contact = GetCapsuleComponent()->GetScaledCapsuleRadius() + 80.f;
+		if (FVector::Dist2D(Joueur->GetActorLocation(), GetActorLocation()) < Contact)
+		{
+			bJoueurTouche = true;
+			UGameplayStatics::ApplyDamage(Joueur, DegatsCharge * Multiplicateur, GetController(), this, nullptr);
+			if (ACharacter* Perso = Cast<ACharacter>(Joueur))
+			{
+				Perso->LaunchCharacter(DirectionCharge * 1200.f + FVector(0.f, 0.f, 400.f), true, true);
+			}
+		}
+	}
+
+	// Un mur juste devant ?
+	const FVector Depart = GetActorLocation();
+	const FVector Fin = Depart + DirectionCharge * (GetCapsuleComponent()->GetScaledCapsuleRadius() + 80.f);
+	FHitResult Impact;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+	if (Joueur)
+	{
+		Params.AddIgnoredActor(Joueur);
+	}
+	if (GetWorld()->LineTraceSingleByChannel(Impact, Depart, Fin, ECC_Visibility, Params))
+	{
+		ChangerEtat(EEtatBoss::Etourdi);
+	}
+}
+
+// ---------- Dégâts ----------
+
+float ABoss::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	if (Etat == EEtatBoss::Mort || Etat == EEtatBoss::Rage)
+	{
+		return 0.f;
+	}
+
+	float Degats = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	if (Etat == EEtatBoss::Etourdi)
+	{
+		Degats *= 2.f;
+	}
+
+	PV = FMath::Max(PV - Degats, 0.f);
+
+	if (PV <= 0.f)
+	{
+		ChangerEtat(EEtatBoss::Mort);
+	}
+	else if (!bRageFaite && PV <= PVMax * 0.5f)
+	{
+		ChangerEtat(EEtatBoss::Rage);
+	}
+	else if (Etat == EEtatBoss::Endormi)
+	{
+		ChangerEtat(EEtatBoss::Poursuite);
+	}
+	return Degats;
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** toute la logique tient en une idée. Le Tick ne décide **que** de ce qui se passe pendant un état, et `ChangerEtat` est le seul passage d'un état à l'autre. Comme il nettoie toujours le minuteur, appelle la sortie puis l'entrée, aucun état ne peut « oublier » de remettre la vitesse ou laisser traîner un minuteur.
+
+`SortirEtat(Charge)` lance la recharge quelle que soit la sortie : fin du minuteur, mur, ou même passage en Rage en pleine charge. Si tu avais lancé la recharge seulement à la fin du minuteur, un boss qui percute un mur pourrait recharger dès son réveil.
+
+L'état Mort est protégé deux fois : `ChangerEtat` refuse de le quitter, et `EntrerEtat(Mort)` efface tous les minuteurs de l'objet avec `ClearAllTimersForObject`. Même le minuteur de recharge, qui n'est pas `TimerEtat`, ne peut plus rien faire.
+
+Le délégué `OnEtatChange` sépare la logique de la présentation : le C++ décide, le Blueprint joue les sons, les animations et les effets. Un game designer peut changer tout le rendu sans toucher au code.
+
+<Encadre type="plus-loin" titre="Et les Behavior Trees ?">
+Unreal propose les Behavior Trees et State Tree, un éditeur visuel de machines à états. Ils sont parfaits pour des IA complexes. Mais une machine à états en C++ comme celle-ci reste très courante pour un boss scripté : tout est lisible dans un seul fichier.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute une attaque « onde de choc » en Rage : le boss saute, et à l'atterrissage (`Landed`) il inflige des dégâts en zone avec `UGameplayStatics::ApplyRadialDamage`.
+- Ajoute un état `Hurlement` déclenché au réveil, avec une animation montage jouée via `PlayAnimMontage`, et ne passe en Poursuite qu'à la fin du montage.
+- Affiche une barre de vie de boss dans un widget qui écoute `OnEtatChange` et `GetPourcentagePV`.

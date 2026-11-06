@@ -1,0 +1,181 @@
+## Le contexte
+
+Le joueur marche sur des pics, il perd de la vie, et une barre rouge en haut de l'écran diminue. Une trousse de soin la fait remonter. À zéro, c'est perdu.
+
+Tu vas écrire deux scripts qui travaillent ensemble : `Vie`, posé sur le joueur, qui garde les points de vie et met à jour la barre, et `ZoneDegats`, posé sur les pics, qui va chercher le script `Vie` de celui qui marche dessus. C'est une façon très courante de faire communiquer deux objets.
+
+## Ce que tu dois faire
+
+**La barre de vie**
+
+1. Crée un slider : **GameObject › UI › Slider**. Unity crée aussi un **Canvas** et un **EventSystem**. Renomme le slider `BarreDeVie` et place-le en haut à gauche de l'écran.
+2. Dans la Hierarchy, déplie `BarreDeVie` et supprime l'enfant **Handle Slide Area** (la poignée ronde : on ne veut pas que le joueur puisse tirer sa barre).
+3. Sur `BarreDeVie`, décoche **Interactable** dans le composant **Slider**.
+4. Déplie **Fill Area › Fill** et mets la couleur de son **Image** en rouge.
+
+**Le joueur**
+
+5. Reprends ton cube `Joueur` de l'exercice « Déplacer un cube au clavier », avec un **Rigidbody** coché **Is Kinematic** (comme dans l'exercice des pièces).
+6. Crée un script `Vie`, colle le code de départ, glisse-le sur le `Joueur`, puis glisse `BarreDeVie` dans son champ **Barre De Vie**.
+
+**Les pics et le soin**
+
+7. Crée un cube aplati (échelle 2, 0.2, 2) nommé `Pics`, pose-le sur le sol et coche **Is Trigger** sur son **Box Collider**.
+8. Crée un script `ZoneDegats`, colle le code de départ et glisse-le sur `Pics`. Laisse **Degats** à 25.
+9. Duplique `Pics`, renomme la copie `Soin`, mets **Degats** à -20 et donne-lui une autre couleur. Des dégâts négatifs, c'est du soin !
+10. Remplis les `// TODO` dans les deux scripts.
+
+## Le code de départ
+
+<Fichier nom="Vie.cs">
+```cs
+using UnityEngine;
+using UnityEngine.UI;
+
+public class Vie : MonoBehaviour
+{
+    [SerializeField] private float vieMax = 100f;
+    [SerializeField] private Slider barreDeVie;
+
+    private float vieActuelle;
+
+    private void Start()
+    {
+        vieActuelle = vieMax;
+
+        // TODO 1 : régler la barre pour qu'elle aille de 0 à vieMax, et la remplir
+    }
+
+    // Appelée par les autres scripts. Une valeur négative soigne.
+    public void PrendreDegats(float quantite)
+    {
+        // TODO 2 : retirer la quantité à vieActuelle, sans descendre sous 0
+        //          ni dépasser vieMax, puis mettre à jour la barre
+
+        // TODO 3 : si la vie tombe à 0, appeler Mourir()
+    }
+
+    private void Mourir()
+    {
+        Debug.Log("Perdu !");
+        gameObject.SetActive(false);
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="ZoneDegats.cs">
+```cs
+using UnityEngine;
+
+public class ZoneDegats : MonoBehaviour
+{
+    [SerializeField] private float degats = 25f;
+
+    private void OnTriggerEnter(Collider other)
+    {
+        // TODO 4 : si l'objet qui entre a un composant Vie, lui infliger les dégâts
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Au lancement, la barre est pleine.
+- [ ] Chaque passage sur les pics fait baisser la barre d'un quart.
+- [ ] Le soin la fait remonter, mais jamais au-delà du maximum.
+- [ ] Au quatrième passage sur les pics, la Console affiche « Perdu ! » et le joueur disparaît.
+- [ ] Un objet sans script `Vie` qui tomberait dans les pics ne provoque aucune erreur.
+
+## Si tu bloques
+
+<Indice titre="Régler le slider">
+Un `Slider` a trois propriétés utiles : `minValue`, `maxValue` et `value`. Par défaut, il va de 0 à 1. Mets `maxValue` à `vieMax`, puis `value` à `vieActuelle`.
+</Indice>
+
+<Indice titre="Rester entre 0 et le maximum">
+`Mathf.Clamp(valeur, min, max)` renvoie la valeur, bloquée entre le min et le max. Calcule `vieActuelle - quantite` et passe-le dans `Clamp` avec 0 et `vieMax`.
+</Indice>
+
+<Indice titre="Trouver le script Vie de l'autre objet">
+`other.TryGetComponent(out Vie vie)` cherche un composant `Vie` sur l'objet touché. S'il en trouve un, la fonction renvoie `true` et le range dans la variable `vie`. Sinon elle renvoie `false`, sans erreur. Tu peux donc l'écrire directement dans un `if`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Vie.cs">
+```cs
+using UnityEngine;
+using UnityEngine.UI;
+
+public class Vie : MonoBehaviour
+{
+    [SerializeField] private float vieMax = 100f;
+    [SerializeField] private Slider barreDeVie;
+
+    private float vieActuelle;
+
+    private void Start()
+    {
+        vieActuelle = vieMax;
+
+        barreDeVie.minValue = 0f;
+        barreDeVie.maxValue = vieMax;
+        barreDeVie.value = vieActuelle;
+    }
+
+    public void PrendreDegats(float quantite)
+    {
+        vieActuelle = Mathf.Clamp(vieActuelle - quantite, 0f, vieMax);
+        barreDeVie.value = vieActuelle;
+
+        if (vieActuelle <= 0f)
+        {
+            Mourir();
+        }
+    }
+
+    private void Mourir()
+    {
+        Debug.Log("Perdu !");
+        gameObject.SetActive(false);
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="ZoneDegats.cs">
+```cs
+using UnityEngine;
+
+public class ZoneDegats : MonoBehaviour
+{
+    [SerializeField] private float degats = 25f;
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.TryGetComponent(out Vie vie))
+        {
+            vie.PrendreDegats(degats);
+        }
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** les pics ne savent rien de la barre de vie. Ils demandent juste à l'objet qui entre : « as-tu un composant `Vie` ? ». Si oui, ils appellent sa fonction `PrendreDegats`, qui est `public` justement pour que d'autres scripts puissent l'utiliser. C'est le script `Vie` qui s'occupe du reste : calculer, bloquer entre 0 et le max, mettre la barre à jour.
+
+Avec cette organisation, tu peux mettre `Vie` sur un ennemi et lui faire prendre des dégâts avec les mêmes pics, sans rien changer.
+
+<Encadre type="info" titre="GetComponent ou TryGetComponent ?">
+`GetComponent<Vie>()` renvoie `null` si le composant n'existe pas, et il faut penser à le tester. `TryGetComponent` fait la recherche et le test en une seule ligne.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Affiche aussi la vie en chiffres (« 75 / 100 ») avec un texte TextMeshPro au-dessus de la barre.
+- Fais passer la couleur du remplissage du vert au rouge selon la vie restante, avec `Color.Lerp(Color.red, Color.green, vieActuelle / vieMax)`.
+- Fais baisser la barre en douceur : la valeur affichée rattrape petit à petit la vraie vie dans `Update`.

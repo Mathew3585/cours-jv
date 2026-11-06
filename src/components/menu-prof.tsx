@@ -12,6 +12,7 @@ export function MenuProf({ nom, initiales, aCorriger }: { nom: string; initiales
     { href: "/prof/classes", label: "Classes et suivi" },
     { href: "/prof/comptes", label: "Comptes élèves" },
     { href: "/prof/projets", label: "Projets et deadlines" },
+    { href: "/exercices", label: "Exercices bonus" },
     { href: "/prof/corrections", label: "À corriger", badge: aCorriger },
   ];
 

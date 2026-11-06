@@ -6,9 +6,10 @@ import { BarreProgression } from "@/components/motion";
 import { FormulaireCorrection, FormulaireMessage, FormulaireNotePrivee } from "@/components/prof/formulaires";
 import { ModaleEleve } from "@/components/prof/modale-eleve";
 import { Pastille } from "@/components/ui";
-import { idLecon, trouverQuestionLibre, trouverQuiz } from "@/contenu";
+import { difficultes, idLecon, trouverExercice, trouverQuestionLibre, trouverQuiz } from "@/contenu";
 import { dateCourte, ilYa } from "@/lib/dates";
 import { suiviEleve, toutesLesClasses } from "@/lib/donnees-prof";
+import { bilanExercices, estNiveau, exercicesFaits } from "@/lib/exercices";
 import { cleDeadline, derniereActivite, moyenneQuiz, progressionModule, progressionProjet, statutEleve, statutLecon } from "@/lib/progression";
 import { supabaseServeur } from "@/lib/supabase/serveur";
 
@@ -24,10 +25,11 @@ const libellesStatut = {
 export default async function FicheElevePage({ params }: PageProps<"/prof/eleves/[id]">) {
   const { id } = await params;
   const supabase = await supabaseServeur();
-  const [suivi, classes, { data: messages }] = await Promise.all([
+  const [suivi, classes, { data: messages }, faits] = await Promise.all([
     suiviEleve(id),
     toutesLesClasses(),
     supabase.from("messages").select("*").eq("eleve_id", id).order("created_at", { ascending: false }).limit(5),
+    exercicesFaits(id),
   ]);
   if (!suivi) notFound();
   const { profil, d, classe } = suivi;
@@ -36,6 +38,12 @@ export default async function FicheElevePage({ params }: PageProps<"/prof/eleves
   const moyenne = moyenneQuiz(d);
   const reponses = [...d.reponses.values()].sort((a, b) => b.maj_le.localeCompare(a.maj_le));
   const aujourdhui = new Date().toISOString().slice(0, 10);
+  const niveauClasse = classe?.niveau;
+  const bilan = estNiveau(niveauClasse) ? bilanExercices(niveauClasse, faits) : null;
+  const derniersExos = [...faits.entries()]
+    .sort((a, b) => b[1].localeCompare(a[1]))
+    .slice(0, 6)
+    .map(([exId, date]) => ({ exercice: trouverExercice(exId), date, exId }));
 
   // Chiffres clés, sur le premier projet ouvert pour sa classe
   const premier = d.projetsOuverts[0];
@@ -154,6 +162,44 @@ export default async function FicheElevePage({ params }: PageProps<"/prof/eleves
                           · {s.tentatives} essai{s.tentatives > 1 ? "s" : ""}
                         </span>
                       </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+          <section className="carte flex flex-col gap-4 p-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <h2 className="font-display text-xl font-bold">Exercices bonus</h2>
+              <span className="text-sm text-muet">{faits.size} réussi{faits.size > 1 ? "s" : ""} · pas obligatoires</span>
+            </div>
+            {bilan ? (
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                {bilan.map((b) => (
+                  <div key={b.id} className="flex flex-col gap-1.5 rounded-xl bg-creme-2 px-3.5 py-3">
+                    <span className="self-start">
+                      <Pastille ton={b.ton}>{b.label}</Pastille>
+                    </span>
+                    <b className="font-display text-[20px] tabular-nums">
+                      {b.faits} <span className="text-[15px] font-semibold text-muet">/ {b.total}</span>
+                    </b>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[15px] text-muet">Sans classe, l&apos;élève ne voit pas d&apos;exercices.</p>
+            )}
+            {derniersExos.length > 0 && (
+              <div className="flex flex-col text-[15px]">
+                {derniersExos.map(({ exercice, date, exId }) => {
+                  const d = difficultes.find((x) => x.id === exercice?.difficulte);
+                  return (
+                    <div key={exId} className="flex items-center justify-between gap-3 border-b border-[#f6ede1] py-2.5 last:border-0">
+                      <span className="flex min-w-0 items-center gap-2">
+                        {d && <Pastille ton={d.ton}>{d.label}</Pastille>}
+                        <span className="truncate">{exercice?.titre ?? exId}</span>
+                      </span>
+                      <span className="text-[13px] whitespace-nowrap text-muet">{ilYa(date)}</span>
                     </div>
                   );
                 })}

@@ -1,0 +1,174 @@
+## Le contexte
+
+Un trampoline qui fait rebondir le joueur et lui donne des points à chaque saut : c'est un petit mini-jeu qu'on peut cacher dans un niveau. Le code paraît simple, mais il cache trois erreurs que l'on voit très souvent : un type trop petit, un pointeur utilisé sans vérification, et un paramètre mal compris.
+
+## Ce que tu dois faire
+
+Voici le trampoline tel qu'il a été écrit. On a créé un Blueprint enfant avec un cube aplati comme toile et on l'a posé dans le niveau. Voici ce qu'on observe :
+
+- **Les premiers rebonds marchent, mais vers le 26e saut, le score passe de 250 à 4.** Le but du mini-jeu est d'atteindre 500 points : c'est impossible.
+- **Quand on fait tomber un cube (avec **Simulate Physics** et **Generate Overlap Events** cochés) sur le trampoline, l'éditeur plante** avec un message du genre `Access violation`.
+- **Quand on saute sur le trampoline depuis une plateforme haute, le rebond est minuscule**, alors qu'en sautant depuis le sol il est énorme. Le trampoline devrait toujours renvoyer le joueur à la même hauteur.
+
+Il y a **3 bugs**. Le code compile.
+
+1. Recopie le code et reproduis chaque symptôme.
+2. Trouve la cause de chacun, puis corrige.
+
+## Le code de départ
+
+<Fichier nom="Trampoline.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Trampoline.generated.h"
+
+class UBoxComponent;
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API ATrampoline : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	ATrampoline();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, Category = "Trampoline")
+	TObjectPtr<UBoxComponent> Zone;
+
+	UPROPERTY(VisibleAnywhere, Category = "Trampoline")
+	TObjectPtr<UStaticMeshComponent> Toile;
+
+	// Vitesse verticale donnée au joueur, en cm/s
+	UPROPERTY(EditAnywhere, Category = "Trampoline")
+	float ForceRebond = 1200.f;
+
+	UPROPERTY(EditAnywhere, Category = "Trampoline")
+	uint8 PointsParRebond = 10;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Trampoline")
+	uint8 Points = 0;
+
+private:
+	UFUNCTION()
+	void EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+};
+```
+</Fichier>
+
+<Fichier nom="Trampoline.cpp">
+```cpp
+#include "Trampoline.h"
+#include "Components/BoxComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "GameFramework/Character.h"
+#include "Engine/Engine.h"
+
+ATrampoline::ATrampoline()
+{
+	Toile = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Toile"));
+	RootComponent = Toile;
+
+	// La zone est posée juste au-dessus de la toile
+	Zone = CreateDefaultSubobject<UBoxComponent>(TEXT("Zone"));
+	Zone->SetupAttachment(Toile);
+	Zone->SetBoxExtent(FVector(100.f, 100.f, 20.f));
+	Zone->SetRelativeLocation(FVector(0.f, 0.f, 40.f));
+}
+
+void ATrampoline::BeginPlay()
+{
+	Super::BeginPlay();
+	Zone->OnComponentBeginOverlap.AddDynamic(this, &ATrampoline::EntreeZone);
+}
+
+void ATrampoline::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	ACharacter* Perso = Cast<ACharacter>(OtherActor);
+	Perso->LaunchCharacter(FVector(0.f, 0.f, ForceRebond), false, false);
+
+	Points += PointsParRebond;
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(2, 2.f, FColor::Cyan, FString::Printf(TEXT("Points : %d"), Points));
+	}
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Après 30 rebonds, le score affiche 300 (et il peut monter bien au-delà de 500).
+- [ ] Un cube physique qui tombe sur le trampoline ne fait plus planter le jeu.
+- [ ] Le joueur rebondit à la même hauteur qu'il arrive du sol ou d'une plateforme haute.
+- [ ] Le cube physique ne rapporte pas de points.
+
+## Si tu bloques
+
+<Indice titre="250 + 10 = 4 ?">
+Combien de valeurs différentes peut contenir un entier sur 8 bits ? Que se passe-t-il quand on dépasse la plus grande ? Regarde le type de `Points`.
+</Indice>
+
+<Indice titre="Le plantage">
+Quand le cube entre dans la zone, `OtherActor` est le cube. Que renvoie `Cast` si l'acteur n'est pas un `ACharacter` ? Et que se passe-t-il quand on appelle une fonction sur ce résultat ?
+</Indice>
+
+<Indice titre="Les deux booléens de LaunchCharacter">
+`LaunchCharacter(Vitesse, bXYOverride, bZOverride)`. Quand un booléen est à `false`, la vitesse donnée est **ajoutée** à la vitesse actuelle du personnage sur cet axe. Quand il est à `true`, elle la **remplace**. À quelle vitesse verticale tombe un personnage qui arrive d'une plateforme haute ?
+</Indice>
+
+<Solution>
+
+<Fichier nom="Trampoline.h">
+```cpp
+	UPROPERTY(EditAnywhere, Category = "Trampoline")
+	int32 PointsParRebond = 10;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Trampoline")
+	int32 Points = 0;
+```
+</Fichier>
+
+<Fichier nom="Trampoline.cpp">
+```cpp
+void ATrampoline::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	ACharacter* Perso = Cast<ACharacter>(OtherActor);
+	if (!Perso)
+	{
+		return;
+	}
+
+	Perso->LaunchCharacter(FVector(0.f, 0.f, ForceRebond), false, true);
+
+	Points += PointsParRebond;
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(2, 2.f, FColor::Cyan, FString::Printf(TEXT("Points : %d"), Points));
+	}
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :**
+
+- **Bug 1, le score qui retombe :** un `uint8` tient sur 8 bits, donc il ne va que de 0 à 255. Au 26e rebond, 250 + 10 = 260 ne rentre pas : le compteur fait le tour et repart de 0, d'où 260 - 256 = 4. C'est un **dépassement d'entier**. Un `int32` va jusqu'à environ 2 milliards, largement assez. Garde `uint8` pour des valeurs vraiment petites (une couleur, un numéro d'équipe).
+- **Bug 2, le plantage :** `Cast<ACharacter>` renvoie `nullptr` quand l'acteur n'est pas un personnage. Appeler `LaunchCharacter` sur un pointeur nul lit une adresse mémoire invalide : c'est l'`Access violation`. Il faut toujours tester le résultat d'un `Cast` avant de s'en servir. Le `return` règle aussi la dernière case de la liste : le cube ne marque plus de points.
+- **Bug 3, le rebond qui varie :** avec `bZOverride` à `false`, `ForceRebond` est ajoutée à la vitesse de chute. Un joueur qui tombe à -1000 cm/s repart à seulement +200 cm/s. Avec `true`, sa vitesse verticale est remplacée par +1200 quoi qu'il arrive. On laisse `bXYOverride` à `false` pour que le joueur garde son élan horizontal.
+
+</Solution>
+
+## Pour aller plus loin
+
+- Donne plus de points si le joueur enchaîne les rebonds sans toucher le sol (un combo), et remets le combo à zéro quand il atterrit ailleurs.
+- Ajoute une `UPROPERTY` `ObjectifPoints` : quand il est atteint, affiche un message de victoire une seule fois.
+- Fais rebondir aussi les cubes physiques avec `OtherComp->AddImpulse` (pense à vérifier `IsSimulatingPhysics()`).

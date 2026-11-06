@@ -1,0 +1,334 @@
+## Le contexte
+
+Une mitrailleuse qui tire 15 balles par seconde, c'est 15 `SpawnActor` et 15 `Destroy` chaque seconde. Créer un acteur coûte cher (mémoire, composants, collisions à enregistrer), et chaque acteur détruit laisse un objet que le ramasse-miettes (le garbage collector) devra nettoyer plus tard, souvent au pire moment. Résultat : des micro-saccades.
+
+La solution des pros s'appelle un **pool d'objets**. Au début du niveau, on crée une fois pour toutes 30 projectiles cachés. Quand on tire, on en prend un libre, on le place et on l'active. Quand il touche quelque chose, on ne le détruit pas : on le cache et il retourne dans la réserve. Dans Mario Kart, le projectile qui rebondit est créé avec `SpawnActor` à chaque utilisation : c'est très bien pour un objet rare, mais pas pour une arme automatique.
+
+## Ce que tu dois faire
+
+1. Crée `AProjectileRecyclable` (hérite de `AActor`) avec une `USphereComponent` en racine, un mesh sans collision et un `UProjectileMovementComponent`.
+2. Donne-lui deux fonctions publiques :
+   - `Activer(Position, Direction)` : le place, le montre, active la collision et le mouvement, lance un minuteur de durée de vie ;
+   - `Desactiver()` : l'arrête, le cache, coupe sa collision et son minuteur.
+3. Le projectile se désactive tout seul quand il touche quelque chose (événement `OnProjectileStop` du mouvement) ou quand sa durée de vie est écoulée.
+4. Crée `UPoolProjectilesComponent` (un `UActorComponent`) :
+   - au `BeginPlay`, il crée `TaillePool` projectiles désactivés ;
+   - `Tirer(Position, Direction)` prend le premier projectile libre et l'active ;
+   - si tous sont pris et que `bPeutGrandir` est vrai, il en crée un de plus, sinon le tir est ignoré.
+5. Ajoute le composant à ton personnage. Dans son Blueprint, en maintenant le clic gauche, appelle **Tirer** toutes les 0,07 seconde (un nœud Set Timer by Event en boucle, par exemple), depuis la caméra et dans sa direction.
+
+## Le code de départ
+
+<Fichier nom="ProjectileRecyclable.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "ProjectileRecyclable.generated.h"
+
+class USphereComponent;
+class UStaticMeshComponent;
+class UProjectileMovementComponent;
+
+UCLASS()
+class MONPROJET_API AProjectileRecyclable : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AProjectileRecyclable();
+
+	void Activer(const FVector& Position, const FVector& Direction);
+	void Desactiver();
+	bool EstActif() const { return bActif; }
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, Category = "Projectile")
+	TObjectPtr<USphereComponent> Sphere;
+
+	UPROPERTY(VisibleAnywhere, Category = "Projectile")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	UPROPERTY(VisibleAnywhere, Category = "Projectile")
+	TObjectPtr<UProjectileMovementComponent> Mouvement;
+
+	UPROPERTY(EditAnywhere, Category = "Projectile")
+	float Vitesse = 3000.f;
+
+	UPROPERTY(EditAnywhere, Category = "Projectile")
+	float DureeDeVie = 2.f;
+
+private:
+	UFUNCTION()
+	void SurArret(const FHitResult& ImpactResult);
+
+	bool bActif = false;
+	FTimerHandle TimerDuree;
+};
+```
+</Fichier>
+
+<Fichier nom="PoolProjectilesComponent.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "PoolProjectilesComponent.generated.h"
+
+class AProjectileRecyclable;
+
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+class MONPROJET_API UPoolProjectilesComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UPoolProjectilesComponent();
+
+	UFUNCTION(BlueprintCallable, Category = "Pool")
+	AProjectileRecyclable* Tirer(const FVector& Position, const FVector& Direction);
+
+	UFUNCTION(BlueprintPure, Category = "Pool")
+	int32 GetNbActifs() const;
+
+protected:
+	virtual void BeginPlay() override;
+
+	// Le Blueprint enfant de AProjectileRecyclable, avec son mesh
+	UPROPERTY(EditAnywhere, Category = "Pool")
+	TSubclassOf<AProjectileRecyclable> ClasseProjectile;
+
+	UPROPERTY(EditAnywhere, Category = "Pool", meta = (ClampMin = "1"))
+	int32 TaillePool = 30;
+
+	UPROPERTY(EditAnywhere, Category = "Pool")
+	bool bPeutGrandir = true;
+
+private:
+	AProjectileRecyclable* CreerProjectile();
+
+	// TODO : la réserve. Réfléchis bien à la macro au-dessus.
+};
+```
+</Fichier>
+
+Les deux `.cpp` sont à écrire en entier.
+
+## C'est réussi quand…
+
+- [ ] En tirant en continu, les projectiles partent, touchent les murs et disparaissent.
+- [ ] Dans l'Outliner, le nombre d'acteurs `ProjectileRecyclable` reste fixe (30) pendant que tu tires, tant que la réserve suffit.
+- [ ] Un projectile désactivé ne bloque plus rien : tu peux marcher à travers sa position.
+- [ ] Un projectile réutilisé repart bien à pleine vitesse, même s'il s'était arrêté contre un mur avant.
+- [ ] Avec `TaillePool = 5` et `bPeutGrandir` décoché, la cadence est limitée à 5 projectiles en vol.
+- [ ] Les projectiles ne touchent pas le personnage qui tire.
+
+## Si tu bloques
+
+<Indice titre="La réserve doit être protégée">
+La réserve est un `TArray` de pointeurs vers des acteurs. Sans `UPROPERTY()`, Unreal ne sait pas que tu y tiens. Écris `UPROPERTY() TArray<TObjectPtr<AProjectileRecyclable>> Reserve;`.
+</Indice>
+
+<Indice titre="Un projectile caché, c'est quoi ?">
+Trois gestes : `SetActorHiddenInGame(true)` pour ne plus le voir, `SetActorEnableCollision(false)` pour ne plus le toucher, et `Mouvement->StopMovementImmediately()` puis `Mouvement->Deactivate()` pour qu'il ne bouge plus. Pour l'activer, fais l'inverse.
+</Indice>
+
+<Indice titre="Le projectile réutilisé ne bouge plus">
+Quand un `UProjectileMovementComponent` s'arrête contre un mur, il oublie le composant qu'il déplaçait (son `UpdatedComponent` devient nul). Avant de le relancer, redonne-le-lui avec `Mouvement->SetUpdatedComponent(Sphere)`, puis règle `Mouvement->Velocity` et appelle `Mouvement->Activate(true)`.
+</Indice>
+
+<Indice titre="Ne pas toucher le tireur">
+Au moment de créer les projectiles, donne-leur le propriétaire du composant comme `Owner` (dans `FActorSpawnParameters`). Puis, dans `Activer`, `Sphere->IgnoreActorWhenMoving(GetOwner(), true)`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="ProjectileRecyclable.cpp">
+```cpp
+#include "ProjectileRecyclable.h"
+#include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "GameFramework/ProjectileMovementComponent.h"
+#include "TimerManager.h"
+
+AProjectileRecyclable::AProjectileRecyclable()
+{
+	PrimaryActorTick.bCanEverTick = false;
+
+	Sphere = CreateDefaultSubobject<USphereComponent>(TEXT("Sphere"));
+	Sphere->InitSphereRadius(8.f);
+	Sphere->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+	RootComponent = Sphere;
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	Mesh->SetupAttachment(Sphere);
+	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	Mouvement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("Mouvement"));
+	Mouvement->SetUpdatedComponent(Sphere);
+	Mouvement->ProjectileGravityScale = 0.f;
+	Mouvement->bRotationFollowsVelocity = true;
+	Mouvement->bAutoActivate = false;
+}
+
+void AProjectileRecyclable::BeginPlay()
+{
+	Super::BeginPlay();
+	Mouvement->OnProjectileStop.AddDynamic(this, &AProjectileRecyclable::SurArret);
+}
+
+void AProjectileRecyclable::Activer(const FVector& Position, const FVector& Direction)
+{
+	const FVector Dir = Direction.GetSafeNormal();
+	SetActorLocationAndRotation(Position, Dir.Rotation(), false, nullptr, ETeleportType::TeleportPhysics);
+
+	if (GetOwner())
+	{
+		Sphere->IgnoreActorWhenMoving(GetOwner(), true);
+	}
+
+	SetActorHiddenInGame(false);
+	SetActorEnableCollision(true);
+
+	// Après un impact, le composant de mouvement a oublié qui il déplaçait
+	Mouvement->SetUpdatedComponent(Sphere);
+	Mouvement->Velocity = Dir * Vitesse;
+	Mouvement->Activate(true);
+
+	bActif = true;
+	GetWorldTimerManager().SetTimer(TimerDuree, this, &AProjectileRecyclable::Desactiver, DureeDeVie, false);
+}
+
+void AProjectileRecyclable::Desactiver()
+{
+	bActif = false;
+	GetWorldTimerManager().ClearTimer(TimerDuree);
+
+	Mouvement->StopMovementImmediately();
+	Mouvement->Deactivate();
+
+	SetActorHiddenInGame(true);
+	SetActorEnableCollision(false);
+}
+
+void AProjectileRecyclable::SurArret(const FHitResult& ImpactResult)
+{
+	// Ici, tu pourrais appliquer des dégâts à ImpactResult.GetActor() ou jouer un effet
+	Desactiver();
+}
+```
+</Fichier>
+
+<Fichier nom="PoolProjectilesComponent.h (la réserve)">
+```cpp
+private:
+	AProjectileRecyclable* CreerProjectile();
+
+	UPROPERTY()
+	TArray<TObjectPtr<AProjectileRecyclable>> Reserve;
+```
+</Fichier>
+
+<Fichier nom="PoolProjectilesComponent.cpp">
+```cpp
+#include "PoolProjectilesComponent.h"
+#include "ProjectileRecyclable.h"
+#include "Engine/World.h"
+
+UPoolProjectilesComponent::UPoolProjectilesComponent()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+}
+
+void UPoolProjectilesComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	Reserve.Reserve(TaillePool);
+	for (int32 i = 0; i < TaillePool; ++i)
+	{
+		CreerProjectile();
+	}
+}
+
+AProjectileRecyclable* UPoolProjectilesComponent::CreerProjectile()
+{
+	if (!ClasseProjectile)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Pool : aucune ClasseProjectile choisie"));
+		return nullptr;
+	}
+
+	FActorSpawnParameters Params;
+	Params.Owner = GetOwner();
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	AProjectileRecyclable* Projectile = GetWorld()->SpawnActor<AProjectileRecyclable>(
+		ClasseProjectile, FVector::ZeroVector, FRotator::ZeroRotator, Params);
+	if (Projectile)
+	{
+		Projectile->Desactiver();
+		Reserve.Add(Projectile);
+	}
+	return Projectile;
+}
+
+AProjectileRecyclable* UPoolProjectilesComponent::Tirer(const FVector& Position, const FVector& Direction)
+{
+	for (AProjectileRecyclable* Projectile : Reserve)
+	{
+		if (Projectile && !Projectile->EstActif())
+		{
+			Projectile->Activer(Position, Direction);
+			return Projectile;
+		}
+	}
+
+	// Tous les projectiles sont en vol
+	if (bPeutGrandir)
+	{
+		if (AProjectileRecyclable* Nouveau = CreerProjectile())
+		{
+			Nouveau->Activer(Position, Direction);
+			return Nouveau;
+		}
+	}
+	return nullptr;
+}
+
+int32 UPoolProjectilesComponent::GetNbActifs() const
+{
+	int32 Nb = 0;
+	for (const AProjectileRecyclable* Projectile : Reserve)
+	{
+		if (Projectile && Projectile->EstActif())
+		{
+			++Nb;
+		}
+	}
+	return Nb;
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** tous les `SpawnActor` ont lieu au chargement, quand une petite pause ne se voit pas. Pendant le combat, tirer revient à changer quelques réglages sur un acteur qui existe déjà : c'est presque gratuit, et rien n'est jamais détruit, donc le ramasse-miettes n'a rien à nettoyer.
+
+La `UPROPERTY()` sur la réserve n'est pas un détail. C'est elle qui dit au ramasse-miettes « ces acteurs sont utilisés ». Pour les acteurs, le niveau les garde déjà en vie, mais sans `UPROPERTY` ton tableau ne serait pas mis à jour si l'un d'eux était détruit (par exemple quand on quitte le niveau) : il contiendrait des pointeurs vers de la mémoire libérée.
+
+Le piège du `SetUpdatedComponent` vient du fonctionnement interne de `UProjectileMovementComponent` : quand il s'arrête sur un impact, il se détache de son composant pour ne plus rien calculer. C'est logique pour un projectile détruit juste après, mais pas pour un projectile recyclé.
+
+<Encadre type="retenir">
+Pool d'objets = on remplace « créer / détruire » par « activer / désactiver ». Utile pour tout ce qui apparaît souvent et vit peu : balles, douilles, impacts, dégâts flottants, ennemis de vagues.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Rends le pool générique : un composant qui gère n'importe quelle classe d'acteur qui implémente une interface `IRecyclable` avec `Activer` et `Desactiver`.
+- Quand le pool est plein et ne peut pas grandir, recycle le projectile **le plus ancien** au lieu d'ignorer le tir.
+- Mesure la différence : tire 2000 projectiles avec la version `SpawnActor` / `Destroy`, puis avec le pool, et compare les pics dans `stat unit`.

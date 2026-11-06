@@ -76,6 +76,30 @@ export type Projet = {
   fichiers: FichierProjet[];
 };
 
+export type Difficulte = "facile" | "moyen" | "difficile" | "expert";
+
+/**
+ * Exercice bonus, en plus des projets : pas de deadline, ne compte pas dans la progression.
+ * Rangé par niveau (JV1 Unity C#, JV2 Unreal Blueprints, JV3 Unreal C++).
+ */
+export type Exercice = {
+  /** Unique dans le niveau, en minuscules avec tirets. L'identifiant complet est "jv3/slug". */
+  slug: string;
+  titre: string;
+  niveau: Niveau;
+  difficulte: Difficulte;
+  /** coder : écrire une fonctionnalité ; bug : trouver et corriger un bug dans du code donné */
+  genre: "coder" | "bug";
+  /** Grand thème, ex. "Déplacement", "Physique", "Interface", "IA" */
+  theme: string;
+  /** Une phrase qui donne envie, affichée sur la carte */
+  resume: string;
+  dureeMin: number;
+  /** Notions travaillées, ex. ["Raycast", "TArray"] */
+  notions: string[];
+  charger: () => Promise<{ default: MDXContent }>;
+};
+
 export type EntreeDico = {
   /** Identifiant en minuscules sans accents, ex. "uproperty" */
   id: string;

@@ -8,6 +8,7 @@ import { Avatar, Logo } from "@/components/ui";
 const liens = [
   { href: "/parcours", label: "Mon parcours" },
   { href: "/projets", label: "Mes projets" },
+  { href: "/exercices", label: "Exercices" },
   { href: "/dico", label: "Le dico" },
   { href: "/notes", label: "Mes quiz et notes" },
 ];
@@ -29,7 +30,7 @@ export function MenuEleve({ nom, initiales, sousTitre, prof }: { nom: string; in
         </Link>
       )}
       {liens
-        .filter((l) => !prof || l.href === "/projets" || l.href === "/dico")
+        .filter((l) => !prof || ["/projets", "/exercices", "/dico"].includes(l.href))
         .map((lien) => {
           const actif = chemin === lien.href || chemin.startsWith(lien.href + "/");
           return (

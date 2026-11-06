@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { trouverQuestionLibre, trouverQuiz } from "@/contenu";
+import { trouverExercice, trouverQuestionLibre, trouverQuiz } from "@/contenu";
 import { exigerEleve } from "@/lib/session";
 import { supabaseAdmin, supabaseServeur } from "@/lib/supabase/serveur";
 
@@ -82,4 +82,15 @@ export async function marquerMessageLu(messageId: number) {
   const u = await exigerEleve();
   const supabase = await supabaseServeur();
   await supabase.from("messages").update({ lu_le: new Date().toISOString() }).eq("id", messageId).eq("eleve_id", u.id).is("lu_le", null);
+}
+
+/** L'élève coche (ou décoche) « J'ai réussi cet exercice ». Les exercices bonus ne sont pas notés. */
+export async function marquerExercice(exerciceId: string, fait: boolean) {
+  const u = await exigerEleve();
+  const exercice = trouverExercice(exerciceId);
+  if (!exercice || exercice.niveau !== u.classe?.niveau) return;
+  const supabase = await supabaseServeur();
+  if (fait) await supabase.from("exercices_faits").upsert({ eleve_id: u.id, exercice_id: exerciceId }, { ignoreDuplicates: true });
+  else await supabase.from("exercices_faits").delete().eq("eleve_id", u.id).eq("exercice_id", exerciceId);
+  revalidatePath("/exercices", "layout");
 }

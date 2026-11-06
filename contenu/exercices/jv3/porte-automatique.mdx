@@ -1,0 +1,192 @@
+## Le contexte
+
+Dans un niveau, une porte qui s'ouvre toute seule quand le joueur arrive devant, c'est le b.a.-ba. Tu vas la coder en C++ : une zone invisible (une boîte de collision) détecte le joueur, et la porte glisse vers le haut. Quand le joueur s'éloigne, elle redescend.
+
+Tu as déjà utilisé une boîte d'overlap dans le module « Compteur de tours » de Mario Kart : c'est exactement le même principe.
+
+## Ce que tu dois faire
+
+1. Crée une classe C++ `APorte` qui hérite de `AActor` (Tools › New C++ Class › Actor).
+2. Recopie le header donné plus bas.
+3. Dans le `.cpp`, remplis les trois fonctions marquées `// TODO`.
+4. Place ta porte dans un niveau, lance le jeu et marche dedans.
+
+<Encadre type="info" titre="Le nom de ton projet">
+Remplace `MONPROJET_API` par le nom de ton module en majuscules suivi de `_API` (par exemple `KARTGAMES_API`). Tu le trouves dans n'importe quel header déjà créé par Unreal.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="Porte.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Porte.generated.h"
+
+class UBoxComponent;
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API APorte : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	APorte();
+	virtual void Tick(float DeltaTime) override;
+
+protected:
+	virtual void BeginPlay() override;
+
+	// La zone invisible qui détecte le joueur
+	UPROPERTY(VisibleAnywhere, Category = "Porte")
+	TObjectPtr<UBoxComponent> Zone;
+
+	// Le mesh de la porte, celui qui bouge
+	UPROPERTY(VisibleAnywhere, Category = "Porte")
+	TObjectPtr<UStaticMeshComponent> Battant;
+
+	// De combien de centimètres la porte monte
+	UPROPERTY(EditAnywhere, Category = "Porte")
+	float HauteurOuverture = 300.f;
+
+	// Vitesse en centimètres par seconde
+	UPROPERTY(EditAnywhere, Category = "Porte")
+	float Vitesse = 400.f;
+
+private:
+	UFUNCTION()
+	void EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void SortieZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex);
+
+	bool bOuverte = false;
+	float HauteurActuelle = 0.f;
+};
+```
+</Fichier>
+
+<Fichier nom="Porte.cpp">
+```cpp
+#include "Porte.h"
+#include "Components/BoxComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "GameFramework/Pawn.h"
+
+APorte::APorte()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	Zone = CreateDefaultSubobject<UBoxComponent>(TEXT("Zone"));
+	RootComponent = Zone;
+	Zone->SetBoxExtent(FVector(200.f, 200.f, 150.f));
+
+	Battant = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Battant"));
+	Battant->SetupAttachment(Zone);
+}
+
+void APorte::BeginPlay()
+{
+	Super::BeginPlay();
+	// TODO 1 : brancher EntreeZone et SortieZone sur les événements d'overlap de Zone
+}
+
+void APorte::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	// TODO 2 : si c'est un Pawn qui entre, la porte doit s'ouvrir
+}
+
+void APorte::SortieZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex)
+{
+	// TODO 2 (suite) : si c'est un Pawn qui sort, la porte doit se refermer
+}
+
+void APorte::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	// TODO 3 : faire glisser HauteurActuelle vers la bonne hauteur, puis déplacer le Battant
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] La porte monte quand ton personnage entre dans la zone.
+- [ ] Elle redescend quand il en sort.
+- [ ] Elle bouge à vitesse constante, sans se téléporter.
+- [ ] Changer `HauteurOuverture` ou `Vitesse` dans le panneau Details change bien le comportement.
+
+## Si tu bloques
+
+<Indice titre="Brancher les overlaps">
+Un composant de collision a deux événements : `OnComponentBeginOverlap` et `OnComponentEndOverlap`. On y branche une fonction avec `AddDynamic(this, &APorte::NomDeLaFonction)`. C'est pour ça que les deux fonctions sont marquées `UFUNCTION()` : sans ça, `AddDynamic` ne les trouve pas.
+</Indice>
+
+<Indice titre="Est-ce bien le joueur ?">
+`OtherActor` est l'acteur qui est entré. Pour savoir si c'est un Pawn, essaie de le convertir : `Cast<APawn>(OtherActor)` renvoie `nullptr` si ce n'en est pas un. Ensuite, il suffit de changer `bOuverte`.
+</Indice>
+
+<Indice titre="Glisser à vitesse constante">
+`FMath::FInterpConstantTo(Actuelle, Cible, DeltaTime, Vitesse)` rapproche une valeur de sa cible d'au plus `Vitesse × DeltaTime` à chaque appel. La cible vaut `HauteurOuverture` si la porte est ouverte, `0` sinon. Pour déplacer le battant par rapport à la zone, utilise `SetRelativeLocation`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Porte.cpp">
+```cpp
+void APorte::BeginPlay()
+{
+	Super::BeginPlay();
+	Zone->OnComponentBeginOverlap.AddDynamic(this, &APorte::EntreeZone);
+	Zone->OnComponentEndOverlap.AddDynamic(this, &APorte::SortieZone);
+}
+
+void APorte::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (Cast<APawn>(OtherActor))
+	{
+		bOuverte = true;
+	}
+}
+
+void APorte::SortieZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex)
+{
+	if (Cast<APawn>(OtherActor))
+	{
+		bOuverte = false;
+	}
+}
+
+void APorte::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	const float Cible = bOuverte ? HauteurOuverture : 0.f;
+	HauteurActuelle = FMath::FInterpConstantTo(HauteurActuelle, Cible, DeltaTime, Vitesse);
+	Battant->SetRelativeLocation(FVector(0.f, 0.f, HauteurActuelle));
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** les overlaps ne font que changer un booléen. C'est le `Tick` qui, à chaque image, rapproche la porte de la hauteur voulue. Si le joueur sort pendant que la porte monte, elle repart vers le bas depuis là où elle est, sans à-coup.
+
+<Encadre type="piege">
+Si les overlaps ne se déclenchent jamais, vérifie que ton personnage a bien **Generate Overlap Events** coché sur sa capsule, et que la zone n'est pas trop petite.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Avec deux joueurs dans la zone, la porte se referme dès que **l'un** sort. Remplace le booléen par un compteur de Pawns présents.
+- Ajoute une `UPROPERTY` `bVerrouillee` : une porte verrouillée ne s'ouvre pas.
+- Fais une porte double : deux battants qui s'écartent sur les côtés au lieu de monter.

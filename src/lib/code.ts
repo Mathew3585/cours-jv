@@ -50,6 +50,18 @@ export function lireCode(projet: string, fichier: string): Promise<LigneCode[]> 
   return resultat;
 }
 
+const langages: Record<string, "cpp" | "csharp"> = { cpp: "cpp", "c++": "cpp", h: "cpp", cs: "csharp", csharp: "csharp", "c#": "csharp" };
+
+/** Colore un extrait de code écrit directement dans un MDX (exercices). Langage inconnu : texte brut. */
+export async function colorerExtrait(texte: string, langage: string | undefined): Promise<Jeton[][]> {
+  const propre = texte.replace(/\r\n?/g, "\n").replace(/\t/g, "    ").replace(/\n$/, "");
+  const lang = langage ? langages[langage.toLowerCase()] : undefined;
+  if (!lang) return propre.split("\n").map((t) => [{ t, c: "#f1e4d3" }]);
+  const s = await obtenirSurligneur();
+  const { tokens } = s.codeToTokens(propre, { lang, theme });
+  return tokens.map((ligne) => ligne.map((j) => ({ t: j.content, c: j.color ?? "#f1e4d3", ...(j.fontStyle === 1 ? { i: true } : {}) })));
+}
+
 /** "3-5" → { debut: 3, fin: 5 } ; "12" → { debut: 12, fin: 12 } */
 export function lirePlage(plage: string) {
   const [a, b] = plage.split("-").map((x) => Number.parseInt(x.trim(), 10));

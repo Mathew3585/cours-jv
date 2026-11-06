@@ -1,0 +1,483 @@
+## Le contexte
+
+Un lance-missiles à tête chercheuse : chaque missile choisit le drone le plus proche et le suit en tournant petit à petit. Une touche permet aussi de faire exploser d'un coup tous les missiles en vol. Un composant tient des statistiques de tir (missiles tirés, drones touchés).
+
+Ce code compile, il marche pendant les premières secondes de test... et il plante au bout d'un moment, jamais au même endroit. C'est le genre de bug le plus pénible en C++ : un **pointeur** vers un objet qui n'existe plus. En Blueprint, Unreal te protège presque toujours. En C++, c'est à toi de le faire.
+
+## Ce que tu dois faire
+
+**Ce que tu observes :**
+
+- Quand deux missiles visent le même drone et que le premier le détruit, le second continue tout droit vers l'endroit où était le drone, au lieu de chercher une autre cible.
+- Si tu attends environ une minute avant de tirer, le jeu plante dès que tu tires (crash « Access violation » dans `Tirer`).
+- Si tu appuies sur la touche « tout faire exploser » après que certains missiles ont déjà explosé, le jeu plante, mais pas à chaque fois.
+
+**Ce qui est attendu :** un missile dont la cible a disparu en choisit une autre (ou continue tout droit s'il n'y en a plus), les statistiques fonctionnent quel que soit le temps passé, et « tout faire exploser » ne touche que les missiles encore en vol.
+
+Il y a **3 bugs**, tous liés à la façon dont Unreal gère la mémoire des `UObject`. Corrige-les sans changer le fonctionnement du jeu.
+
+<Encadre type="info" titre="Pour tester">
+Crée un Blueprint enfant de `AMissileChercheur` (avec un mesh), place une dizaine de `ADroneCible` dans le niveau, ajoute `ULanceMissilesComponent` à ton personnage, choisis la classe de missile dans ses Details, et branche deux touches sur **Tirer** et **ToutFaireExploser**.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="DroneCible.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "DroneCible.generated.h"
+
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API ADroneCible : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	ADroneCible();
+
+protected:
+	UPROPERTY(VisibleAnywhere, Category = "Drone")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+};
+```
+</Fichier>
+
+<Fichier nom="DroneCible.cpp">
+```cpp
+#include "DroneCible.h"
+#include "Components/StaticMeshComponent.h"
+
+ADroneCible::ADroneCible()
+{
+	PrimaryActorTick.bCanEverTick = false;
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	Mesh->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+	RootComponent = Mesh;
+}
+```
+</Fichier>
+
+<Fichier nom="StatsTir.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "UObject/Object.h"
+#include "StatsTir.generated.h"
+
+// Un simple UObject qui compte. On pourrait en faire un Data Asset ou le donner à un widget.
+UCLASS()
+class MONPROJET_API UStatsTir : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	int32 NbTirs = 0;
+	int32 NbTouches = 0;
+};
+```
+</Fichier>
+
+<Fichier nom="MissileChercheur.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "MissileChercheur.generated.h"
+
+class USphereComponent;
+class UStaticMeshComponent;
+class ULanceMissilesComponent;
+
+UCLASS()
+class MONPROJET_API AMissileChercheur : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AMissileChercheur();
+	virtual void Tick(float DeltaTime) override;
+
+	void Lancer(AActor* NouvelleCible, ULanceMissilesComponent* Lanceur);
+	void Exploser();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, Category = "Missile")
+	TObjectPtr<USphereComponent> Sphere;
+
+	UPROPERTY(VisibleAnywhere, Category = "Missile")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	UPROPERTY(EditAnywhere, Category = "Missile")
+	float Vitesse = 1200.f;
+
+	// Degrés par seconde
+	UPROPERTY(EditAnywhere, Category = "Missile")
+	float VitesseVirage = 120.f;
+
+	UPROPERTY(EditAnywhere, Category = "Missile")
+	float DureeDeVie = 8.f;
+
+private:
+	UFUNCTION()
+	void EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	AActor* Cible = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<ULanceMissilesComponent> LanceurOrigine;
+
+	FTimerHandle TimerVie;
+};
+```
+</Fichier>
+
+<Fichier nom="MissileChercheur.cpp">
+```cpp
+#include "MissileChercheur.h"
+#include "DroneCible.h"
+#include "LanceMissilesComponent.h"
+#include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "TimerManager.h"
+
+AMissileChercheur::AMissileChercheur()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	Sphere = CreateDefaultSubobject<USphereComponent>(TEXT("Sphere"));
+	Sphere->InitSphereRadius(20.f);
+	Sphere->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+	RootComponent = Sphere;
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	Mesh->SetupAttachment(Sphere);
+	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void AMissileChercheur::BeginPlay()
+{
+	Super::BeginPlay();
+	Sphere->OnComponentBeginOverlap.AddDynamic(this, &AMissileChercheur::EntreeZone);
+	GetWorldTimerManager().SetTimer(TimerVie, this, &AMissileChercheur::Exploser, DureeDeVie, false);
+}
+
+void AMissileChercheur::Lancer(AActor* NouvelleCible, ULanceMissilesComponent* Lanceur)
+{
+	Cible = NouvelleCible;
+	LanceurOrigine = Lanceur;
+}
+
+void AMissileChercheur::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (Cible)
+	{
+		// Tourne petit à petit vers la cible
+		const FRotator Voulue = (Cible->GetActorLocation() - GetActorLocation()).Rotation();
+		const FRotator Nouvelle = FMath::RInterpConstantTo(GetActorRotation(), Voulue, DeltaTime, VitesseVirage);
+		SetActorRotation(Nouvelle);
+	}
+
+	AddActorWorldOffset(GetActorForwardVector() * Vitesse * DeltaTime);
+}
+
+void AMissileChercheur::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (ADroneCible* Drone = Cast<ADroneCible>(OtherActor))
+	{
+		if (LanceurOrigine)
+		{
+			LanceurOrigine->SignalerTouche();
+		}
+		Drone->Destroy();
+		Exploser();
+	}
+}
+
+void AMissileChercheur::Exploser()
+{
+	// Ici on jouerait un son et un effet
+	Destroy();
+}
+```
+</Fichier>
+
+<Fichier nom="LanceMissilesComponent.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "LanceMissilesComponent.generated.h"
+
+class AMissileChercheur;
+class UStatsTir;
+
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+class MONPROJET_API ULanceMissilesComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	ULanceMissilesComponent();
+
+	UFUNCTION(BlueprintCallable, Category = "Missiles")
+	void Tirer();
+
+	UFUNCTION(BlueprintCallable, Category = "Missiles")
+	void ToutFaireExploser();
+
+	void SignalerTouche();
+
+	// Le drone le plus proche de Position, ou nullptr
+	static AActor* TrouverCible(const UWorld* Monde, const FVector& Position);
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(EditAnywhere, Category = "Missiles")
+	TSubclassOf<AMissileChercheur> ClasseMissile;
+
+private:
+	UStatsTir* Stats = nullptr;
+
+	TArray<AMissileChercheur*> MissilesEnVol;
+};
+```
+</Fichier>
+
+<Fichier nom="LanceMissilesComponent.cpp">
+```cpp
+#include "LanceMissilesComponent.h"
+#include "MissileChercheur.h"
+#include "DroneCible.h"
+#include "StatsTir.h"
+#include "EngineUtils.h"
+
+ULanceMissilesComponent::ULanceMissilesComponent()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+}
+
+void ULanceMissilesComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	Stats = NewObject<UStatsTir>(this);
+}
+
+AActor* ULanceMissilesComponent::TrouverCible(const UWorld* Monde, const FVector& Position)
+{
+	AActor* Meilleur = nullptr;
+	float MeilleureDistance = TNumericLimits<float>::Max();
+	for (TActorIterator<ADroneCible> It(Monde); It; ++It)
+	{
+		const float Distance = FVector::DistSquared(Position, It->GetActorLocation());
+		if (Distance < MeilleureDistance)
+		{
+			MeilleureDistance = Distance;
+			Meilleur = *It;
+		}
+	}
+	return Meilleur;
+}
+
+void ULanceMissilesComponent::Tirer()
+{
+	AActor* Proprio = GetOwner();
+	if (!ClasseMissile || !Proprio)
+	{
+		return;
+	}
+
+	const FVector Depart = Proprio->GetActorLocation() + Proprio->GetActorForwardVector() * 100.f + FVector(0.f, 0.f, 50.f);
+
+	FActorSpawnParameters Params;
+	Params.Owner = Proprio;
+	AMissileChercheur* Missile = GetWorld()->SpawnActor<AMissileChercheur>(ClasseMissile, Depart, Proprio->GetActorRotation(), Params);
+	if (!Missile)
+	{
+		return;
+	}
+
+	Missile->Lancer(TrouverCible(GetWorld(), Depart), this);
+	MissilesEnVol.Add(Missile);
+
+	Stats->NbTirs++;
+	UE_LOG(LogTemp, Log, TEXT("Tirs : %d, touchés : %d"), Stats->NbTirs, Stats->NbTouches);
+}
+
+void ULanceMissilesComponent::SignalerTouche()
+{
+	Stats->NbTouches++;
+}
+
+void ULanceMissilesComponent::ToutFaireExploser()
+{
+	for (AMissileChercheur* Missile : MissilesEnVol)
+	{
+		Missile->Exploser();
+	}
+	MissilesEnVol.Empty();
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Avec la commande console `gc.CollectGarbageEveryFrame 1`, tu peux jouer deux minutes, tirer, faire exploser, sans aucun crash.
+- [ ] Deux missiles sur le même drone : quand le premier le détruit, le second change de cible.
+- [ ] Le log des statistiques s'affiche correctement même après plusieurs minutes de jeu.
+- [ ] « Tout faire exploser » après que la moitié des missiles a déjà touché ne plante pas.
+- [ ] Tu sais expliquer, pour chacun des 3 bugs, pourquoi le crash n'arrive pas tout de suite.
+
+## Si tu bloques
+
+<Indice titre="Pourquoi ça plante seulement « au bout d'un moment » ?">
+Quand tu appelles `Destroy()`, l'acteur n'est pas effacé de la mémoire tout de suite : il est seulement marqué « à jeter ». C'est le ramasse-miettes (garbage collector) qui libère vraiment la mémoire, environ toutes les minutes. Entre les deux, un vieux pointeur semble encore marcher. La commande `gc.CollectGarbageEveryFrame 1` force un passage à chaque image : les bugs apparaissent alors immédiatement.
+</Indice>
+
+<Indice titre="Qui garde un UObject en vie ?">
+Le ramasse-miettes ne voit que les pointeurs déclarés en `UPROPERTY()`. Un objet créé avec `NewObject` et rangé dans un pointeur « nu » n'a, pour lui, aucun propriétaire : il est supprimé au premier passage. Le paramètre `this` de `NewObject` ne le protège pas, il indique seulement son « Outer » (son dossier, en quelque sorte).
+</Indice>
+
+<Indice titre="Un pointeur qui sait que l'objet est mort">
+`TWeakObjectPtr<AActor>` est un pointeur « faible » : il ne garde pas l'acteur en vie, mais il sait quand l'acteur a été détruit. `Cible.IsValid()` renvoie alors `false`, et `Cible.Get()` renvoie `nullptr`. Pour un pointeur classique, `IsValid(Acteur)` vérifie qu'il n'est ni nul ni en cours de destruction.
+</Indice>
+
+<Indice titre="Le tableau de missiles">
+Les missiles se détruisent tout seuls (impact ou durée de vie) sans prévenir le lanceur. Le tableau garde donc des adresses de missiles disparus. Deux solutions : rendre le tableau visible par le ramasse-miettes et tester chaque élément avec `IsValid`, ou utiliser un tableau de `TWeakObjectPtr`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="MissileChercheur.h (corrigé)">
+```cpp
+private:
+	UFUNCTION()
+	void EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	// Bug 1 corrigé : un pointeur faible sait quand la cible est détruite
+	TWeakObjectPtr<AActor> Cible;
+
+	UPROPERTY()
+	TObjectPtr<ULanceMissilesComponent> LanceurOrigine;
+
+	FTimerHandle TimerVie;
+```
+</Fichier>
+
+<Fichier nom="MissileChercheur.cpp (Tick corrigé)">
+```cpp
+void AMissileChercheur::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// La cible a été détruite (par un autre missile) : on en cherche une autre
+	if (!Cible.IsValid())
+	{
+		Cible = ULanceMissilesComponent::TrouverCible(GetWorld(), GetActorLocation());
+	}
+
+	if (AActor* CibleActuelle = Cible.Get())
+	{
+		const FRotator Voulue = (CibleActuelle->GetActorLocation() - GetActorLocation()).Rotation();
+		const FRotator Nouvelle = FMath::RInterpConstantTo(GetActorRotation(), Voulue, DeltaTime, VitesseVirage);
+		SetActorRotation(Nouvelle);
+	}
+
+	AddActorWorldOffset(GetActorForwardVector() * Vitesse * DeltaTime);
+}
+
+void AMissileChercheur::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	ADroneCible* Drone = Cast<ADroneCible>(OtherActor);
+	// IsValid : le drone peut déjà être en train d'être détruit par un autre missile pendant cette image
+	if (IsValid(Drone))
+	{
+		if (IsValid(LanceurOrigine))
+		{
+			LanceurOrigine->SignalerTouche();
+		}
+		Drone->Destroy();
+		Exploser();
+	}
+}
+```
+</Fichier>
+
+<Fichier nom="LanceMissilesComponent.cpp (TrouverCible corrigé)">
+```cpp
+	for (TActorIterator<ADroneCible> It(Monde); It; ++It)
+	{
+		// Un drone détruit pendant cette image est encore dans la liste : on l'ignore
+		if (!IsValid(*It))
+		{
+			continue;
+		}
+		const float Distance = FVector::DistSquared(Position, It->GetActorLocation());
+```
+</Fichier>
+
+<Fichier nom="LanceMissilesComponent.h (corrigé)">
+```cpp
+private:
+	// Bug 2 corrigé : le ramasse-miettes voit maintenant que le composant utilise cet objet
+	UPROPERTY()
+	TObjectPtr<UStatsTir> Stats;
+
+	// Bug 3 corrigé : des pointeurs faibles, qui deviennent nuls quand le missile est détruit
+	TArray<TWeakObjectPtr<AMissileChercheur>> MissilesEnVol;
+```
+</Fichier>
+
+<Fichier nom="LanceMissilesComponent.cpp (ToutFaireExploser corrigé)">
+```cpp
+void ULanceMissilesComponent::ToutFaireExploser()
+{
+	for (const TWeakObjectPtr<AMissileChercheur>& Missile : MissilesEnVol)
+	{
+		if (Missile.IsValid())
+		{
+			Missile->Exploser();
+		}
+	}
+	MissilesEnVol.Empty();
+}
+```
+</Fichier>
+
+Dans `Tirer`, `MissilesEnVol.Add(Missile)` marche tel quel : un `TWeakObjectPtr` se construit à partir d'un pointeur classique. Tu peux aussi faire le ménage à chaque tir avec `MissilesEnVol.RemoveAll([](const TWeakObjectPtr<AMissileChercheur>& M) { return !M.IsValid(); });` pour que le tableau ne grossisse pas sans fin.
+
+**Pourquoi ça marche :**
+
+**Bug 1, la cible en pointeur nu.** `AActor* Cible` sans `UPROPERTY` est invisible pour Unreal. Quand un autre missile détruit le drone, ce pointeur garde l'ancienne adresse. Pendant quelques secondes, l'objet est encore en mémoire (marqué « à jeter ») et `GetActorLocation()` renvoie sa dernière position : le missile fonce vers un fantôme. Au passage suivant du ramasse-miettes, la mémoire est libérée et le prochain `Cible->GetActorLocation()` plante. `TWeakObjectPtr` règle les deux problèmes : il devient invalide dès la destruction, ce qui permet de chercher une nouvelle cible.
+
+**Bug 2, le UObject sans propriétaire.** `NewObject<UStatsTir>(this)` crée l'objet, mais le seul pointeur vers lui est un `UStatsTir*` nu. Le ramasse-miettes ne le voit pas, considère l'objet comme abandonné et le supprime au premier passage (environ une minute). Le prochain `Stats->NbTirs++` écrit dans de la mémoire libérée. Une simple `UPROPERTY()` suffit à le garder en vie aussi longtemps que le composant.
+
+**Bug 3, le tableau de pointeurs nus.** Les missiles se détruisent tout seuls, mais le tableau garde leurs adresses. `ToutFaireExploser` appelle alors `Exploser` sur des objets détruits, voire libérés. Avec des `TWeakObjectPtr`, chaque case devient nulle quand son missile disparaît, et on peut la tester.
+
+<Encadre type="retenir" titre="La règle à retenir">
+Tout pointeur vers un `UObject` (acteur, composant, asset, objet à toi) rangé dans une variable membre doit être soit une `UPROPERTY()` (qui **garde** l'objet en vie), soit un `TWeakObjectPtr` (qui **observe** l'objet sans le garder). Un pointeur nu en membre, c'est un crash qui attend son heure.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Plutôt que de chercher une nouvelle cible à chaque image tant qu'il n'y en a pas, fais-le au plus une fois toutes les 0,2 seconde avec un minuteur.
+- Ajoute un délégué `OnMissileDetruit` que le missile déclenche dans `EndPlay` : le lanceur s'y abonne et retire le missile de son tableau au bon moment.
+- Tape `obj list class=StatsTir` dans la console avant et après ta correction pour voir combien d'objets `UStatsTir` existent.

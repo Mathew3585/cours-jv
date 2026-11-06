@@ -1,0 +1,140 @@
+## Le contexte
+
+Le script est censé faire une lampe toute simple : on appuie sur Espace, le cube passe du gris au jaune. On rappuie, il redevient gris. Sauf que quand on lance le jeu, il ne se passe **rien**. Aucune erreur rouge dans la Console, aucun changement de couleur.
+
+C'est le bug le plus déroutant pour un débutant : un script qui ne fait rien, sans se plaindre. Tu vas apprendre à le traquer.
+
+## Ce que tu dois faire
+
+1. Crée un cube (**GameObject › 3D Object › Cube**) et renomme-le `Lampe`.
+2. Crée un script `Lampe`, colle le code de départ et glisse-le sur le cube.
+3. Lance le jeu, clique dans la vue **Game** et appuie sur Espace.
+4. Trouve et corrige les bugs.
+
+**Le symptôme :** le cube devient bien gris au lancement, mais Espace ne change rien. Aucune erreur dans la Console.
+
+**Ce qui est attendu :** chaque appui sur Espace fait passer le cube du gris au jaune, puis du jaune au gris.
+
+**Il y a 2 bugs.** Attention : quand tu auras corrigé le premier, une erreur rouge va apparaître. C'est normal, c'est le deuxième bug qui se montre enfin.
+
+## Le code de départ
+
+<Fichier nom="Lampe.cs">
+```cs
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Lampe : MonoBehaviour
+{
+    [SerializeField] private Color couleurAllumee = Color.yellow;
+    [SerializeField] private Color couleurEteinte = Color.gray;
+
+    private Renderer rendu;
+    private bool allumee = false;
+
+    private void Start()
+    {
+        Renderer rendu = GetComponent<Renderer>();
+        rendu.material.color = couleurEteinte;
+    }
+
+    private void update()
+    {
+        if (Keyboard.current.spaceKey.wasPressedThisFrame)
+        {
+            allumee = !allumee;
+
+            if (allumee)
+            {
+                rendu.material.color = couleurAllumee;
+            }
+            else
+            {
+                rendu.material.color = couleurEteinte;
+            }
+        }
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Au lancement, le cube est gris.
+- [ ] Un appui sur Espace le rend jaune, un deuxième le rend gris, et ainsi de suite.
+- [ ] La Console ne montre aucune erreur rouge, même après plusieurs appuis.
+- [ ] Changer **Couleur Allumee** dans l'Inspector change bien la couleur obtenue.
+
+## Si tu bloques
+
+<Indice titre="Est-ce que Update est appelé ?">
+Une bonne technique : ajoute `Debug.Log("Update");` en première ligne de la fonction. Si rien ne s'affiche dans la Console, c'est que Unity n'appelle jamais cette fonction. Regarde très attentivement son nom.
+</Indice>
+
+<Indice titre="Les fonctions spéciales de Unity">
+Unity appelle `Start`, `Update`, `OnTriggerEnter`… en cherchant leur nom **exact**. Le C# fait la différence entre majuscules et minuscules : pour Unity, `update` n'a rien à voir avec `Update`.
+</Indice>
+
+<Indice titre="NullReferenceException">
+L'erreur dit que `rendu` vaut `null` dans `Update`. Pourtant, on fait bien un `GetComponent` dans `Start`... Regarde le début de cette ligne : on ne remplit pas la variable de la classe, on en crée une **nouvelle**, qui n'existe que dans `Start`. Unity te le signale d'ailleurs par un avertissement jaune dans la Console : « Field 'Lampe.rendu' is never assigned to ».
+</Indice>
+
+<Solution>
+
+<Fichier nom="Lampe.cs">
+```cs
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Lampe : MonoBehaviour
+{
+    [SerializeField] private Color couleurAllumee = Color.yellow;
+    [SerializeField] private Color couleurEteinte = Color.gray;
+
+    private Renderer rendu;
+    private bool allumee = false;
+
+    private void Start()
+    {
+        // Bug 2 corrigé : on remplit la variable de la classe, sans redéclarer
+        rendu = GetComponent<Renderer>();
+        rendu.material.color = couleurEteinte;
+    }
+
+    // Bug 1 corrigé : Update avec une majuscule
+    private void Update()
+    {
+        if (Keyboard.current.spaceKey.wasPressedThisFrame)
+        {
+            allumee = !allumee;
+
+            if (allumee)
+            {
+                rendu.material.color = couleurAllumee;
+            }
+            else
+            {
+                rendu.material.color = couleurEteinte;
+            }
+        }
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :**
+
+- **Bug 1, `update` en minuscule.** Unity ne connaît que `Update`. Une fonction nommée `update` est une fonction ordinaire que personne n'appelle : aucune erreur, juste rien. C'est pour ça que le cube devenait gris (`Start` est bien écrit) mais ne réagissait jamais.
+- **Bug 2, la variable redéclarée.** En écrivant `Renderer rendu = ...` dans `Start`, on crée une variable **locale** qui porte le même nom que celle de la classe et qui disparaît à la fin de `Start`. La variable de la classe, elle, reste à `null`. Dans `Update`, `rendu.material` provoque alors une `NullReferenceException`. Sans le mot `Renderer` devant, on remplit bien la variable de la classe.
+
+<Encadre type="retenir">
+Quand un script ne fait rien et ne se plaint pas, vérifie d'abord l'orthographe des fonctions de Unity (`Start`, `Update`, `OnTriggerEnter`...) et que le script est bien posé sur un objet actif de la scène.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Allume et éteins la lampe au clic de souris plutôt qu'avec Espace : `Mouse.current.leftButton.wasPressedThisFrame`.
+- Ajoute une vraie lumière : **Add Component › Light**, puis active-la et désactive-la avec `GetComponent<Light>().enabled`.
+- Fais une lampe qui change de couleur au hasard à chaque appui avec `Random.ColorHSV()`.

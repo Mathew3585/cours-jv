@@ -1,0 +1,126 @@
+## Le contexte
+
+Un chronomètre affiché en haut de l'écran, c'est utile dans un jeu de course, un niveau contre la montre ou un speedrun. Tu vas créer un texte d'interface avec **TextMeshPro** et le mettre à jour à chaque image, avec une touche pour faire pause et une autre pour remettre à zéro.
+
+C'est aussi l'occasion de faire ta première **référence** : un script qui a besoin d'un autre objet de la scène, que tu lui donnes en le glissant dans l'Inspector.
+
+## Ce que tu dois faire
+
+1. Crée un texte : **GameObject › UI › Text - TextMeshPro**. La première fois, Unity te propose d'importer **TMP Essentials** : clique sur **Import TMP Essentials**, puis ferme la fenêtre. Unity crée aussi un **Canvas** (la surface où se dessine l'interface) et un **EventSystem**.
+2. Renomme le texte `TexteChrono`. Dans son **Rect Transform**, clique sur le carré des ancres et choisis le coin en haut à gauche, puis place le texte dans ce coin. Mets une taille de police assez grande (par exemple 48).
+3. Crée un objet vide : **GameObject › Create Empty**, renomme-le `Chrono`.
+4. Crée un script `Chronometre`, colle le code de départ et glisse-le sur `Chrono`.
+5. Sélectionne `Chrono` : dans l'Inspector, le champ **Texte** est vide (« None »). Glisse `TexteChrono` depuis la Hierarchy jusque dans ce champ.
+6. Remplis les `// TODO`.
+
+## Le code de départ
+
+<Fichier nom="Chronometre.cs">
+```cs
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Chronometre : MonoBehaviour
+{
+    // Le texte à mettre à jour, à glisser dans l'Inspector
+    [SerializeField] private TMP_Text texte;
+
+    private float temps = 0f;
+    private bool enMarche = true;
+
+    private void Update()
+    {
+        // TODO 1 : quand on appuie sur Espace, mettre en pause ou relancer
+
+        // TODO 2 : quand on appuie sur R, remettre le temps à zéro
+
+        // TODO 3 : si le chrono est en marche, ajouter le temps écoulé depuis l'image précédente
+
+        // TODO 4 : afficher le temps sous la forme minutes:secondes, par exemple 01:07,4
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Au lancement, le texte affiche un temps qui augmente en continu.
+- [ ] Après 1 minute, les minutes passent à 01 et les secondes repartent de 00.
+- [ ] Espace met le chrono en pause, et un deuxième appui le relance là où il s'était arrêté.
+- [ ] R remet le temps à zéro, que le chrono soit en pause ou non.
+- [ ] Les chiffres ne « sautent » pas : les secondes s'affichent toujours avec deux chiffres (07 et pas 7).
+
+## Si tu bloques
+
+<Indice titre="Pause et relance">
+Une seule touche pour deux actions : il suffit d'inverser le booléen. `enMarche = !enMarche` le fait passer de `true` à `false`, ou l'inverse. Utilise `wasPressedThisFrame` et pas `isPressed`, sinon il s'inverse à chaque image tant que tu restes appuyé.
+</Indice>
+
+<Indice titre="Compter le temps">
+`Time.deltaTime` est le temps, en secondes, écoulé depuis l'image précédente. Si tu l'ajoutes à `temps` à chaque image, `temps` contient le nombre de secondes depuis le début.
+</Indice>
+
+<Indice titre="Minutes et secondes">
+Les minutes, c'est le nombre de fois que 60 rentre dans le temps : `Mathf.FloorToInt(temps / 60f)`. Les secondes restantes, c'est le reste de la division : `temps % 60f`. Pour forcer deux chiffres, `ToString("00")` sur un entier et `ToString("00.0")` sur un décimal.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Chronometre.cs">
+```cs
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Chronometre : MonoBehaviour
+{
+    [SerializeField] private TMP_Text texte;
+
+    private float temps = 0f;
+    private bool enMarche = true;
+
+    private void Update()
+    {
+        if (Keyboard.current.spaceKey.wasPressedThisFrame)
+        {
+            enMarche = !enMarche;
+        }
+
+        if (Keyboard.current.rKey.wasPressedThisFrame)
+        {
+            temps = 0f;
+        }
+
+        if (enMarche)
+        {
+            temps += Time.deltaTime;
+        }
+
+        int minutes = Mathf.FloorToInt(temps / 60f);
+        float secondes = temps % 60f;
+        texte.text = minutes.ToString("00") + ":" + secondes.ToString("00.0");
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** `temps` additionne les petits morceaux de temps de chaque image, seulement quand `enMarche` est vrai. L'affichage, lui, est recalculé à chaque image, même en pause : c'est pour ça que R remet bien l'écran à zéro pendant une pause.
+
+`TMP_Text` est le type commun à tous les textes TextMeshPro. Sa propriété `text` est la chaîne affichée à l'écran. Le format `"00.0"` impose au moins deux chiffres avant la virgule et un après.
+
+<Encadre type="info" titre="Point ou virgule ?">
+`ToString` suit la langue de ton ordinateur. Sur un Windows en français, tu verras `01:07,4` avec une virgule. Sur un PC en anglais, `01:07.4` avec un point. Les deux sont normaux.
+</Encadre>
+
+<Encadre type="piege" titre="NullReferenceException">
+Si la Console affiche une erreur `NullReferenceException` sur la ligne `texte.text = ...`, c'est que tu as oublié de glisser `TexteChrono` dans le champ **Texte** de l'Inspector. Le script ne trouve pas le texte tout seul.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Transforme-le en compte à rebours : il part de 60 secondes, descend, et affiche « Temps écoulé ! » à zéro.
+- Fais passer le texte en rouge (`texte.color = Color.red`) pendant les 10 dernières secondes du compte à rebours.
+- Garde le meilleur temps avec `PlayerPrefs.SetFloat("Record", temps)` et affiche-le dans un deuxième texte.

@@ -1,0 +1,563 @@
+## Le contexte
+
+Un PNJ qui te parle, un texte qui s'écrit lettre par lettre, et des réponses à choisir qui changent la suite de la conversation : c'est le cœur de tous les RPG et jeux narratifs. Tu vas construire ce système en entier.
+
+Le point clé, c'est que **le texte du dialogue ne sera pas dans le code**. Chaque réplique est un asset **ScriptableObject** (un `NoeudDialogue`) que tu crées dans le Project. Chaque nœud dit qui parle, ce qu'il dit, et vers quel nœud mènent les choix. Les nœuds pointent les uns vers les autres : ensemble, ils forment un **graphe**. Un scénariste peut écrire toute une conversation à ramifications sans jamais ouvrir un script.
+
+Voici la conversation que tu vas monter pour tester :
+
+```text
+[Accueil]  Garde : "Halte ! Personne ne passe sans raison."
+     |  (Espace)
+     v
+[Question] Garde : "Alors, qu'est-ce qui t'amène ?"
+     |-- "Je cherche du travail."      --> [Travail]
+     |-- "Je visite, c'est tout."      --> [Visite] --(Espace)--> retour à [Question]
+     |-- "Rien. Au revoir."            --> fin du dialogue
+
+[Travail]  Garde : "Va voir le forgeron. Il paie bien, mais il crie fort."
+     |  (Espace)
+     v
+   fin du dialogue
+```
+
+Remarque la boucle : depuis `[Visite]`, on revient à `[Question]`. C'est possible parce qu'un nœud ne fait que **pointer** vers un autre asset.
+
+## Ce que tu dois faire
+
+**1. Les données.**
+
+1. Crée les scripts `Choix` et `NoeudDialogue` (squelettes plus bas) et complète-les.
+2. Crée un dossier `Dialogues/Garde`, puis, avec clic droit › **Create › Dialogue › Nœud**, crée les quatre nœuds `Accueil`, `Question`, `Travail`, `Visite`. Remplis-les dans l'Inspector et relie-les selon le schéma (glisse les assets dans les champs `Suite` et `Destination`).
+
+**2. L'interface.**
+
+1. Crée un Canvas. Ajoute un **Panel** `PanneauDialogue` ancré en bas de l'écran, sur environ un tiers de la hauteur.
+2. Dedans : un **Text - TextMeshPro** `Orateur` (en gras, en haut à gauche), un autre `Replique` (grand, au centre) et un troisième `IndicateurSuite` en bas à droite avec le texte « [Espace] ».
+3. Toujours dans le panneau, un objet vide `Choix` avec un composant **Vertical Layout Group** (coche **Control Child Size › Width** et **Height**, et règle un **Spacing** de 8).
+4. Crée un bouton (**UI › Button - TextMeshPro**), donne-lui une hauteur de 40, glisse-le dans le Project pour en faire un prefab `BoutonChoix`, puis supprime-le de la scène.
+5. Crée un objet vide `Dialogue` avec le script `GestionnaireDialogue`, et relie tous ses champs.
+
+**3. Le PNJ et le joueur.**
+
+1. Une **Capsule** `Garde` avec le script `Pnj`. Ajoute-lui un deuxième collider : un **Sphere Collider** de rayon 2, coché **Is Trigger**. C'est la zone où l'on peut lui parler.
+2. Ajoute au-dessus de sa tête un petit **3D Object › Text - TextMeshPro** avec le texte « E » : c'est la bulle d'interaction. Relie-la, ainsi que `Accueil` et le `GestionnaireDialogue`, dans l'Inspector du `Pnj`.
+3. Une **Capsule** `Joueur` avec le Tag `Player`, un **Character Controller** (retire le Capsule Collider) et le script `JoueurSimple` (donné).
+
+**4. Le code.** Complète `GestionnaireDialogue`, puis `Pnj`.
+
+<Encadre type="info" titre="Écrire lettre par lettre avec TextMeshPro">
+TextMeshPro a une propriété très pratique : `maxVisibleCharacters`. Tu mets tout le texte d'un coup dans `.text`, puis tu règles `maxVisibleCharacters` à 0, 1, 2… Le texte est déjà mis en page dès le départ : les mots ne sautent pas d'une ligne à l'autre pendant l'écriture, comme ce serait le cas si tu ajoutais les lettres une par une.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="JoueurSimple.cs">
+```cs
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+[RequireComponent(typeof(CharacterController))]
+public class JoueurSimple : MonoBehaviour
+{
+    [SerializeField] private float vitesse = 5f;
+
+    private CharacterController controleur;
+
+    private void Awake()
+    {
+        controleur = GetComponent<CharacterController>();
+    }
+
+    private void Update()
+    {
+        Keyboard clavier = Keyboard.current;
+        if (clavier == null)
+        {
+            return;
+        }
+
+        // wKey, aKey... = position physique des touches : ZQSD sur un clavier AZERTY
+        Vector3 direction = Vector3.zero;
+        if (clavier.wKey.isPressed)
+        {
+            direction += Vector3.forward;
+        }
+        if (clavier.sKey.isPressed)
+        {
+            direction += Vector3.back;
+        }
+        if (clavier.aKey.isPressed)
+        {
+            direction += Vector3.left;
+        }
+        if (clavier.dKey.isPressed)
+        {
+            direction += Vector3.right;
+        }
+
+        controleur.SimpleMove(direction.normalized * vitesse);
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="Choix.cs">
+```cs
+using UnityEngine;
+
+// Une réponse proposée au joueur. Pas un MonoBehaviour : une simple donnée affichée dans l'Inspector.
+[System.Serializable]
+public class Choix
+{
+    // TODO 1 : un texte (ce qui est écrit sur le bouton) et une destination (le NoeudDialogue suivant),
+    //          en [SerializeField] private, avec des propriétés en lecture seule
+}
+```
+</Fichier>
+
+<Fichier nom="NoeudDialogue.cs">
+```cs
+using UnityEngine;
+
+// TODO 2 : CreateAssetMenu avec menuName = "Dialogue/Nœud"
+public class NoeudDialogue : ScriptableObject
+{
+    // TODO 3 : orateur (string), texte (string avec [TextArea(3, 8)] pour écrire confortablement),
+    //          un tableau de Choix, et un NoeudDialogue "suite" utilisé quand il n'y a pas de choix.
+    //          Ajoute une propriété ADesChoix.
+}
+```
+</Fichier>
+
+<Fichier nom="GestionnaireDialogue.cs">
+```cs
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
+
+public class GestionnaireDialogue : MonoBehaviour
+{
+    [Header("Interface")]
+    [SerializeField] private GameObject panneau;
+    [SerializeField] private TMP_Text texteOrateur;
+    [SerializeField] private TMP_Text texteReplique;
+    [SerializeField] private Transform conteneurChoix;
+    [SerializeField] private Button prefabBoutonChoix;
+    [SerializeField] private GameObject indicateurSuite;
+
+    [Header("Rythme")]
+    [SerializeField] private float lettresParSeconde = 40f;
+
+    public bool EnCours { get; private set; }
+
+    private NoeudDialogue noeudActuel;
+    private Coroutine ecriture;
+    private bool ecritureFinie;
+    private readonly List<Button> boutons = new List<Button>();
+
+    private void Start()
+    {
+        panneau.SetActive(false);
+    }
+
+    public void Demarrer(NoeudDialogue premier)
+    {
+        // TODO 4 : ouvre le panneau et affiche le premier nœud
+    }
+
+    private void Update()
+    {
+        // TODO 5 : Espace pendant l'écriture = tout afficher d'un coup.
+        //          Espace quand c'est écrit et qu'il n'y a pas de choix = nœud suivant (ou fin)
+    }
+
+    private void Afficher(NoeudDialogue noeud)
+    {
+        // TODO 6 : vide les anciens choix, écris l'orateur, lance la coroutine d'écriture
+    }
+
+    private IEnumerator Ecrire(string texte)
+    {
+        // TODO 7 : fais apparaître les lettres une à une avec maxVisibleCharacters
+        yield break;
+    }
+
+    private void FinirEcriture()
+    {
+        // TODO 8 : tout le texte visible, puis les boutons de choix OU l'indicateur [Espace]
+    }
+
+    private void CreerChoix()
+    {
+        // TODO 9 : un bouton par choix, avec le bon texte et la bonne action au clic
+    }
+
+    private void Choisir(NoeudDialogue destination)
+    {
+        // TODO 10 : va vers la destination, ou termine si elle est vide
+    }
+
+    private void ViderChoix()
+    {
+        // TODO 11 : détruis les boutons existants
+    }
+
+    private void Terminer()
+    {
+        // TODO 12 : ferme le panneau et remets tout à zéro
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="Pnj.cs">
+```cs
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Pnj : MonoBehaviour
+{
+    [SerializeField] private NoeudDialogue premierNoeud;
+    [SerializeField] private GestionnaireDialogue gestionnaire;
+    [SerializeField] private GameObject bulleInteraction;
+
+    private bool joueurProche;
+
+    private void Update()
+    {
+        // TODO 13 : bulle visible seulement si le joueur est proche et qu'aucun dialogue n'est en cours.
+        //           E dans ce cas : démarre le dialogue
+    }
+
+    // TODO 14 : OnTriggerEnter / OnTriggerExit pour mettre joueurProche à jour (tag "Player")
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Le « E » n'apparaît au-dessus du garde que quand tu es près de lui.
+- [ ] E ouvre le dialogue. Le nom « Garde » s'affiche et la réplique s'écrit lettre par lettre, sans que les mots sautent de ligne.
+- [ ] Espace pendant l'écriture affiche toute la réplique d'un coup. Espace après passe à la réplique suivante.
+- [ ] Sur `[Question]`, trois boutons apparaissent. Espace ne fait rien tant que tu n'as pas cliqué.
+- [ ] « Je visite » mène à `[Visite]` puis ramène à `[Question]`, avec des boutons neufs (pas six boutons empilés).
+- [ ] « Au revoir » et la fin de `[Travail]` ferment le panneau. Tu peux reparler au garde autant de fois que tu veux.
+- [ ] Tu peux ajouter un cinquième nœud et une nouvelle réponse **sans toucher au code**.
+
+## Si tu bloques
+
+<Indice titre="Le ScriptableObject">
+Même principe qu'une fiche d'arme : `[CreateAssetMenu(fileName = "NouveauNoeud", menuName = "Dialogue/Nœud")]` au-dessus de la classe, des champs `[SerializeField] private`, et des propriétés publiques en lecture seule comme `public string Texte => texte;`. Pour `ADesChoix` : `choix != null && choix.Length > 0`. Un champ de type `Choix[]` s'affiche dans l'Inspector comme une liste, parce que `Choix` est marqué `[System.Serializable]`.
+</Indice>
+
+<Indice titre="La machine à écrire">
+Dans `Ecrire` : mets le texte, `maxVisibleCharacters = 0`, puis appelle `texteReplique.ForceMeshUpdate()` pour que TextMeshPro calcule tout de suite la mise en page. `texteReplique.textInfo.characterCount` te donne alors le nombre de lettres. Ensuite, une boucle : un compteur `float` augmente de `lettresParSeconde * Time.deltaTime`, on le convertit en `int` avec `Mathf.FloorToInt`, et `yield return null;` attend l'image suivante.
+</Indice>
+
+<Indice titre="Arrêter la coroutine proprement">
+Garde la coroutine dans `ecriture = StartCoroutine(Ecrire(...))`. Pour tout afficher d'un coup, `FinirEcriture` fait `StopCoroutine(ecriture)` puis met `maxVisibleCharacters` à une grande valeur (TextMeshPro utilise 99999 par défaut). À la fin naturelle de la coroutine, mets `ecriture = null` **avant** d'appeler `FinirEcriture`, pour qu'elle n'essaie pas d'arrêter une coroutine déjà terminée.
+</Indice>
+
+<Indice titre="Brancher un bouton par code">
+`Button bouton = Instantiate(prefabBoutonChoix, conteneurChoix);` crée le bouton comme enfant du conteneur : le Vertical Layout Group le range tout seul. `bouton.GetComponentInChildren<TMP_Text>().text = ...` change son texte. `bouton.onClick.AddListener(() => Choisir(destination));` dit quoi faire au clic. Le `() =>` est une **lambda** : une petite fonction sans nom, qui se souvient de la variable `destination` au moment où on la crée.
+</Indice>
+
+<Indice titre="Le trigger ne réagit pas">
+Pour qu'un `OnTriggerEnter` se déclenche, un des deux objets doit avoir un Rigidbody **ou** un Character Controller. Ici c'est le joueur. Vérifie aussi que la sphère du garde est bien cochée **Is Trigger**, et que le joueur a bien le tag `Player`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Choix.cs">
+```cs
+using UnityEngine;
+
+[System.Serializable]
+public class Choix
+{
+    [SerializeField] private string texte;
+    [SerializeField] private NoeudDialogue destination;
+
+    public string Texte => texte;
+    public NoeudDialogue Destination => destination;
+}
+```
+</Fichier>
+
+<Fichier nom="NoeudDialogue.cs">
+```cs
+using UnityEngine;
+
+[CreateAssetMenu(fileName = "NouveauNoeud", menuName = "Dialogue/Nœud")]
+public class NoeudDialogue : ScriptableObject
+{
+    [SerializeField] private string orateur = "PNJ";
+
+    [TextArea(3, 8)]
+    [SerializeField] private string texte;
+
+    [Tooltip("Laisse vide pour une réplique simple, qu'on passe avec Espace.")]
+    [SerializeField] private Choix[] choix;
+
+    [Tooltip("Nœud suivant quand il n'y a pas de choix. Vide = fin du dialogue.")]
+    [SerializeField] private NoeudDialogue suite;
+
+    public string Orateur => orateur;
+    public string Texte => texte;
+    public Choix[] ListeChoix => choix;
+    public NoeudDialogue Suite => suite;
+    public bool ADesChoix => choix != null && choix.Length > 0;
+}
+```
+</Fichier>
+
+<Fichier nom="GestionnaireDialogue.cs">
+```cs
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
+
+public class GestionnaireDialogue : MonoBehaviour
+{
+    private const int ToutVisible = 99999;
+
+    [Header("Interface")]
+    [SerializeField] private GameObject panneau;
+    [SerializeField] private TMP_Text texteOrateur;
+    [SerializeField] private TMP_Text texteReplique;
+    [SerializeField] private Transform conteneurChoix;
+    [SerializeField] private Button prefabBoutonChoix;
+    [SerializeField] private GameObject indicateurSuite;
+
+    [Header("Rythme")]
+    [SerializeField] private float lettresParSeconde = 40f;
+
+    public bool EnCours { get; private set; }
+
+    private NoeudDialogue noeudActuel;
+    private Coroutine ecriture;
+    private bool ecritureFinie;
+    private readonly List<Button> boutons = new List<Button>();
+
+    private void Start()
+    {
+        panneau.SetActive(false);
+    }
+
+    public void Demarrer(NoeudDialogue premier)
+    {
+        if (premier == null)
+        {
+            return;
+        }
+
+        EnCours = true;
+        panneau.SetActive(true);
+        Afficher(premier);
+    }
+
+    private void Update()
+    {
+        if (!EnCours)
+        {
+            return;
+        }
+
+        Keyboard clavier = Keyboard.current;
+        if (clavier == null || !clavier.spaceKey.wasPressedThisFrame)
+        {
+            return;
+        }
+
+        if (!ecritureFinie)
+        {
+            FinirEcriture();
+        }
+        else if (!noeudActuel.ADesChoix)
+        {
+            if (noeudActuel.Suite != null)
+            {
+                Afficher(noeudActuel.Suite);
+            }
+            else
+            {
+                Terminer();
+            }
+        }
+    }
+
+    private void Afficher(NoeudDialogue noeud)
+    {
+        noeudActuel = noeud;
+        ViderChoix();
+        indicateurSuite.SetActive(false);
+        texteOrateur.text = noeud.Orateur;
+
+        if (ecriture != null)
+        {
+            StopCoroutine(ecriture);
+        }
+        ecriture = StartCoroutine(Ecrire(noeud.Texte));
+    }
+
+    private IEnumerator Ecrire(string texte)
+    {
+        ecritureFinie = false;
+        texteReplique.text = texte;
+        texteReplique.maxVisibleCharacters = 0;
+        texteReplique.ForceMeshUpdate();
+
+        int total = texteReplique.textInfo.characterCount;
+        float compteur = 0f;
+
+        while (texteReplique.maxVisibleCharacters < total)
+        {
+            compteur += lettresParSeconde * Time.deltaTime;
+            texteReplique.maxVisibleCharacters = Mathf.Min(Mathf.FloorToInt(compteur), total);
+            yield return null;
+        }
+
+        ecriture = null;
+        FinirEcriture();
+    }
+
+    private void FinirEcriture()
+    {
+        if (ecriture != null)
+        {
+            StopCoroutine(ecriture);
+            ecriture = null;
+        }
+
+        texteReplique.maxVisibleCharacters = ToutVisible;
+        ecritureFinie = true;
+
+        if (noeudActuel.ADesChoix)
+        {
+            CreerChoix();
+        }
+        else
+        {
+            indicateurSuite.SetActive(true);
+        }
+    }
+
+    private void CreerChoix()
+    {
+        foreach (Choix choix in noeudActuel.ListeChoix)
+        {
+            Button bouton = Instantiate(prefabBoutonChoix, conteneurChoix);
+            bouton.GetComponentInChildren<TMP_Text>().text = choix.Texte;
+
+            // Copie locale : chaque lambda garde SA destination
+            NoeudDialogue destination = choix.Destination;
+            bouton.onClick.AddListener(() => Choisir(destination));
+
+            boutons.Add(bouton);
+        }
+    }
+
+    private void Choisir(NoeudDialogue destination)
+    {
+        if (destination != null)
+        {
+            Afficher(destination);
+        }
+        else
+        {
+            Terminer();
+        }
+    }
+
+    private void ViderChoix()
+    {
+        foreach (Button bouton in boutons)
+        {
+            Destroy(bouton.gameObject);
+        }
+        boutons.Clear();
+    }
+
+    private void Terminer()
+    {
+        if (ecriture != null)
+        {
+            StopCoroutine(ecriture);
+            ecriture = null;
+        }
+
+        ViderChoix();
+        panneau.SetActive(false);
+        noeudActuel = null;
+        EnCours = false;
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="Pnj.cs">
+```cs
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Pnj : MonoBehaviour
+{
+    [SerializeField] private NoeudDialogue premierNoeud;
+    [SerializeField] private GestionnaireDialogue gestionnaire;
+    [SerializeField] private GameObject bulleInteraction;
+
+    private bool joueurProche;
+
+    private void Update()
+    {
+        bool peutParler = joueurProche && !gestionnaire.EnCours;
+        bulleInteraction.SetActive(peutParler);
+
+        Keyboard clavier = Keyboard.current;
+        if (peutParler && clavier != null && clavier.eKey.wasPressedThisFrame)
+        {
+            gestionnaire.Demarrer(premierNoeud);
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            joueurProche = true;
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            joueurProche = false;
+        }
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** le système est coupé en trois couches qui ne se mélangent pas. Les **données** (`NoeudDialogue`, `Choix`) ne savent rien de l'affichage : ce sont des fiches reliées entre elles. L'**affichage** (`GestionnaireDialogue`) sait montrer n'importe quel nœud, et ne connaît aucune réplique en particulier. Le **déclencheur** (`Pnj`) ne fait que dire « commence à ce nœud-là ». Pour un deuxième PNJ, tu crées d'autres nœuds et un autre `Pnj` qui pointe vers son propre premier nœud, et c'est tout.
+
+Le booléen `ecritureFinie` donne deux sens à la touche Espace : pendant l'écriture, elle accélère ; après, elle avance. Quand il y a des choix, Espace est ignorée : seul un clic fait avancer. Enfin, `Destroy` ne détruit pas un objet tout de suite mais à la fin de l'image : on peut donc vider les boutons depuis le clic sur l'un d'eux sans rien casser.
+
+<Encadre type="piege" titre="Les lambdas dans une boucle">
+On copie `choix.Destination` dans une variable locale avant d'écrire la lambda. Ici, avec un `foreach`, ça marcherait aussi sans la copie. Mais avec une boucle `for (int i = 0; ...)` et une lambda qui utilise `i`, **tous** les boutons verraient la dernière valeur de `i`, car la lambda garde la variable elle-même, pas sa valeur. Prends l'habitude de copier dans une variable locale.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Bloque le joueur pendant le dialogue : ajoute dans `GestionnaireDialogue` un événement `public static event System.Action<bool> DialogueOuvert;` et fais écouter `JoueurSimple`.
+- Permets de choisir avec les touches 1, 2, 3 en plus de la souris, et affiche le numéro devant chaque réponse.
+- Ajoute des conditions : un `Choix` qui n'apparaît que si le joueur possède un objet, ou un nœud qui donne une récompense quand il s'affiche. Une piste : un champ `string drapeauRequis` dans `Choix`, et un `HashSet<string>` des drapeaux obtenus.

@@ -1,0 +1,149 @@
+## Le contexte
+
+Un décor qui bouge rend un niveau vivant : éoliennes, ventilateurs, roues de moulin. Le code est court, mais c'est justement là qu'on fait les erreurs les plus classiques du C++ dans Unreal. Les trois bugs de cet exercice, tu les feras toi-même un jour, autant apprendre à les reconnaître tout de suite.
+
+## Ce que tu dois faire
+
+Un camarade a écrit cette éolienne. Il a créé un Blueprint enfant `BP_Eolienne`, mis un mât et une hélice, et l'a posée dans le niveau. Voici ce qu'il observe :
+
+- **Quand il lance le jeu, l'hélice ne tourne pas du tout.**
+- **Il voulait régler la vitesse dans le panneau Details, mais il ne trouve aucune case « Vitesse Rotation ».**
+- **Une fois le premier bug corrigé, l'hélice tourne, mais n'importe comment :** c'est une bouillie floue, et sur son PC portable (30 images par seconde) elle va deux fois moins vite que sur le PC de la salle (60 images par seconde).
+
+Ce qui devrait se passer : l'hélice tourne à 90 degrés par seconde sur tous les PC, et on peut changer cette vitesse dans le panneau Details.
+
+Il y a **3 bugs**. Le code compile sans erreur.
+
+1. Recopie le code dans ton projet.
+2. Pour chaque symptôme, trouve la ligne responsable.
+3. Corrige les trois bugs et vérifie la liste plus bas.
+
+## Le code de départ
+
+<Fichier nom="Eolienne.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Eolienne.generated.h"
+
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API AEolienne : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AEolienne();
+	virtual void Tick(float DeltaTime) override;
+
+protected:
+	UPROPERTY(VisibleAnywhere, Category = "Eolienne")
+	TObjectPtr<UStaticMeshComponent> Mat;
+
+	UPROPERTY(VisibleAnywhere, Category = "Eolienne")
+	TObjectPtr<UStaticMeshComponent> Helice;
+
+	// Vitesse de rotation de l'hélice, en degrés par seconde
+	float VitesseRotation = 90.f;
+};
+```
+</Fichier>
+
+<Fichier nom="Eolienne.cpp">
+```cpp
+#include "Eolienne.h"
+#include "Components/StaticMeshComponent.h"
+
+AEolienne::AEolienne()
+{
+	Mat = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mat"));
+	RootComponent = Mat;
+
+	Helice = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Helice"));
+	Helice->SetupAttachment(Mat);
+	Helice->SetRelativeLocation(FVector(50.f, 0.f, 500.f));
+}
+
+void AEolienne::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// L'hélice tourne autour de l'axe X (vers l'avant)
+	Helice->AddLocalRotation(FRotator(0.f, 0.f, VitesseRotation));
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] L'hélice tourne dès le lancement du jeu.
+- [ ] Elle tourne à une vitesse raisonnable (un quart de tour par seconde), pas en une bouillie floue.
+- [ ] Une case **Vitesse Rotation** apparaît dans le panneau Details, catégorie Eolienne, et la changer change la vitesse.
+- [ ] Dans la console (touche ²), `t.MaxFPS 30` puis `t.MaxFPS 120` ne changent pas la vitesse de l'hélice.
+
+## Si tu bloques
+
+<Indice titre="Est-ce que Tick est appelé ?">
+Mets un `UE_LOG(LogTemp, Warning, TEXT("Tick"));` dans `Tick` et regarde l'Output Log. Si rien ne s'affiche, ce n'est pas la rotation qui est fausse : c'est la fonction qui n'est jamais appelée. Compare le constructeur avec celui d'un acteur créé par l'assistant d'Unreal.
+</Indice>
+
+<Indice titre="Ce que l'éditeur voit">
+L'éditeur ne connaît que les variables qu'on lui présente avec une macro. Regarde les deux composants juste au-dessus de `VitesseRotation` : qu'ont-ils de plus ?
+</Indice>
+
+<Indice titre="Degrés par quoi ?">
+`VitesseRotation` est en degrés **par seconde**, mais `Tick` est appelé une fois par **image**. Quel paramètre de `Tick` permet de passer de l'un à l'autre ?
+</Indice>
+
+<Solution>
+
+<Fichier nom="Eolienne.h">
+```cpp
+	// Vitesse de rotation de l'hélice, en degrés par seconde
+	UPROPERTY(EditAnywhere, Category = "Eolienne")
+	float VitesseRotation = 90.f;
+```
+</Fichier>
+
+<Fichier nom="Eolienne.cpp">
+```cpp
+AEolienne::AEolienne()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	Mat = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mat"));
+	RootComponent = Mat;
+
+	Helice = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Helice"));
+	Helice->SetupAttachment(Mat);
+	Helice->SetRelativeLocation(FVector(50.f, 0.f, 500.f));
+}
+
+void AEolienne::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	Helice->AddLocalRotation(FRotator(0.f, 0.f, VitesseRotation * DeltaTime));
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :**
+
+- **Bug 1, l'hélice ne tourne pas :** par défaut, un `AActor` ne tick pas, pour économiser du temps de calcul. Il faut le demander dans le constructeur avec `PrimaryActorTick.bCanEverTick = true`. Sans ça, `Tick` existe mais Unreal ne l'appelle jamais.
+- **Bug 2, pas de case dans Details :** une variable C++ sans `UPROPERTY` est invisible pour l'éditeur (et pour les Blueprints). `EditAnywhere` la rend modifiable sur le Blueprint et sur chaque éolienne posée.
+- **Bug 3, vitesse qui dépend du PC :** sans `DeltaTime`, l'hélice tourne de 90 degrés **à chaque image**, donc 5400 degrés par seconde à 60 images par seconde : c'est la bouillie floue. Multiplier par `DeltaTime` (le temps écoulé depuis l'image précédente, environ 0,016 s à 60 i/s) transforme une vitesse par seconde en déplacement pour cette image.
+
+<Encadre type="piege">
+Si tu as recompilé avec le Live Coding et que la case n'apparaît toujours pas, ferme l'éditeur et recompile depuis Rider ou Visual Studio. Ajouter une `UPROPERTY` change la structure de la classe, et le Live Coding ne le gère pas toujours bien.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute une `UPROPERTY` `bTourneAuDemarrage` et une fonction `UFUNCTION(BlueprintCallable)` `Demarrer()` : l'éolienne attend qu'on l'allume.
+- Fais accélérer l'hélice progressivement jusqu'à sa vitesse avec `FMath::FInterpTo`.
+- Si tu poses 200 éoliennes, regarde `stat game` dans la console. Essaie `PrimaryActorTick.TickInterval` pour qu'elles tickent moins souvent : est-ce que ça se voit à l'écran ?

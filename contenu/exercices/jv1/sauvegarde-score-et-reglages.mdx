@@ -1,0 +1,392 @@
+## Le contexte
+
+Tu fermes le jeu, tu le relances… et ton record a disparu, le volume est revenu à fond. Normal : les variables d'un script vivent en mémoire vive, qui est vidée quand le jeu s'arrête. Pour garder quelque chose, il faut l'écrire **sur le disque**.
+
+Unity te donne deux outils, et tu vas utiliser les deux :
+
+- **PlayerPrefs** : un petit carnet clé/valeur, parfait pour un ou deux nombres. Ici : le meilleur score et le pseudo de celui qui l'a fait.
+- **JsonUtility + un fichier** : tu transformes tout un objet C# en texte JSON et tu l'écris dans un fichier. Ici : les réglages (volume, plein écran, pseudo).
+
+Pour tester sans vrai jeu, la « partie » est très simple : P donne 10 points, F termine la partie, Suppr efface le record.
+
+## Ce que tu dois faire
+
+1. Crée les trois scripts : `Reglages` (donné complet), `Sauvegarde` et `EcranPartie`.
+2. Construis l'interface dans un Canvas (**GameObject › UI**) :
+   - deux **Text - TextMeshPro** : un pour le score, un pour le record ;
+   - un **Slider** pour le volume (vérifie que **Min Value** vaut 0 et **Max Value** vaut 1) ;
+   - un **Toggle** pour le plein écran ;
+   - un **Input Field - TextMeshPro** pour le pseudo.
+3. Crée un objet vide `Partie`, ajoute-lui `EcranPartie` et relie chaque champ de l'Inspector à l'élément d'interface correspondant.
+4. Remplis les `// TODO` de `Sauvegarde`, puis ceux de `EcranPartie`.
+5. Teste : fais un score, termine la partie, arrête le Play, relance. Le record et les réglages doivent être revenus.
+
+<Encadre type="info" titre="Une classe static">
+`Sauvegarde` n'est pas un MonoBehaviour : c'est une classe `static`. On ne la met sur aucun objet, et on appelle ses méthodes directement par son nom : `Sauvegarde.LireMeilleurScore()`. C'est pratique pour des outils dont tout le jeu a besoin et qui n'ont pas besoin d'exister dans la scène.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="Reglages.cs">
+```cs
+// Pas de MonoBehaviour ici : juste un paquet de données.
+// [System.Serializable] permet à JsonUtility de le transformer en texte.
+[System.Serializable]
+public class Reglages
+{
+    public float volume = 0.8f;
+    public bool pleinEcran = true;
+    public string pseudo = "Joueur";
+}
+```
+</Fichier>
+
+<Fichier nom="Sauvegarde.cs">
+```cs
+using System.IO;
+using UnityEngine;
+
+public static class Sauvegarde
+{
+    private const string CleMeilleurScore = "MeilleurScore";
+    private const string CleMeilleurPseudo = "MeilleurPseudo";
+    private const string NomFichierReglages = "reglages.json";
+
+    private static string CheminReglages => Path.Combine(Application.persistentDataPath, NomFichierReglages);
+
+    public static int LireMeilleurScore()
+    {
+        // TODO 1 : lis l'entier rangé sous CleMeilleurScore (0 s'il n'existe pas encore)
+        return 0;
+    }
+
+    public static string LireMeilleurPseudo()
+    {
+        // TODO 2 : pareil pour le pseudo ("personne" par défaut)
+        return "";
+    }
+
+    // Renvoie true si c'est un nouveau record
+    public static bool ProposerScore(int score, string pseudo)
+    {
+        // TODO 3 : si le score bat le record, enregistre score et pseudo, puis sauve sur le disque
+        return false;
+    }
+
+    public static void EffacerMeilleurScore()
+    {
+        // TODO 4 : supprime les deux clés
+    }
+
+    public static void EnregistrerReglages(Reglages reglages)
+    {
+        // TODO 5 : transforme reglages en JSON et écris-le dans le fichier CheminReglages
+    }
+
+    public static Reglages ChargerReglages()
+    {
+        // TODO 6 : si le fichier existe, lis-le et transforme le JSON en Reglages.
+        //          S'il n'existe pas ou s'il est abîmé, renvoie des réglages par défaut.
+        return new Reglages();
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="EcranPartie.cs">
+```cs
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
+
+public class EcranPartie : MonoBehaviour
+{
+    [Header("Score")]
+    [SerializeField] private TMP_Text texteScore;
+    [SerializeField] private TMP_Text texteRecord;
+
+    [Header("Réglages")]
+    [SerializeField] private Slider sliderVolume;
+    [SerializeField] private Toggle togglePleinEcran;
+    [SerializeField] private TMP_InputField champPseudo;
+
+    private int score;
+    private Reglages reglages;
+
+    private void Start()
+    {
+        // TODO 7 : charge les réglages, place les valeurs dans l'interface,
+        //          applique-les, puis écoute les changements de l'interface
+        AfficherScores();
+    }
+
+    private void Update()
+    {
+        // TODO 8 : P = +10 points, F = fin de partie, Suppr = effacer le record
+        //          (sans réagir si on est en train d'écrire dans le champ pseudo)
+    }
+
+    private void OnDisable()
+    {
+        // TODO 9 : enregistre les réglages
+    }
+
+    private void FinDePartie()
+    {
+        // TODO 10
+    }
+
+    private void AppliquerReglages()
+    {
+        AudioListener.volume = reglages.volume;
+        Screen.fullScreen = reglages.pleinEcran;
+    }
+
+    private void AfficherScores()
+    {
+        texteScore.text = "Score : " + score;
+        texteRecord.text = "Record : " + Sauvegarde.LireMeilleurScore() + " (" + Sauvegarde.LireMeilleurPseudo() + ")";
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] P augmente le score, F termine la partie et le record se met à jour s'il est battu, avec ton pseudo.
+- [ ] Un score plus faible que le record ne l'écrase pas.
+- [ ] Après avoir arrêté puis relancé le Play, le record est toujours là.
+- [ ] Après avoir changé le volume, le plein écran et le pseudo puis relancé le Play, l'interface affiche les valeurs que tu avais choisies.
+- [ ] Tu trouves le fichier `reglages.json` sur ton disque (le chemin est affiché dans la Console) et tu peux le lire dans un éditeur de texte.
+- [ ] Si tu écris n'importe quoi dans ce fichier, le jeu se lance quand même avec les réglages par défaut, avec un simple avertissement jaune.
+- [ ] Taper la lettre P dans le champ pseudo n'ajoute pas de points.
+
+## Si tu bloques
+
+<Indice titre="PlayerPrefs">
+Trois paires de méthodes : `GetInt`/`SetInt`, `GetFloat`/`SetFloat`, `GetString`/`SetString`. Les `Get` prennent une valeur par défaut, renvoyée si la clé n'existe pas : `PlayerPrefs.GetInt(CleMeilleurScore, 0)`. Après des `Set`, appelle `PlayerPrefs.Save()` pour écrire tout de suite sur le disque. `PlayerPrefs.DeleteKey(cle)` supprime une clé.
+</Indice>
+
+<Indice titre="Écrire et lire un fichier JSON">
+`JsonUtility.ToJson(reglages, true)` renvoie un `string` (le `true` le rend lisible, avec des retours à la ligne). `File.WriteAllText(chemin, texte)` l'écrit. Dans l'autre sens : `File.Exists(chemin)`, puis `File.ReadAllText(chemin)`, puis `JsonUtility.FromJson<Reglages>(texte)`.
+</Indice>
+
+<Indice titre="Un fichier abîmé">
+Si le JSON est invalide, `FromJson` lance une exception et ton `Start` s'arrête net. Entoure la lecture d'un `try { ... } catch (System.Exception e) { ... }` : dans le `catch`, affiche `Debug.LogWarning` et renvoie `new Reglages()`.
+</Indice>
+
+<Indice titre="Remplir l'interface sans déclencher les événements">
+Si tu écris `sliderVolume.value = reglages.volume;` alors que tu écoutes déjà `onValueChanged`, ton code se déclenche tout seul. Deux solutions : brancher les écouteurs **après** avoir rempli l'interface, ou utiliser `SetValueWithoutNotify`, `SetIsOnWithoutNotify` et `SetTextWithoutNotify`. Pour le pseudo, écoute `champPseudo.onEndEdit` : il se déclenche quand on a fini d'écrire.
+</Indice>
+
+<Indice titre="Quand enregistrer les réglages ?">
+Écrire le fichier à chaque mouvement du slider ferait des dizaines d'écritures par seconde. Il suffit de mettre à jour l'objet `reglages` en mémoire quand l'interface change, et d'écrire le fichier une seule fois dans `OnDisable`, qui est appelée quand tu arrêtes le Play ou quittes la scène.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Sauvegarde.cs">
+```cs
+using System.IO;
+using UnityEngine;
+
+public static class Sauvegarde
+{
+    private const string CleMeilleurScore = "MeilleurScore";
+    private const string CleMeilleurPseudo = "MeilleurPseudo";
+    private const string NomFichierReglages = "reglages.json";
+
+    private static string CheminReglages => Path.Combine(Application.persistentDataPath, NomFichierReglages);
+
+    public static int LireMeilleurScore()
+    {
+        return PlayerPrefs.GetInt(CleMeilleurScore, 0);
+    }
+
+    public static string LireMeilleurPseudo()
+    {
+        return PlayerPrefs.GetString(CleMeilleurPseudo, "personne");
+    }
+
+    public static bool ProposerScore(int score, string pseudo)
+    {
+        if (score <= LireMeilleurScore())
+        {
+            return false;
+        }
+
+        PlayerPrefs.SetInt(CleMeilleurScore, score);
+        PlayerPrefs.SetString(CleMeilleurPseudo, pseudo);
+        PlayerPrefs.Save();
+        return true;
+    }
+
+    public static void EffacerMeilleurScore()
+    {
+        PlayerPrefs.DeleteKey(CleMeilleurScore);
+        PlayerPrefs.DeleteKey(CleMeilleurPseudo);
+        PlayerPrefs.Save();
+    }
+
+    public static void EnregistrerReglages(Reglages reglages)
+    {
+        string json = JsonUtility.ToJson(reglages, true);
+        File.WriteAllText(CheminReglages, json);
+        Debug.Log("Réglages enregistrés dans " + CheminReglages);
+    }
+
+    public static Reglages ChargerReglages()
+    {
+        if (!File.Exists(CheminReglages))
+        {
+            return new Reglages();
+        }
+
+        try
+        {
+            string json = File.ReadAllText(CheminReglages);
+            Reglages reglages = JsonUtility.FromJson<Reglages>(json);
+            // Un fichier vide donne null : on se rabat sur les valeurs par défaut
+            return reglages ?? new Reglages();
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("Réglages illisibles, valeurs par défaut utilisées. " + e.Message);
+            return new Reglages();
+        }
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="EcranPartie.cs">
+```cs
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
+
+public class EcranPartie : MonoBehaviour
+{
+    [Header("Score")]
+    [SerializeField] private TMP_Text texteScore;
+    [SerializeField] private TMP_Text texteRecord;
+
+    [Header("Réglages")]
+    [SerializeField] private Slider sliderVolume;
+    [SerializeField] private Toggle togglePleinEcran;
+    [SerializeField] private TMP_InputField champPseudo;
+
+    private int score;
+    private Reglages reglages;
+
+    private void Start()
+    {
+        reglages = Sauvegarde.ChargerReglages();
+
+        // On remplit l'interface sans déclencher ses événements
+        sliderVolume.SetValueWithoutNotify(reglages.volume);
+        togglePleinEcran.SetIsOnWithoutNotify(reglages.pleinEcran);
+        champPseudo.SetTextWithoutNotify(reglages.pseudo);
+        AppliquerReglages();
+
+        sliderVolume.onValueChanged.AddListener(QuandVolumeChange);
+        togglePleinEcran.onValueChanged.AddListener(QuandPleinEcranChange);
+        champPseudo.onEndEdit.AddListener(QuandPseudoChange);
+
+        AfficherScores();
+    }
+
+    private void Update()
+    {
+        Keyboard clavier = Keyboard.current;
+        if (clavier == null || champPseudo.isFocused)
+        {
+            return;
+        }
+
+        if (clavier.pKey.wasPressedThisFrame)
+        {
+            score += 10;
+            AfficherScores();
+        }
+
+        if (clavier.fKey.wasPressedThisFrame)
+        {
+            FinDePartie();
+        }
+
+        if (clavier.deleteKey.wasPressedThisFrame)
+        {
+            Sauvegarde.EffacerMeilleurScore();
+            AfficherScores();
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (reglages != null)
+        {
+            Sauvegarde.EnregistrerReglages(reglages);
+        }
+    }
+
+    private void QuandVolumeChange(float valeur)
+    {
+        reglages.volume = valeur;
+        AppliquerReglages();
+    }
+
+    private void QuandPleinEcranChange(bool valeur)
+    {
+        reglages.pleinEcran = valeur;
+        AppliquerReglages();
+    }
+
+    private void QuandPseudoChange(string texte)
+    {
+        reglages.pseudo = string.IsNullOrWhiteSpace(texte) ? "Joueur" : texte.Trim();
+        champPseudo.SetTextWithoutNotify(reglages.pseudo);
+    }
+
+    private void FinDePartie()
+    {
+        bool record = Sauvegarde.ProposerScore(score, reglages.pseudo);
+        Debug.Log(record ? "Nouveau record : " + score + " !" : "Partie terminée : " + score + " points.");
+        score = 0;
+        AfficherScores();
+    }
+
+    private void AppliquerReglages()
+    {
+        AudioListener.volume = reglages.volume;
+        Screen.fullScreen = reglages.pleinEcran;
+    }
+
+    private void AfficherScores()
+    {
+        texteScore.text = "Score : " + score;
+        texteRecord.text = "Record : " + Sauvegarde.LireMeilleurScore() + " (" + Sauvegarde.LireMeilleurPseudo() + ")";
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** les PlayerPrefs gardent deux petites valeurs simples, et Unity s'occupe de l'endroit où elles sont rangées (le registre sous Windows). Pour les réglages, on garde un objet `Reglages` en mémoire pendant tout le jeu : l'interface le modifie, et on l'écrit d'un coup en JSON quand on quitte. `Application.persistentDataPath` est un dossier qu'Unity garantit accessible en écriture sur chaque plateforme (PC, Mac, téléphone), et qui n'est pas effacé quand tu mets le jeu à jour. Le `try/catch` protège le jeu contre un fichier abîmé : sans lui, un seul caractère en trop dans le JSON empêcherait le jeu de démarrer.
+
+<Encadre type="piege" titre="Le plein écran dans l'éditeur">
+`Screen.fullScreen` n'a aucun effet visible dans la fenêtre Game de l'éditeur. Pour le voir marcher, fais un build (**File › Build And Run**). Le reste fonctionne normalement dans l'éditeur.
+</Encadre>
+
+<Encadre type="retenir">
+**PlayerPrefs** pour quelques valeurs simples. **JSON dans un fichier** dès que tu as un objet complet, une liste, ou des données que le joueur pourrait vouloir copier. Et ne mets jamais quelque chose d'important dans les PlayerPrefs en pensant que c'est protégé : n'importe qui peut les modifier.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Garde un **top 5** au lieu d'un seul record : une classe `[System.Serializable]` qui contient une `List` d'entrées (pseudo + score), triée et enregistrée en JSON.
+- Ajoute un bouton « Réinitialiser les réglages » qui supprime le fichier avec `File.Delete` et remet l'interface aux valeurs par défaut.
+- Sur téléphone, `OnDisable` n'est pas toujours appelée quand le système tue l'application : enregistre aussi dans `OnApplicationPause(bool enPause)`.

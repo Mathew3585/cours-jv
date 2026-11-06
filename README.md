@@ -19,6 +19,7 @@ Plateforme de cours pour les classes de jeu vidéo JV1, JV2 et JV3 : le code des
 
 - `contenu/projets/<projet>/` : un cours. `projet.ts`, `code/` (copie des sources Unreal), `modules/<module>/module.ts` (leçons, quiz, défi) et les leçons `.mdx`.
 - `contenu/dico/` : les mots du dico.
+- `contenu/exercices/<niveau>/` : les exercices bonus (pas obligatoires) par niveau. `bases.ts` (facile, moyen) et `avances.ts` (difficile, expert) les déclarent, un `.mdx` par exercice.
 - `docs/guide-redaction.md` : comment écrire une leçon.
 - `src/app/(eleve)` : pages élève ; `src/app/(lecon)` : leçon et quiz final ; `src/app/prof` : espace prof.
 - `supabase/migrations/` : schéma de la base et règles d'accès (déjà appliqués au projet Supabase).

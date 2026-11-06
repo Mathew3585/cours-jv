@@ -1,0 +1,159 @@
+## Le contexte
+
+Dans un petit jeu 2D vu de dessus, un carré se déplace et doit ramasser des ronds jaunes. Le déplacement marche très bien. Mais le carré passe sur les pièces sans que rien ne se passe. Le script vient d'un tutoriel 3D, adapté un peu trop vite.
+
+Le script compile. À toi de trouver pourquoi les pièces sont « introuvables ».
+
+## Ce que tu dois faire
+
+**Mise en place (sans bug)**
+
+1. Travaille dans un projet créé avec le modèle **Universal 2D**, ou au moins dans une scène 2D.
+2. Crée le joueur : **GameObject › 2D Object › Sprites › Square**, renomme-le `Joueur`.
+3. Ajoute-lui un **Box Collider 2D** et un **Rigidbody 2D**. Dans le Rigidbody 2D, mets **Gravity Scale** à 0 (on est vu de dessus, pas de chute) et, dans **Constraints**, coche **Freeze Rotation Z**.
+4. Crée une pièce : **GameObject › 2D Object › Sprites › Circle**, renomme-la `Piece`, mets sa couleur en jaune et son échelle à 0.5.
+5. Ajoute-lui un **Circle Collider 2D** et coche **Is Trigger**.
+6. Crée le tag `Piece` (**Tag › Add Tag… › +**) et donne-le à la pièce. Duplique la pièce plusieurs fois.
+7. Crée un script `Collecteur2D`, colle le code de départ et glisse-le sur le `Joueur`.
+
+**Le bug**
+
+**Le symptôme :** le carré se déplace bien avec ZQSD, mais passer sur une pièce ne fait rien. Aucun message dans la Console, aucune erreur.
+
+**Ce qui est attendu :** chaque pièce touchée disparaît, et la Console affiche le total ramassé : 1, puis 2, puis 3...
+
+**Il y a 3 bugs.** Le déplacement, lui, est correct. Attention, tu ne verras le troisième qu'après avoir corrigé les deux premiers.
+
+## Le code de départ
+
+<Fichier nom="Collecteur2D.cs">
+```cs
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Collecteur2D : MonoBehaviour
+{
+    [SerializeField] private float vitesse = 5f;
+
+    private Rigidbody2D rb;
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody2D>();
+    }
+
+    private void Update()
+    {
+        Vector2 direction = Vector2.zero;
+        if (Keyboard.current.wKey.isPressed) direction.y += 1f;
+        if (Keyboard.current.sKey.isPressed) direction.y -= 1f;
+        if (Keyboard.current.aKey.isPressed) direction.x -= 1f;
+        if (Keyboard.current.dKey.isPressed) direction.x += 1f;
+
+        rb.linearVelocity = direction.normalized * vitesse;
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        int pieces = 0;
+
+        if (other.tag == "piece")
+        {
+            pieces++;
+            Destroy(other.gameObject);
+            Debug.Log("Pièces ramassées : " + pieces);
+        }
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Passer sur une pièce la fait disparaître.
+- [ ] La Console affiche 1, puis 2, puis 3... et pas « 1 » à chaque fois.
+- [ ] Passer sur un objet sans le tag `Piece` ne le détruit pas.
+- [ ] Le déplacement marche toujours comme avant.
+
+## Si tu bloques
+
+<Indice titre="2D et 3D, deux mondes séparés">
+Dans Unity, la physique 2D et la physique 3D sont deux moteurs différents qui s'ignorent. Un `Collider` (3D) n'est jamais touché par un `Collider2D`. Regarde les composants de tes objets, puis la signature de `OnTriggerEnter`.
+</Indice>
+
+<Indice titre="La version 2D">
+Toutes les fonctions de collision existent en version 2D, avec `2D` à la fin du nom **et** du type du paramètre : `OnTriggerEnter2D(Collider2D other)`, `OnCollisionEnter2D(Collision2D collision)`...
+</Indice>
+
+<Indice titre="Toujours rien ?">
+Ajoute `Debug.Log(other.tag);` en première ligne de la fonction et compare ce qui s'affiche avec le texte de ton `if`, lettre par lettre.
+</Indice>
+
+<Indice titre="Le compteur bloqué à 1">
+Où est déclarée la variable `pieces` ? Une variable déclarée **dans** une fonction est recréée, à 0, à chaque appel.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Collecteur2D.cs">
+```cs
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Collecteur2D : MonoBehaviour
+{
+    [SerializeField] private float vitesse = 5f;
+
+    private Rigidbody2D rb;
+
+    // Bug 3 corrigé : le compteur est une variable de la classe
+    private int pieces = 0;
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody2D>();
+    }
+
+    private void Update()
+    {
+        Vector2 direction = Vector2.zero;
+        if (Keyboard.current.wKey.isPressed) direction.y += 1f;
+        if (Keyboard.current.sKey.isPressed) direction.y -= 1f;
+        if (Keyboard.current.aKey.isPressed) direction.x -= 1f;
+        if (Keyboard.current.dKey.isPressed) direction.x += 1f;
+
+        rb.linearVelocity = direction.normalized * vitesse;
+    }
+
+    // Bug 1 corrigé : la version 2D de la fonction
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        // Bug 2 corrigé : le tag avec sa majuscule, testé avec CompareTag
+        if (other.CompareTag("Piece"))
+        {
+            pieces++;
+            Destroy(other.gameObject);
+            Debug.Log("Pièces ramassées : " + pieces);
+        }
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :**
+
+- **Bug 1, la fonction 3D dans un jeu 2D.** `OnTriggerEnter(Collider other)` n'est appelée que par la physique 3D. Tes objets ont des colliders 2D, donc seule `OnTriggerEnter2D(Collider2D other)` est appelée. Unity ne signale rien : pour lui, c'est juste une fonction qui ne sert jamais.
+- **Bug 2, le tag mal écrit.** Le tag créé s'appelle `Piece`, avec une majuscule. Le test comparait avec `"piece"` : jamais égal. `CompareTag` est la façon recommandée de tester un tag, elle est plus rapide que `other.tag ==`.
+- **Bug 3, le compteur remis à zéro.** `int pieces = 0;` était écrit **dans** la fonction. À chaque pièce, une nouvelle variable était créée à 0, puis passait à 1. En la déclarant dans la classe, elle garde sa valeur tant que le joueur existe.
+
+<Encadre type="retenir">
+Dans un jeu 2D, tout ce qui touche à la physique porte le suffixe `2D` : `Rigidbody2D`, `Collider2D`, `OnTriggerEnter2D`, `Physics2D.Raycast`... Mélanger les deux ne provoque aucune erreur, juste un silence total.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute des murs avec un **Box Collider 2D** sans Is Trigger : le joueur doit s'y cogner et ne plus les traverser.
+- Affiche le compteur à l'écran avec un texte TextMeshPro.
+- Fais rebondir le joueur sur les murs en leur mettant un **Physics Material 2D** avec un **Bounciness** de 1.

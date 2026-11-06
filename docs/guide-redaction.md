@@ -128,3 +128,13 @@ Chaque module ajoute ses mots dans `contenu/dico/<module>.ts` (type `EntreeDico`
 npm run verifier-contenu
 ```
 Le script compile chaque leçon et vérifie les fichiers de code, les numéros de ligne, les mots du dico et les questions libres. Il doit finir avec 0 erreur.
+
+## Les exercices bonus
+
+Ils sont rangés par niveau dans `contenu/exercices/jv1|jv2|jv3/` : JV1 Unity C#, JV2 Unreal Blueprints, JV3 Unreal C++. Ils ne sont pas obligatoires, n'ont pas de deadline et ne comptent pas dans la progression des projets. L'élève coche « J'ai réussi » ; le prof le voit sur la fiche de l'élève.
+
+- Chaque exercice est une entrée `Exercice` (voir `src/contenu/types.ts`) dans `bases.ts` (facile, moyen) ou `avances.ts` (difficile, expert), plus un fichier `<slug>.mdx` dans le même dossier. Le modèle est `contenu/exercices/jv3/porte-automatique.mdx`.
+- `genre` : `"coder"` (code de départ avec des `// TODO`) ou `"bug"` (un code complet avec des bugs réalistes à trouver).
+- Un exercice est une page qui défile, pas le lecteur pas à pas. Sections dans l'ordre : `## Le contexte`, `## Ce que tu dois faire`, `## Le code de départ`, `## C'est réussi quand…` (cases `- [ ]`), `## Si tu bloques` (des `<Indice titre="...">`), `<Solution>`, `## Pour aller plus loin`.
+- Composants disponibles : `<Fichier nom="X.h">` autour d'un bloc ```cpp ou ```cs, `<Indice>`, `<Solution>`, `<Encadre>`. Les blocs de code sont colorés, numérotés et ont un bouton Copier.
+- Unity 6 : nouvel Input System (`Keyboard.current`), `linearVelocity`, `FindFirstObjectByType`.

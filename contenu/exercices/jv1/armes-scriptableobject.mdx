@@ -1,0 +1,374 @@
+## Le contexte
+
+Dans un FPS, le pistolet, la mitraillette et le fusil de précision font la même chose : ils tirent. Ce qui change, ce sont leurs **chiffres** : dégâts, cadence, portée, taille du chargeur. Écrire trois scripts presque identiques serait une perte de temps, et un cauchemar à équilibrer.
+
+La solution d'Unity, c'est le **ScriptableObject** : une fiche de données qui vit dans ton dossier Project, comme une texture ou un son. Tu crées une fiche par arme, tu règles ses chiffres dans l'Inspector, et **un seul** script sait tirer avec n'importe laquelle. Un game designer peut équilibrer le jeu sans toucher au code.
+
+Tu vas construire un petit stand de tir : la caméra est fixe, tu vises à la souris, tu changes d'arme avec 1, 2, 3 ou la molette, et tu recharges avec R.
+
+## Ce que tu dois faire
+
+1. Crée le script `ArmeData` (code donné plus bas) et ajoute-lui l'attribut `CreateAssetMenu` pour pouvoir créer des armes depuis le menu.
+2. Dans le Project, fais clic droit › **Create › Armes › Nouvelle arme** trois fois. Règle-les par exemple ainsi :
+   - **Pistolet** : 15 dégâts, cadence 4, portée 50, chargeur 12, non automatique.
+   - **Mitraillette** : 6 dégâts, cadence 12, portée 30, chargeur 40, automatique.
+   - **Fusil** : 60 dégâts, cadence 0.8, portée 200, chargeur 5, non automatique.
+3. Crée le script `Cible` (donné complet) et mets-le sur quelques cubes placés devant la caméra.
+4. Crée l'interface : **GameObject › UI › Text - TextMeshPro**. Si Unity te propose d'importer les **TMP Essentials**, accepte. Place le texte dans un coin de l'écran.
+5. Crée un objet vide `Joueur`, ajoute-lui le script `Arsenal`, puis remplis l'Inspector : glisse tes trois armes dans la liste `Armes`, la **Main Camera** dans `Cam`, et ton texte dans `Texte Arme`.
+6. Remplis les `// TODO` de `Arsenal` : changer d'arme, tirer en respectant la cadence, gérer les munitions et le rechargement.
+
+<Encadre type="info" titre="Le nouvel Input System">
+Ce projet utilise le nouvel Input System d'Unity 6. On lit le clavier et la souris directement : `Keyboard.current.digit1Key.wasPressedThisFrame` pour la touche 1, `Mouse.current.leftButton.isPressed` pour le clic gauche maintenu, `Mouse.current.scroll.ReadValue().y` pour la molette. Pense au `using UnityEngine.InputSystem;` en haut du fichier.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="ArmeData.cs">
+```cs
+using UnityEngine;
+
+// TODO 1 : ajoute l'attribut CreateAssetMenu juste au-dessus de la classe
+public class ArmeData : ScriptableObject
+{
+    [Header("Identité")]
+    [SerializeField] private string nomArme = "Pistolet";
+
+    [Header("Tir")]
+    [SerializeField] private int degats = 10;
+    [Tooltip("Nombre de tirs par seconde")]
+    [SerializeField] private float cadence = 4f;
+    [SerializeField] private float portee = 50f;
+    [Tooltip("Coché : on tire tant que le bouton est enfoncé")]
+    [SerializeField] private bool automatique = false;
+
+    [Header("Munitions")]
+    [SerializeField] private int tailleChargeur = 12;
+    [SerializeField] private float dureeRechargement = 1.2f;
+
+    // Lecture seule depuis les autres scripts
+    public string NomArme => nomArme;
+    public int Degats => degats;
+    public float Cadence => cadence;
+    public float Portee => portee;
+    public bool Automatique => automatique;
+    public int TailleChargeur => tailleChargeur;
+    public float DureeRechargement => dureeRechargement;
+}
+```
+</Fichier>
+
+<Fichier nom="Cible.cs">
+```cs
+using UnityEngine;
+
+public class Cible : MonoBehaviour
+{
+    [SerializeField] private int pointsDeVie = 50;
+
+    public void RecevoirDegats(int degats)
+    {
+        pointsDeVie -= degats;
+        Debug.Log(name + " touché, il lui reste " + pointsDeVie + " PV");
+
+        if (pointsDeVie <= 0)
+        {
+            Destroy(gameObject);
+        }
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="Arsenal.cs">
+```cs
+using System.Collections;
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Arsenal : MonoBehaviour
+{
+    [SerializeField] private ArmeData[] armes;
+    [SerializeField] private Camera cam;
+    [SerializeField] private TMP_Text texteArme;
+
+    // Les munitions restantes de chaque arme, rangées dans le même ordre que "armes"
+    private int[] munitions;
+    private int indexArme;
+    private float prochainTir;
+    private bool enRechargement;
+
+    private ArmeData ArmeActuelle => armes[indexArme];
+
+    private void Start()
+    {
+        // TODO 2 : crée le tableau munitions et remplis chaque case avec la taille du chargeur de l'arme
+        ChangerArme(0);
+    }
+
+    private void Update()
+    {
+        // TODO 3 : touches 1, 2, 3 et molette pour changer d'arme
+        // TODO 4 : touche R pour recharger
+        // TODO 5 : tirer avec le clic gauche (maintenu si l'arme est automatique, sinon un clic = un tir)
+        //          et seulement si Time.time a dépassé prochainTir
+    }
+
+    private void ChangerArme(int index)
+    {
+        // TODO 6 : refuse un index invalide ou un changement pendant le rechargement,
+        //          sinon change indexArme et mets le texte à jour
+    }
+
+    private void Tirer()
+    {
+        // TODO 7 : chargeur vide ? lance le rechargement.
+        //          Sinon : retire une munition, calcule prochainTir avec la cadence,
+        //          lance un Raycast depuis la souris et inflige les dégâts à une Cible touchée
+    }
+
+    private IEnumerator Recharger()
+    {
+        // TODO 8 : attends la durée de rechargement puis remplis le chargeur
+        yield break;
+    }
+
+    private void MettreAJourTexte()
+    {
+        texteArme.text = ArmeActuelle.NomArme + "\n" + munitions[indexArme] + " / " + ArmeActuelle.TailleChargeur;
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Le menu **Create › Armes › Nouvelle arme** existe et crée un asset.
+- [ ] Les touches 1, 2, 3 et la molette changent d'arme, et le texte affiche le bon nom.
+- [ ] La mitraillette tire en continu quand tu maintiens le clic, le pistolet tire une fois par clic.
+- [ ] Le fusil ne peut pas tirer plus vite qu'une fois toutes les 1,25 seconde, même si tu cliques comme un fou.
+- [ ] Chaque arme garde ses propres munitions : vider la mitraillette ne vide pas le pistolet.
+- [ ] Avec R, ou en tirant chargeur vide, l'arme recharge après sa durée de rechargement.
+- [ ] Tu peux changer les dégâts d'une arme dans son asset **sans toucher au code**, et ça se ressent en jeu.
+
+## Si tu bloques
+
+<Indice titre="CreateAssetMenu">
+L'attribut se place juste au-dessus de `public class ArmeData`. Il prend un nom de fichier par défaut et un chemin de menu : `[CreateAssetMenu(fileName = "NouvelleArme", menuName = "Armes/Nouvelle arme")]`. Après la compilation, le menu apparaît dans le clic droit du Project.
+</Indice>
+
+<Indice titre="Respecter la cadence">
+Une cadence de 4 tirs par seconde, c'est un tir toutes les `1 / 4 = 0.25` seconde. Au moment de tirer, note quand le prochain tir sera autorisé : `prochainTir = Time.time + 1f / ArmeActuelle.Cadence;`. Dans `Update`, tu ne tires que si `Time.time >= prochainTir`.
+</Indice>
+
+<Indice titre="Clic maintenu ou clic simple">
+`isPressed` est vrai à chaque image tant que le bouton est enfoncé. `wasPressedThisFrame` n'est vrai qu'à l'image où tu as enfoncé le bouton. Choisis l'un ou l'autre selon `ArmeActuelle.Automatique` avec l'opérateur `? :`.
+</Indice>
+
+<Indice titre="Viser avec la souris">
+`cam.ScreenPointToRay(Mouse.current.position.ReadValue())` donne un rayon qui part de la caméra et passe par le curseur. Passe-le à `Physics.Raycast(rayon, out RaycastHit impact, ArmeActuelle.Portee)`. Si ça touche, `impact.collider.TryGetComponent(out Cible cible)` te dit si l'objet touché est une cible.
+</Indice>
+
+<Indice titre="Ne pas recharger deux fois">
+Si le joueur appuie sur R pendant un rechargement, la coroutine démarre une deuxième fois. Commence `Recharger` par un test : si `enRechargement` est déjà vrai, ou si le chargeur est plein, fais `yield break;` pour sortir tout de suite.
+</Indice>
+
+<Solution>
+
+<Fichier nom="ArmeData.cs">
+```cs
+using UnityEngine;
+
+[CreateAssetMenu(fileName = "NouvelleArme", menuName = "Armes/Nouvelle arme")]
+public class ArmeData : ScriptableObject
+{
+    [Header("Identité")]
+    [SerializeField] private string nomArme = "Pistolet";
+
+    [Header("Tir")]
+    [SerializeField] private int degats = 10;
+    [Tooltip("Nombre de tirs par seconde")]
+    [SerializeField] private float cadence = 4f;
+    [SerializeField] private float portee = 50f;
+    [Tooltip("Coché : on tire tant que le bouton est enfoncé")]
+    [SerializeField] private bool automatique = false;
+
+    [Header("Munitions")]
+    [SerializeField] private int tailleChargeur = 12;
+    [SerializeField] private float dureeRechargement = 1.2f;
+
+    public string NomArme => nomArme;
+    public int Degats => degats;
+    public float Cadence => cadence;
+    public float Portee => portee;
+    public bool Automatique => automatique;
+    public int TailleChargeur => tailleChargeur;
+    public float DureeRechargement => dureeRechargement;
+}
+```
+</Fichier>
+
+<Fichier nom="Arsenal.cs">
+```cs
+using System.Collections;
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Arsenal : MonoBehaviour
+{
+    [SerializeField] private ArmeData[] armes;
+    [SerializeField] private Camera cam;
+    [SerializeField] private TMP_Text texteArme;
+
+    private int[] munitions;
+    private int indexArme;
+    private float prochainTir;
+    private bool enRechargement;
+
+    private ArmeData ArmeActuelle => armes[indexArme];
+
+    private void Start()
+    {
+        munitions = new int[armes.Length];
+        for (int i = 0; i < armes.Length; i++)
+        {
+            munitions[i] = armes[i].TailleChargeur;
+        }
+
+        ChangerArme(0);
+    }
+
+    private void Update()
+    {
+        Keyboard clavier = Keyboard.current;
+        Mouse souris = Mouse.current;
+        if (clavier == null || souris == null)
+        {
+            return;
+        }
+
+        // Changer d'arme
+        if (clavier.digit1Key.wasPressedThisFrame)
+        {
+            ChangerArme(0);
+        }
+        if (clavier.digit2Key.wasPressedThisFrame)
+        {
+            ChangerArme(1);
+        }
+        if (clavier.digit3Key.wasPressedThisFrame)
+        {
+            ChangerArme(2);
+        }
+
+        float molette = souris.scroll.ReadValue().y;
+        if (molette > 0f)
+        {
+            ChangerArme((indexArme + 1) % armes.Length);
+        }
+        else if (molette < 0f)
+        {
+            ChangerArme((indexArme - 1 + armes.Length) % armes.Length);
+        }
+
+        // Recharger
+        if (clavier.rKey.wasPressedThisFrame)
+        {
+            StartCoroutine(Recharger());
+        }
+
+        // Tirer
+        bool veutTirer = ArmeActuelle.Automatique
+            ? souris.leftButton.isPressed
+            : souris.leftButton.wasPressedThisFrame;
+
+        if (veutTirer && Time.time >= prochainTir)
+        {
+            Tirer();
+        }
+    }
+
+    private void ChangerArme(int index)
+    {
+        if (index < 0 || index >= armes.Length || enRechargement)
+        {
+            return;
+        }
+
+        indexArme = index;
+        // Petit délai pour "sortir" l'arme : on ne tire pas à l'image même du changement
+        prochainTir = Time.time + 0.2f;
+        MettreAJourTexte();
+    }
+
+    private void Tirer()
+    {
+        if (enRechargement)
+        {
+            return;
+        }
+
+        if (munitions[indexArme] <= 0)
+        {
+            StartCoroutine(Recharger());
+            return;
+        }
+
+        munitions[indexArme]--;
+        prochainTir = Time.time + 1f / ArmeActuelle.Cadence;
+
+        Ray rayon = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
+        if (Physics.Raycast(rayon, out RaycastHit impact, ArmeActuelle.Portee))
+        {
+            // Visible dans la vue Scene pendant 0,2 seconde
+            Debug.DrawLine(rayon.origin, impact.point, Color.yellow, 0.2f);
+
+            if (impact.collider.TryGetComponent(out Cible cible))
+            {
+                cible.RecevoirDegats(ArmeActuelle.Degats);
+            }
+        }
+
+        MettreAJourTexte();
+    }
+
+    private IEnumerator Recharger()
+    {
+        if (enRechargement || munitions[indexArme] == ArmeActuelle.TailleChargeur)
+        {
+            yield break;
+        }
+
+        enRechargement = true;
+        texteArme.text = ArmeActuelle.NomArme + "\nRechargement...";
+
+        yield return new WaitForSeconds(ArmeActuelle.DureeRechargement);
+
+        munitions[indexArme] = ArmeActuelle.TailleChargeur;
+        enRechargement = false;
+        MettreAJourTexte();
+    }
+
+    private void MettreAJourTexte()
+    {
+        texteArme.text = ArmeActuelle.NomArme + "\n" + munitions[indexArme] + " / " + ArmeActuelle.TailleChargeur;
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** `Arsenal` ne connaît aucune arme en particulier. Il lit les chiffres de `ArmeActuelle`, qui pointe vers l'un des assets. Ajouter une quatrième arme, c'est créer un asset et l'ajouter à la liste, sans une ligne de code. La cadence repose sur une seule idée : on note l'heure à partir de laquelle le prochain tir est permis, et on compare avec `Time.time`. Le `%` (modulo) fait boucler la molette : après la dernière arme, on revient à la première.
+
+<Encadre type="piege" titre="Pourquoi les munitions ne sont pas dans l'asset">
+On aurait pu mettre un champ `munitionsRestantes` dans `ArmeData` et le diminuer à chaque tir. Mauvaise idée : un ScriptableObject est un **fichier du projet**. Si tu le modifies pendant le Play dans l'éditeur, la valeur reste modifiée quand tu arrêtes le jeu. Et si deux personnages utilisent le même asset, ils partagent le même chargeur. Règle simple : l'asset contient ce qui ne change pas en jeu (les réglages), le MonoBehaviour contient l'état qui bouge (le tableau `munitions`).
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute un `AudioClip sonDeTir` dans `ArmeData` et joue-le avec un `AudioSource` à chaque tir : chaque arme a son propre son.
+- Ajoute une dispersion : décale un peu la position de la souris au hasard avec `Random.insideUnitCircle` avant de lancer le rayon, plus fort pour la mitraillette.
+- Ajoute un `GameObject prefabImpact` dans l'asset et fais-le apparaître à `impact.point`, orienté avec `Quaternion.LookRotation(impact.normal)`.

@@ -1,0 +1,220 @@
+## Le contexte
+
+Une tourelle qui suit le joueur des yeux et tire dès qu'il est dans sa ligne de mire : c'est la première « IA » de beaucoup de jeux. Il n'y a pas besoin de Behavior Tree pour ça, juste un peu de maths à chaque image :
+
+1. Où est le joueur ? Est-il assez près ?
+2. Quelle rotation faudrait-il pour le regarder ?
+3. Tourner **progressivement** vers cette rotation, pour que le joueur ait le temps de réagir.
+4. Si le canon est presque aligné et que la tourelle a rechargé, tirer.
+
+Pour l'étape 4, tu vas réutiliser le produit scalaire, comme dans `LapZone` (module « Compteur de tours » de Mario Kart) qui vérifie que le kart traverse dans le bon sens.
+
+## Ce que tu dois faire
+
+1. Crée une classe C++ `ATourelle` qui hérite de `AActor` et recopie le header.
+2. Remplis les `// TODO` du `.cpp`.
+3. Crée un Blueprint enfant : un cylindre pour le `Socle`, et pour la `Tete` un cube allongé **vers l'axe X** (l'avant d'un acteur dans Unreal).
+4. Pose la tourelle dans le niveau et promène-toi autour, de près et de loin, en passant derrière un mur.
+
+## Le code de départ
+
+<Fichier nom="Tourelle.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Tourelle.generated.h"
+
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API ATourelle : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	ATourelle();
+	virtual void Tick(float DeltaTime) override;
+
+protected:
+	UPROPERTY(VisibleAnywhere, Category = "Tourelle")
+	TObjectPtr<USceneComponent> Racine;
+
+	UPROPERTY(VisibleAnywhere, Category = "Tourelle")
+	TObjectPtr<UStaticMeshComponent> Socle;
+
+	// La partie qui pivote. Son axe X est la direction du canon.
+	UPROPERTY(VisibleAnywhere, Category = "Tourelle")
+	TObjectPtr<UStaticMeshComponent> Tete;
+
+	// Au-delà de cette distance (en cm), la tourelle ignore le joueur
+	UPROPERTY(EditAnywhere, Category = "Tourelle")
+	float Portee = 2000.f;
+
+	// Plus c'est grand, plus la tête rattrape vite le joueur
+	UPROPERTY(EditAnywhere, Category = "Tourelle")
+	float VitesseVisee = 3.f;
+
+	// Écart maximal (en degrés) entre le canon et le joueur pour avoir le droit de tirer
+	UPROPERTY(EditAnywhere, Category = "Tourelle")
+	float AngleTir = 5.f;
+
+	// Temps minimal entre deux tirs, en secondes
+	UPROPERTY(EditAnywhere, Category = "Tourelle")
+	float Cadence = 1.f;
+
+private:
+	void Tirer();
+
+	float DernierTir = -1000.f;
+};
+```
+</Fichier>
+
+<Fichier nom="Tourelle.cpp">
+```cpp
+#include "Tourelle.h"
+#include "Components/StaticMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/Engine.h"
+
+ATourelle::ATourelle()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	Racine = CreateDefaultSubobject<USceneComponent>(TEXT("Racine"));
+	RootComponent = Racine;
+
+	Socle = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Socle"));
+	Socle->SetupAttachment(Racine);
+
+	Tete = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Tete"));
+	Tete->SetupAttachment(Racine);
+	Tete->SetRelativeLocation(FVector(0.f, 0.f, 150.f));
+}
+
+void ATourelle::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// TODO 1 : récupérer le pawn du joueur. S'il n'existe pas ou s'il est hors de portée, ne rien faire
+
+	// TODO 2 : calculer la rotation qui ferait regarder la Tete vers le joueur,
+	// puis s'en rapprocher en douceur et l'appliquer à la Tete
+
+	// TODO 3 : si le canon est aligné avec le joueur (à AngleTir près)
+	// et que Cadence secondes se sont écoulées depuis DernierTir, appeler Tirer()
+}
+
+void ATourelle::Tirer()
+{
+	// TODO 4 : retenir l'heure du tir, lancer un rayon depuis la Tete vers l'avant sur Portee cm,
+	// le dessiner, et afficher "Touche !" si le rayon a touché le joueur
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Loin de la tourelle, elle ne bouge pas.
+- [ ] Dès que tu entres dans sa portée, la tête tourne vers toi, avec un léger retard (pas instantanément).
+- [ ] Une ligne rouge apparaît environ une fois par seconde quand le canon pointe sur toi, et « Touche ! » s'affiche.
+- [ ] Si tu cours vite autour d'elle, elle n'arrive plus à s'aligner et ne tire pas.
+- [ ] Caché derrière un mur, tu peux encore être visé, mais le rayon s'arrête sur le mur et « Touche ! » ne s'affiche pas.
+
+## Si tu bloques
+
+<Indice titre="Le joueur et la distance">
+`UGameplayStatics::GetPlayerPawn(this, 0)` renvoie le pawn du premier joueur (ou `nullptr`). `FVector::Dist(A, B)` donne la distance entre deux points.
+</Indice>
+
+<Indice titre="Viser en douceur">
+`UKismetMathLibrary::FindLookAtRotation(Depuis, Vers)` donne la rotation qu'il faudrait pour regarder `Vers` depuis `Depuis`. Ensuite, `FMath::RInterpTo(RotationActuelle, RotationVoulue, DeltaTime, VitesseVisee)` fait un pas dans cette direction : grand quand on est loin, petit quand on est presque arrivé. Lis et écris la rotation de la tête en coordonnées monde : `GetComponentRotation` et `SetWorldRotation`.
+</Indice>
+
+<Indice titre="Aligné ou pas ?">
+Prends la direction du canon (`Tete->GetForwardVector()`) et la direction tête vers joueur, normalisée (`GetSafeNormal()`). Leur produit scalaire vaut 1 si elles sont parfaitement alignées, et le cosinus de l'angle entre elles sinon. Compare-le à `FMath::Cos(FMath::DegreesToRadians(AngleTir))`.
+</Indice>
+
+<Indice titre="Le tir">
+`GetWorld()->LineTraceSingleByChannel(Impact, Debut, Fin, ECC_Pawn, Params)` remplit un `FHitResult` et renvoie `true` si le rayon a touché quelque chose. Ajoute la tourelle aux acteurs ignorés (`Params.AddIgnoredActor(this)`), sinon le rayon touche sa propre tête. Pour l'heure, `GetWorld()->GetTimeSeconds()`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Tourelle.cpp">
+```cpp
+void ATourelle::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	APawn* Joueur = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (!Joueur)
+	{
+		return;
+	}
+
+	const FVector PositionTete = Tete->GetComponentLocation();
+	const FVector PositionJoueur = Joueur->GetActorLocation();
+	if (FVector::Dist(PositionTete, PositionJoueur) > Portee)
+	{
+		return;
+	}
+
+	const FRotator RotationVoulue = UKismetMathLibrary::FindLookAtRotation(PositionTete, PositionJoueur);
+	const FRotator NouvelleRotation = FMath::RInterpTo(Tete->GetComponentRotation(), RotationVoulue, DeltaTime, VitesseVisee);
+	Tete->SetWorldRotation(NouvelleRotation);
+
+	const FVector VersJoueur = (PositionJoueur - PositionTete).GetSafeNormal();
+	const float Alignement = FVector::DotProduct(Tete->GetForwardVector(), VersJoueur);
+	const bool bAligne = Alignement >= FMath::Cos(FMath::DegreesToRadians(AngleTir));
+	const bool bRecharge = GetWorld()->GetTimeSeconds() - DernierTir >= Cadence;
+
+	if (bAligne && bRecharge)
+	{
+		Tirer();
+	}
+}
+
+void ATourelle::Tirer()
+{
+	DernierTir = GetWorld()->GetTimeSeconds();
+
+	const FVector Debut = Tete->GetComponentLocation();
+	const FVector Fin = Debut + Tete->GetForwardVector() * Portee;
+
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+
+	FHitResult Impact;
+	const bool bTouche = GetWorld()->LineTraceSingleByChannel(Impact, Debut, Fin, ECC_Pawn, Params);
+	DrawDebugLine(GetWorld(), Debut, bTouche ? Impact.ImpactPoint : Fin, FColor::Red, false, 0.2f, 0, 3.f);
+
+	if (bTouche && Impact.GetActor() == UGameplayStatics::GetPlayerPawn(this, 0) && GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(3, 0.5f, FColor::Red, TEXT("Touche !"));
+	}
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** `FindLookAtRotation` dit où il **faudrait** regarder, `RInterpTo` décide de combien on tourne **cette image-ci**. Comme le pas est proportionnel à l'écart restant, la tête ralentit en approchant de la cible, ce qui donne un mouvement naturel. Si le joueur bouge plus vite que la tête ne tourne, l'écart reste grand, le produit scalaire reste en dessous du seuil et la tourelle ne tire pas : c'est ce qui rend la tourelle « battable ». Enfin, le rayon vérifie qu'il n'y a pas d'obstacle entre le canon et le joueur.
+
+<Encadre type="piege" titre="Pourquoi ECC_Pawn et pas ECC_Visibility ?">
+Le canal du rayon décide de ce qui l'arrête. Avec le preset de collision **Pawn**, la capsule d'un personnage **ignore** le canal Visibility : un rayon Visibility la traverserait sans la toucher. Le canal Pawn, lui, est bloqué par la capsule et par les murs. Ouvre le panneau Collision de ton personnage pour vérifier les réponses de chaque canal.
+</Encadre>
+
+<Encadre type="info" titre="RInterpTo ou RInterpConstantTo ?">
+`RInterpTo` ralentit en arrivant (mouvement doux). `RInterpConstantTo` tourne toujours à la même vitesse, en degrés par seconde, comme le `FInterpConstantTo` de la porte automatique. Essaie les deux pour sentir la différence.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Fais pivoter la tête **seulement** à l'horizontale : garde le Yaw de `RotationVoulue` et mets le Pitch et le Roll à 0. Ajoute un canon séparé qui, lui, gère le Pitch.
+- Remplace le rayon par un vrai projectile qui part du bout du canon, comme `KartItemProjectile` dans Mario Kart.
+- Ne vise le joueur que s'il est **visible** : fais d'abord un rayon vers lui, et ne tourne la tête que s'il touche le joueur.

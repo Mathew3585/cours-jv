@@ -161,7 +161,62 @@ for (const projet of readdirSync(path.join(racine, "projets"))) {
   }
 }
 
+// ---------- Exercices bonus : contenu/exercices/<niveau>/*.ts déclarent les exercices, un MDX par exercice ----------
+let nbExercices = 0;
+const dossierExercices = path.join(racine, "exercices");
+const composantsExercice = new Set(["Fichier", "Indice", "Solution", "Encadre"]);
+const difficultesValides = new Set(["facile", "moyen", "difficile", "expert"]);
+if (existsSync(dossierExercices)) {
+  for (const niveau of readdirSync(dossierExercices)) {
+    const dossier = path.join(dossierExercices, niveau);
+    const declarations = readdirSync(dossier)
+      .filter((f) => f.endsWith(".ts") && f !== "index.ts")
+      .map((f) => readFileSync(path.join(dossier, f), "utf8"))
+      .join("\n");
+    const slugs = new Set();
+    for (const m of declarations.matchAll(/^\s*slug:\s*"([^"]+)"/gm)) {
+      if (slugs.has(m[1])) erreurs.push(`exercices/${niveau} : le slug "${m[1]}" est utilisé deux fois`);
+      slugs.add(m[1]);
+      if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(m[1])) erreurs.push(`exercices/${niveau} : slug "${m[1]}" invalide (minuscules, chiffres, tirets)`);
+    }
+    for (const m of declarations.matchAll(/^\s*difficulte:\s*"([^"]+)"/gm)) {
+      if (!difficultesValides.has(m[1])) erreurs.push(`exercices/${niveau} : difficulté "${m[1]}" inconnue`);
+    }
+    for (const m of declarations.matchAll(/^\s*niveau:\s*"([^"]+)"/gm)) {
+      if (m[1].toLowerCase() !== niveau) erreurs.push(`exercices/${niveau} : un exercice déclare niveau "${m[1]}"`);
+    }
+    for (const m of declarations.matchAll(/import\("\.\/([^"]+\.mdx)"\)/g)) {
+      if (!existsSync(path.join(dossier, m[1]))) erreurs.push(`exercices/${niveau} : ${m[1]} est déclaré mais n'existe pas`);
+    }
+    for (const f of readdirSync(dossier).filter((x) => x.endsWith(".mdx"))) {
+      nbExercices++;
+      const ou = `exercices/${niveau}/${f}`;
+      const source = readFileSync(path.join(dossier, f), "utf8");
+      if (!declarations.includes(`./${f}`)) avertissements.push(`${ou} : l'exercice n'est déclaré dans aucun fichier .ts`);
+      try {
+        await compile(source, { remarkPlugins: [remarkGfm] });
+      } catch (e) {
+        erreurs.push(`${ou} : MDX invalide, ligne ${e.line ?? "?"} : ${e.reason ?? e.message}`);
+        continue;
+      }
+      // Hors code : les templates C++ comme Cast<APawn> ne sont pas des composants
+      const horsCode = source.replace(/^```[\s\S]*?^```/gm, "").replace(/`[^`\n]*`/g, "");
+      for (const m of horsCode.matchAll(/<([A-Z]\w*)/g)) {
+        if (!composantsExercice.has(m[1])) erreurs.push(`${ou} : <${m[1]}> n'est pas disponible dans les exercices (${[...composantsExercice].join(", ")})`);
+      }
+      if (!/<Solution>/.test(source)) avertissements.push(`${ou} : pas de <Solution>`);
+      if (!/<Indice\b/.test(source)) avertissements.push(`${ou} : pas d'<Indice>`);
+      for (const bloc of source.matchAll(/^```(\S*)/gm)) {
+        // Un ``` sur deux ouvre un bloc : on vérifie seulement ceux qui ont un langage
+        if (bloc[1] && !["cpp", "cs", "csharp", "text", "ini", "json"].includes(bloc[1])) avertissements.push(`${ou} : langage de code "${bloc[1]}" non coloré`);
+      }
+    }
+  }
+}
+
 for (const a of avertissements) console.log(`⚠ ${a}`);
 for (const e of erreurs) console.log(`✗ ${e}`);
-console.log(`\n${nbLecons} leçon(s) vérifiée(s), ${idsDico.size} mots dans le dico : ${erreurs.length} erreur(s), ${avertissements.length} avertissement(s).`);
+console.log(
+  `\n${nbLecons} leçon(s) et ${nbExercices} exercice(s) vérifiés, ${idsDico.size} mots dans le dico : ${erreurs.length} erreur(s), ${avertissements.length} avertissement(s).`,
+);
 process.exit(erreurs.length > 0 ? 1 : 0);

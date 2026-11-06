@@ -1,0 +1,125 @@
+## Le contexte
+
+Un camarade a codé un petit drone qui fait des cercles au-dessus du niveau. Chez lui, tout allait bien. Mais sur le PC de la salle, plus puissant, le drone file à toute vitesse et fait des cercles énormes. Et quand il essaie de régler la vitesse dans l'Inspector, le champ n'existe pas.
+
+Le script compile sans erreur. C'est à toi de trouver ce qui cloche.
+
+## Ce que tu dois faire
+
+1. Crée un cube (**GameObject › 3D Object › Cube**), renomme-le `Drone` et place-le à la position 0, 3, 0.
+2. Crée un script `Drone`, colle le code de départ et glisse-le sur le cube.
+3. Lance le jeu avec `fpsDeTest` à 30, observe, puis arrête le jeu, mets `fpsDeTest` à 300 et relance. Compare.
+4. Trouve et corrige les bugs.
+
+**Le symptôme :** à 300 FPS, le drone va environ 10 fois plus vite qu'à 30 FPS et son cercle est beaucoup plus grand. Le champ pour régler la vitesse d'avance n'apparaît pas dans l'Inspector.
+
+**Ce qui est attendu :** le drone fait le même cercle, à la même vitesse, quel que soit le nombre d'images par seconde. On peut régler sa vitesse d'avance dans l'Inspector.
+
+**Il y a 2 bugs.** Les lignes qui servent au test des FPS dans `Start` ne sont pas des bugs.
+
+## Le code de départ
+
+<Fichier nom="Drone.cs">
+```cs
+using UnityEngine;
+
+public class Drone : MonoBehaviour
+{
+    // Outil de test : force le nombre d'images par seconde
+    [SerializeField] private int fpsDeTest = 30;
+
+    // Vitesse d'avance, en mètres par seconde
+    private float vitesse = 4f;
+
+    // Vitesse de rotation, en degrés par seconde
+    [SerializeField] private float vitesseVirage = 60f;
+
+    private void Start()
+    {
+        // Ces deux lignes servent seulement à tester avec différents FPS
+        QualitySettings.vSyncCount = 0;
+        Application.targetFrameRate = fpsDeTest;
+    }
+
+    private void Update()
+    {
+        // Le drone avance tout droit devant lui...
+        transform.Translate(Vector3.forward * vitesse * 0.02f);
+
+        // ... et tourne en même temps : ça lui fait faire des cercles
+        transform.Rotate(0f, vitesseVirage * Time.deltaTime, 0f);
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Le champ **Vitesse** apparaît dans l'Inspector du drone.
+- [ ] À 30 FPS et à 300 FPS, le drone met le même temps à faire un tour complet.
+- [ ] À 30 FPS et à 300 FPS, le cercle a la même taille.
+- [ ] Mettre **Vitesse** à 8 dans l'Inspector fait aller le drone deux fois plus vite.
+
+## Si tu bloques
+
+<Indice titre="Le champ invisible">
+Compare la déclaration de `vitesse` avec celle de `vitesseVirage`, juste en dessous. Qu'est-ce qui manque ?
+</Indice>
+
+<Indice titre="Pourquoi les FPS changent tout">
+`Update` est appelé une fois par image. À 300 FPS, il est appelé 10 fois plus souvent qu'à 30 FPS. Si le drone avance d'une distance fixe à chaque appel, il va donc 10 fois plus vite. Regarde quelle ligne bouge le drone d'une quantité fixe à chaque image.
+</Indice>
+
+<Indice titre="Le 0.02f">
+Le camarade a écrit `0.02f` parce que, sur son PC à 50 FPS, une image dure 0,02 seconde. Ça ne marche que sur son PC. La durée réelle de l'image en cours, c'est `Time.deltaTime`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Drone.cs">
+```cs
+using UnityEngine;
+
+public class Drone : MonoBehaviour
+{
+    [SerializeField] private int fpsDeTest = 30;
+
+    // Bug 1 corrigé : [SerializeField] pour voir le champ dans l'Inspector
+    [SerializeField] private float vitesse = 4f;
+
+    [SerializeField] private float vitesseVirage = 60f;
+
+    private void Start()
+    {
+        QualitySettings.vSyncCount = 0;
+        Application.targetFrameRate = fpsDeTest;
+    }
+
+    private void Update()
+    {
+        // Bug 2 corrigé : Time.deltaTime au lieu d'une durée d'image fixe
+        transform.Translate(Vector3.forward * vitesse * Time.deltaTime);
+        transform.Rotate(0f, vitesseVirage * Time.deltaTime, 0f);
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :**
+
+- **Bug 1, le champ invisible.** Une variable `private` n'apparaît pas dans l'Inspector. Il manquait `[SerializeField]` devant `vitesse`. La variable `vitesseVirage`, elle, l'avait bien.
+- **Bug 2, la vitesse qui dépend des FPS.** Le déplacement était multiplié par `0.02f`, une durée d'image écrite en dur. Avec `Time.deltaTime`, chaque image avance de `vitesse` multiplié par la durée de **cette** image. À 30 FPS, on fait 30 grands pas par seconde. À 300 FPS, 300 petits pas. Au total, la même distance.
+
+Le cercle changeait de taille parce que la rotation, elle, était déjà correcte : le drone tournait à la bonne vitesse mais avançait trop vite, donc il décrivait un cercle plus grand.
+
+<Encadre type="retenir">
+Si un nombre comme `0.02f` ou `0.016f` apparaît dans un mouvement, c'est presque toujours un `Time.deltaTime` mal remplacé.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute un réglage pour que le drone monte et descend pendant ses cercles (regarde l'exercice « Un objet qui tourne et flotte »).
+- Teste avec `fpsDeTest` à 10 : le mouvement saccade, mais le drone reste sur le même cercle.
+- Affiche les FPS actuels dans la Console avec `1f / Time.deltaTime`.

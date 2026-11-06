@@ -1,0 +1,229 @@
+## Le contexte
+
+Dans un jeu de survie ou un tower defense, les ennemis arrivent par **vagues** : trois au début, puis cinq, puis sept… avec une pause entre chaque vague pour souffler. Un acteur invisible, le **spawner**, s'occupe de les faire apparaître.
+
+Cet exercice réunit deux outils : `SpawnActor`, pour créer un acteur en cours de partie (tu l'as vu dans le module « Pièges, projectiles et HUD » de Mario Kart), et les timers en boucle. Le spawner ne sait pas quels ennemis il fait apparaître : on lui donne une classe avec `TSubclassOf`, exactement comme on donne la classe d'un widget au PlayerController de Mario Kart.
+
+## Ce que tu dois faire
+
+1. Crée une classe C++ `ASpawnerVagues` qui hérite de `AActor` et recopie le header.
+2. Remplis les `// TODO` du `.cpp`.
+3. Crée un Blueprint `BP_Ennemi` très simple (un cube rouge, avec **Simulate Physics** si tu veux le voir tomber). Pas besoin d'IA pour cet exercice.
+4. Pose un `ASpawnerVagues` dans le niveau, agrandis sa boîte `ZoneApparition`, mets `BP_Ennemi` dans **Classe Ennemi** et lance le jeu.
+
+Le déroulé attendu, avec les réglages par défaut :
+
+```text
+2 s      : "Vague 1 / 5", 3 ennemis apparaissent, un toutes les 0,5 s
+12 s     : "Vague 2 / 5", 5 ennemis
+22 s     : "Vague 3 / 5", 7 ennemis
+...
+42 s     : "Derniere vague !" (vague 5), 11 ennemis
+52 s     : plus rien n'apparaît, le spawner s'arrête
+```
+
+## Le code de départ
+
+<Fichier nom="SpawnerVagues.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "SpawnerVagues.generated.h"
+
+class UBoxComponent;
+
+UCLASS()
+class MONPROJET_API ASpawnerVagues : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	ASpawnerVagues();
+
+protected:
+	virtual void BeginPlay() override;
+
+	// Les ennemis apparaissent à un point au hasard dans cette boîte
+	UPROPERTY(VisibleAnywhere, Category = "Vagues")
+	TObjectPtr<UBoxComponent> ZoneApparition;
+
+	// La classe à faire apparaître (n'importe quel Blueprint d'acteur)
+	UPROPERTY(EditAnywhere, Category = "Vagues")
+	TSubclassOf<AActor> ClasseEnnemi;
+
+	UPROPERTY(EditAnywhere, Category = "Vagues", meta = (ClampMin = "1"))
+	int32 NombreVagues = 5;
+
+	UPROPERTY(EditAnywhere, Category = "Vagues", meta = (ClampMin = "1"))
+	int32 EnnemisPremiereVague = 3;
+
+	// Ennemis en plus à chaque nouvelle vague
+	UPROPERTY(EditAnywhere, Category = "Vagues", meta = (ClampMin = "0"))
+	int32 EnnemisEnPlus = 2;
+
+	UPROPERTY(EditAnywhere, Category = "Vagues")
+	float DelaiAvantPremiereVague = 2.f;
+
+	UPROPERTY(EditAnywhere, Category = "Vagues", meta = (ClampMin = "1"))
+	float TempsEntreVagues = 10.f;
+
+	// Temps entre deux apparitions dans une même vague
+	UPROPERTY(EditAnywhere, Category = "Vagues", meta = (ClampMin = "0.05"))
+	float DelaiEntreApparitions = 0.5f;
+
+private:
+	void LancerVague();
+	void FaireApparaitreUn();
+
+	FTimerHandle TimerVagues;
+	FTimerHandle TimerApparitions;
+
+	int32 VagueActuelle = 0;
+	int32 EnnemisRestantsDansVague = 0;
+};
+```
+</Fichier>
+
+<Fichier nom="SpawnerVagues.cpp">
+```cpp
+#include "SpawnerVagues.h"
+#include "Components/BoxComponent.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "TimerManager.h"
+#include "Engine/World.h"
+#include "Engine/Engine.h"
+
+ASpawnerVagues::ASpawnerVagues()
+{
+	ZoneApparition = CreateDefaultSubobject<UBoxComponent>(TEXT("ZoneApparition"));
+	RootComponent = ZoneApparition;
+	ZoneApparition->SetBoxExtent(FVector(500.f, 500.f, 50.f));
+	// La boîte ne sert qu'à délimiter : pas de collision
+	ZoneApparition->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void ASpawnerVagues::BeginPlay()
+{
+	Super::BeginPlay();
+	// TODO 1 : si aucune classe n'est choisie, écrire un avertissement dans l'Output Log et s'arrêter.
+	// Sinon, lancer un timer en boucle sur LancerVague (toutes les TempsEntreVagues secondes,
+	// avec un premier appel après DelaiAvantPremiereVague secondes)
+}
+
+void ASpawnerVagues::LancerVague()
+{
+	// TODO 2 : si toutes les vagues sont passées, arrêter le timer des vagues et s'arrêter.
+	// Sinon, passer à la vague suivante, calculer son nombre d'ennemis, l'afficher,
+	// et lancer un timer en boucle sur FaireApparaitreUn
+}
+
+void ASpawnerVagues::FaireApparaitreUn()
+{
+	// TODO 3 : s'il ne reste plus d'ennemis à faire apparaître dans cette vague, arrêter le timer des apparitions.
+	// Sinon, choisir un point au hasard dans la boîte et y faire apparaître un ennemi tourné au hasard
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Les vagues arrivent au bon rythme, avec le bon nombre d'ennemis (3, 5, 7, 9, 11 par défaut).
+- [ ] Dans une vague, les ennemis apparaissent un par un, pas tous d'un coup.
+- [ ] Ils apparaissent à des endroits différents dans la boîte, tournés dans des directions différentes.
+- [ ] La vague 5 est annoncée comme la dernière, et ensuite plus aucun ennemi n'apparaît.
+- [ ] Sans classe choisie, le jeu ne plante pas et l'Output Log affiche un avertissement jaune.
+- [ ] Deux ennemis qui tombent au même endroit apparaissent quand même tous les deux (décalés).
+
+## Si tu bloques
+
+<Indice titre="Le premier délai d'un timer">
+`SetTimer` a un sixième paramètre, `InFirstDelay` : le temps avant le tout premier appel. Après ça, le timer rappelle la fonction toutes les `InRate` secondes. Pour l'avertissement : `UE_LOG(LogTemp, Warning, TEXT("..."))`.
+</Indice>
+
+<Indice titre="Deux timers, deux rythmes">
+`TimerVagues` tourne pendant toute la partie, toutes les 10 secondes. `TimerApparitions` est relancé au début de chaque vague et s'arrête tout seul (avec `ClearTimer`) quand la vague est complète. Le nombre d'ennemis de la vague n vaut `EnnemisPremiereVague + (n - 1) × EnnemisEnPlus`.
+</Indice>
+
+<Indice titre="Un point au hasard">
+`UKismetMathLibrary::RandomPointInBoundingBox(Centre, DemiTaille)` renvoie un point au hasard dans une boîte. Le centre, c'est `ZoneApparition->GetComponentLocation()`, et la demi-taille, `GetScaledBoxExtent()` (qui tient compte de l'échelle que tu as mise dans le niveau). Pour la rotation : `FRotator(0.f, FMath::FRandRange(0.f, 360.f), 0.f)`.
+</Indice>
+
+<Indice titre="Apparaître même si la place est prise">
+`GetWorld()->SpawnActor<AActor>(Classe, Position, Rotation, Parametres)`. Par défaut, si l'endroit est déjà occupé, le spawn peut échouer et renvoyer `nullptr`. Dans un `FActorSpawnParameters`, le champ `SpawnCollisionHandlingOverride` permet de demander à Unreal de décaler l'acteur un peu plutôt que d'abandonner.
+</Indice>
+
+<Solution>
+
+<Fichier nom="SpawnerVagues.cpp">
+```cpp
+void ASpawnerVagues::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (!ClasseEnnemi)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s : aucune Classe Ennemi choisie, le spawner ne fera rien"), *GetName());
+		return;
+	}
+
+	GetWorldTimerManager().SetTimer(TimerVagues, this, &ASpawnerVagues::LancerVague, TempsEntreVagues, true, DelaiAvantPremiereVague);
+}
+
+void ASpawnerVagues::LancerVague()
+{
+	if (VagueActuelle >= NombreVagues)
+	{
+		GetWorldTimerManager().ClearTimer(TimerVagues);
+		return;
+	}
+
+	VagueActuelle++;
+	EnnemisRestantsDansVague = EnnemisPremiereVague + (VagueActuelle - 1) * EnnemisEnPlus;
+
+	if (GEngine)
+	{
+		const FString Texte = VagueActuelle == NombreVagues
+			? FString(TEXT("Derniere vague !"))
+			: FString::Printf(TEXT("Vague %d / %d"), VagueActuelle, NombreVagues);
+		GEngine->AddOnScreenDebugMessage(4, 3.f, FColor::Orange, Texte);
+	}
+
+	GetWorldTimerManager().SetTimer(TimerApparitions, this, &ASpawnerVagues::FaireApparaitreUn, DelaiEntreApparitions, true, 0.f);
+}
+
+void ASpawnerVagues::FaireApparaitreUn()
+{
+	if (EnnemisRestantsDansVague <= 0)
+	{
+		GetWorldTimerManager().ClearTimer(TimerApparitions);
+		return;
+	}
+
+	const FVector Position = UKismetMathLibrary::RandomPointInBoundingBox(
+		ZoneApparition->GetComponentLocation(), ZoneApparition->GetScaledBoxExtent());
+	const FRotator Rotation(0.f, FMath::FRandRange(0.f, 360.f), 0.f);
+
+	FActorSpawnParameters Parametres;
+	Parametres.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	GetWorld()->SpawnActor<AActor>(ClasseEnnemi, Position, Rotation, Parametres);
+	EnnemisRestantsDansVague--;
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** deux timers imbriqués. Le grand (`TimerVagues`) donne le rythme des vagues, et à chaque vague il relance le petit (`TimerApparitions`), qui fait apparaître un ennemi à chaque appel jusqu'à ce que le compteur de la vague tombe à zéro. Appeler `SetTimer` sur un handle déjà utilisé remplace l'ancien timer : pas de doublon. Le premier délai à `0.f` fait apparaître le premier ennemi tout de suite. Grâce à `TSubclassOf<AActor>`, le spawner accepte n'importe quel Blueprint : un cube aujourd'hui, un vrai ennemi avec une IA demain.
+
+<Encadre type="info" titre="Pourquoi la dernière vague est annoncée">
+Le message « Dernière vague ! » s'affiche au lancement de la vague 5. Au prochain appel de `LancerVague`, 10 secondes plus tard, `VagueActuelle` vaut `NombreVagues` : on arrête le timer et c'est fini.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ne lance la vague suivante que quand tous les ennemis de la vague sont détruits : garde-les dans un `TArray`, et branche-toi sur leur délégué `OnDestroyed`.
+- Remplace `TSubclassOf<AActor>` par un `TArray<TSubclassOf<AActor>>` et tire une classe au hasard pour chaque ennemi.
+- Donne une vague « boss » toutes les 3 vagues : un seul ennemi, mais deux fois plus gros (`SetActorScale3D`).

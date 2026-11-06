@@ -1,0 +1,152 @@
+## Le contexte
+
+Un personnage qui saute, c'est simple... jusqu'à ce qu'on s'aperçoive qu'il peut sauter en l'air indéfiniment en martelant la barre d'espace. Pour un vrai saut, il faut savoir si le personnage **touche le sol**.
+
+Dans cet exercice, le joueur est géré par la **physique** de Unity (un Rigidbody) : c'est elle qui applique la gravité et les collisions. Tu vas lancer un rayon invisible vers le bas pour savoir s'il y a du sol sous ses pieds.
+
+## Ce que tu dois faire
+
+1. Crée un sol : **GameObject › 3D Object › Plane**, à la position 0, 0, 0. Ajoute quelques cubes posés dessus pour faire des plateformes.
+2. Crée une capsule : **GameObject › 3D Object › Capsule**, renomme-la `Joueur` et place-la en 0, 1, 0. Une capsule fait 2 mètres de haut et son centre est au milieu : ses pieds sont donc 1 mètre sous son centre.
+3. Sur le `Joueur`, ajoute un **Rigidbody**. Dans **Constraints**, coche les trois cases **Freeze Rotation** (X, Y et Z) pour que la capsule ne tombe pas sur le côté. Mets **Interpolate** sur **Interpolate** pour un mouvement plus fluide.
+4. Crée un script `SautJoueur`, colle le code de départ et glisse-le sur le `Joueur`.
+5. Le déplacement est déjà écrit. Remplis les deux `// TODO` : la fonction `EstAuSol` et le saut.
+
+<Encadre type="info" titre="linearVelocity">
+`linearVelocity` est la vitesse du Rigidbody, en mètres par seconde, sur les trois axes. Dans les anciennes versions de Unity et dans beaucoup de tutoriels, elle s'appelle `velocity` : c'est la même chose, renommée dans Unity 6.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="SautJoueur.cs">
+```cs
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class SautJoueur : MonoBehaviour
+{
+    [SerializeField] private float vitesse = 5f;
+    [SerializeField] private float forceSaut = 6f;
+
+    // Longueur du rayon vers le bas : 1 m jusqu'aux pieds, plus une petite marge
+    [SerializeField] private float distanceSol = 1.1f;
+
+    private Rigidbody rb;
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody>();
+    }
+
+    private void Update()
+    {
+        // Déplacement horizontal (déjà fait)
+        Vector3 direction = Vector3.zero;
+        if (Keyboard.current.wKey.isPressed) direction.z += 1f;
+        if (Keyboard.current.sKey.isPressed) direction.z -= 1f;
+        if (Keyboard.current.aKey.isPressed) direction.x -= 1f;
+        if (Keyboard.current.dKey.isPressed) direction.x += 1f;
+
+        Vector3 vitesseVoulue = direction.normalized * vitesse;
+        vitesseVoulue.y = rb.linearVelocity.y; // on garde la vitesse verticale (gravité, saut)
+        rb.linearVelocity = vitesseVoulue;
+
+        // TODO 2 : si on vient d'appuyer sur Espace ET qu'on est au sol, sauter
+    }
+
+    private bool EstAuSol()
+    {
+        // TODO 1 : renvoyer true s'il y a quelque chose juste sous le joueur
+        return true;
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Le joueur tombe sur le sol au lancement et peut s'y déplacer avec ZQSD.
+- [ ] Espace le fait sauter, et la gravité le fait redescendre.
+- [ ] Appuyer sur Espace en plein saut ne fait rien : pas de double saut.
+- [ ] Il peut sauter depuis le sol et depuis le dessus d'un cube.
+- [ ] S'il tombe d'une plateforme, il ne peut pas sauter pendant la chute.
+
+## Si tu bloques
+
+<Indice titre="Lancer un rayon">
+`Physics.Raycast(origine, direction, distance)` lance un rayon invisible et renvoie `true` s'il touche un collider. Ici, l'origine est la position du joueur, la direction est `Vector3.down` et la distance est `distanceSol`.
+</Indice>
+
+<Indice titre="Voir le rayon">
+Pour vérifier ton rayon, ajoute dans `Update` : `Debug.DrawRay(transform.position, Vector3.down * distanceSol, Color.red);`. Une ligne rouge apparaît dans la vue **Scene** (pas dans la vue Game) pendant que le jeu tourne. Elle doit dépasser juste un peu sous les pieds.
+</Indice>
+
+<Indice titre="Le saut">
+Utilise `wasPressedThisFrame` pour ne sauter qu'une fois par appui. Pour donner une poussée d'un coup, `rb.AddForce(Vector3.up * forceSaut, ForceMode.Impulse)`. Le mode `Impulse` applique toute la force instantanément, comme un coup de pied.
+</Indice>
+
+<Solution>
+
+<Fichier nom="SautJoueur.cs">
+```cs
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class SautJoueur : MonoBehaviour
+{
+    [SerializeField] private float vitesse = 5f;
+    [SerializeField] private float forceSaut = 6f;
+    [SerializeField] private float distanceSol = 1.1f;
+
+    private Rigidbody rb;
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody>();
+    }
+
+    private void Update()
+    {
+        Vector3 direction = Vector3.zero;
+        if (Keyboard.current.wKey.isPressed) direction.z += 1f;
+        if (Keyboard.current.sKey.isPressed) direction.z -= 1f;
+        if (Keyboard.current.aKey.isPressed) direction.x -= 1f;
+        if (Keyboard.current.dKey.isPressed) direction.x += 1f;
+
+        Vector3 vitesseVoulue = direction.normalized * vitesse;
+        vitesseVoulue.y = rb.linearVelocity.y;
+        rb.linearVelocity = vitesseVoulue;
+
+        if (Keyboard.current.spaceKey.wasPressedThisFrame && EstAuSol())
+        {
+            rb.AddForce(Vector3.up * forceSaut, ForceMode.Impulse);
+        }
+
+        Debug.DrawRay(transform.position, Vector3.down * distanceSol, Color.red);
+    }
+
+    private bool EstAuSol()
+    {
+        return Physics.Raycast(transform.position, Vector3.down, distanceSol);
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** le rayon part du centre de la capsule et descend de 1,1 mètre. Les pieds sont à 1 mètre : quand le joueur est posé, le rayon dépasse de 10 centimètres et touche le sol. Dès qu'il décolle de plus de 10 centimètres, le rayon ne touche plus rien et `EstAuSol` renvoie `false`.
+
+Le rayon ne touche pas la capsule elle-même : un raycast ignore les colliders à l'intérieur desquels il démarre.
+
+Dans le déplacement, on recopie `rb.linearVelocity.y` dans la vitesse voulue. Sans ça, on écraserait la vitesse verticale à zéro à chaque image : plus de gravité, plus de saut.
+
+<Encadre type="piege" titre="Le joueur ne saute jamais">
+Si ta capsule a une autre taille ou si son pivot n'est pas au centre, 1,1 mètre peut être trop court. Regarde la ligne rouge dans la vue Scene et ajuste `distanceSol` dans l'Inspector.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute un `[SerializeField] private LayerMask coucheSol` et passe-le en quatrième paramètre de `Physics.Raycast`, pour que seuls les objets du layer « Sol » comptent.
+- Fais un saut plus haut quand on reste appuyé : tant qu'Espace est enfoncé et que le joueur monte, réduis l'effet de la gravité.
+- Remplace le raycast par `OnCollisionEnter` et `OnCollisionExit` sur les objets qui ont le tag `Sol`, et compare les deux méthodes.

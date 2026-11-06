@@ -1,0 +1,559 @@
+## Le contexte
+
+Le NavMesh d'Unity trouve des chemins tout seul. Mais comment fait-il ? Presque tous les jeux utilisent une variante du même algorithme, inventé en 1968 : **A\*** (prononcé « A étoile »). Tu vas l'écrire toi-même, de zéro, sur une grille de cases. Un clic sur le sol, et ton personnage y va en contournant les murs, par le chemin le plus court.
+
+**L'idée de A\*, en une minute.** Chaque case a trois nombres :
+
+- **G** : le coût du chemin déjà parcouru depuis le départ jusqu'à elle ;
+- **H** : une **estimation** de ce qu'il reste jusqu'à l'arrivée, à vol d'oiseau, en ignorant les murs ;
+- **F = G + H** : le coût total estimé si on passe par elle.
+
+On garde deux listes. La liste **ouverte** contient les cases découvertes mais pas encore explorées. La liste **fermée** contient celles qu'on a fini d'explorer. À chaque tour :
+
+```text
+1. Prendre dans la liste ouverte la case qui a le plus petit F (on l'appelle "courant").
+2. La passer dans la liste fermée.
+3. Si c'est l'arrivée : c'est fini, on remonte les parents pour obtenir le chemin.
+4. Pour chaque voisin marchable et pas encore fermé :
+     nouveauG = G du courant + coût pour aller du courant au voisin
+     si nouveauG est plus petit que le G actuel du voisin :
+         le voisin note ce nouveau G, calcule son H, et retient "courant" comme parent
+         s'il n'était pas dans la liste ouverte, on l'y ajoute
+5. Recommencer. Si la liste ouverte se vide, il n'existe aucun chemin.
+```
+
+Les coûts : **10** pour un pas droit, **14** pour un pas en diagonale (car la diagonale d'un carré de côté 1 mesure environ 1,4). On reste en nombres entiers, c'est plus rapide et sans erreur d'arrondi.
+
+## Ce que tu dois faire
+
+**Mise en place :**
+
+1. Un **Plane** `Sol` en position (0, 0, 0), Scale (2, 1, 2) : il fait donc 20 × 20 mètres. Crée un layer `Sol` et mets-le dessus.
+2. Des **Cubes** pour les murs, posés sur le sol (Position Y = 0.5 pour un cube de hauteur 1). Crée un layer `Obstacles` et mets-les dessus. Fais un petit labyrinthe.
+3. Un objet vide `Grille` en (0, 0, 0) avec les scripts `Grille` et `AEtoile`. Sur `Grille`, mets `Obstacles` dans `Masque Obstacles`. Sur `AEtoile`, relie la `Grille`.
+4. Une **Capsule** `Explorateur` (Position Y = 1) avec le script `Suiveur`. Relie `AEtoile`, la **Main Camera**, et mets `Sol` dans `Masque Sol`.
+5. Place la caméra au-dessus du niveau, tournée vers le bas.
+
+**Le code :** `Noeud` est donné complet. Remplis ensuite, dans l'ordre, les `// TODO` de `Grille`, puis `AEtoile`, puis `Suiveur`. Après `Grille`, lance le jeu et active les **Gizmos** dans la vue Game ou regarde la vue Scene : tu dois voir la grille, avec les cases bloquées en rouge. Ne passe à `AEtoile` que quand c'est bon.
+
+<Encadre type="info" titre="Pourquoi Noeud n'est pas un MonoBehaviour">
+Une grille de 20 × 20, c'est 400 cases. Créer 400 GameObjects pour ça serait lourd et inutile. `Noeud` est une simple classe C# : on la crée avec `new Noeud(...)`, elle n'apparaît pas dans la Hierarchy, et on la range dans un tableau à deux dimensions `Noeud[,]`.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="Noeud.cs">
+```cs
+using UnityEngine;
+
+public class Noeud
+{
+    // Fixés à la création
+    public int X { get; }
+    public int Y { get; }
+    public Vector3 PositionMonde { get; }
+    public bool Marchable { get; }
+
+    // Utilisés par A* pendant une recherche
+    public int CoutG { get; set; }
+    public int CoutH { get; set; }
+    public Noeud Parent { get; set; }
+    public int CoutF => CoutG + CoutH;
+
+    public Noeud(int x, int y, Vector3 positionMonde, bool marchable)
+    {
+        X = x;
+        Y = y;
+        PositionMonde = positionMonde;
+        Marchable = marchable;
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="Grille.cs">
+```cs
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Grille : MonoBehaviour
+{
+    [SerializeField] private Vector2 tailleMonde = new Vector2(20f, 20f);
+    [SerializeField] private float tailleCase = 1f;
+    [SerializeField] private LayerMask masqueObstacles;
+
+    private Noeud[,] noeuds;
+    private int nbX;
+    private int nbY;
+
+    // Rempli par AEtoile, pour l'affichage
+    public List<Noeud> DernierChemin { get; set; }
+
+    private void Awake()
+    {
+        Construire();
+    }
+
+    private Vector3 CoinBasGauche()
+    {
+        return transform.position - new Vector3(tailleMonde.x * 0.5f, 0f, tailleMonde.y * 0.5f);
+    }
+
+    public void Construire()
+    {
+        // TODO 1 : calcule nbX et nbY, crée le tableau, puis pour chaque case :
+        //          calcule le centre de la case en coordonnées monde,
+        //          teste s'il y a un obstacle avec Physics.CheckSphere,
+        //          et range un new Noeud(...) dans noeuds[x, y]
+    }
+
+    public Noeud NoeudDepuisPosition(Vector3 position)
+    {
+        // TODO 2 : convertis une position du monde en indices x, y (sans sortir de la grille)
+        return null;
+    }
+
+    public List<Noeud> Voisins(Noeud noeud)
+    {
+        // TODO 3 : renvoie les 8 cases autour (moins celles hors de la grille).
+        //          Bonus : refuse une diagonale si elle coupe le coin d'un mur
+        return new List<Noeud>();
+    }
+
+    public void Reinitialiser()
+    {
+        // TODO 4 : avant chaque recherche, remets CoutG à int.MaxValue, CoutH à 0 et Parent à null partout
+    }
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.white;
+        Gizmos.DrawWireCube(transform.position, new Vector3(tailleMonde.x, 0.1f, tailleMonde.y));
+
+        if (noeuds == null)
+        {
+            return;
+        }
+
+        Vector3 taille = new Vector3(tailleCase * 0.9f, 0.05f, tailleCase * 0.9f);
+        foreach (Noeud n in noeuds)
+        {
+            Gizmos.color = n.Marchable ? new Color(1f, 1f, 1f, 0.15f) : new Color(1f, 0f, 0f, 0.5f);
+            if (DernierChemin != null && DernierChemin.Contains(n))
+            {
+                Gizmos.color = Color.cyan;
+            }
+            Gizmos.DrawCube(n.PositionMonde, taille);
+        }
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="AEtoile.cs">
+```cs
+using System.Collections.Generic;
+using UnityEngine;
+
+public class AEtoile : MonoBehaviour
+{
+    private const int CoutDroit = 10;
+    private const int CoutDiagonal = 14;
+
+    [SerializeField] private Grille grille;
+
+    // Renvoie la liste des cases à suivre (sans la case de départ), ou null s'il n'y a pas de chemin
+    public List<Noeud> TrouverChemin(Vector3 depart, Vector3 arrivee)
+    {
+        // TODO 5 : l'algorithme A* décrit dans "Le contexte"
+        return null;
+    }
+
+    private List<Noeud> Remonter(Noeud depart, Noeud arrivee)
+    {
+        // TODO 6 : pars de l'arrivée, suis les Parent jusqu'au départ, puis inverse la liste
+        return new List<Noeud>();
+    }
+
+    private int Distance(Noeud a, Noeud b)
+    {
+        // TODO 7 : nombre de pas diagonaux et droits pour aller de a à b sans obstacle
+        return 0;
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="Suiveur.cs">
+```cs
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Suiveur : MonoBehaviour
+{
+    [SerializeField] private AEtoile aEtoile;
+    [SerializeField] private Camera cam;
+    [SerializeField] private LayerMask masqueSol;
+    [SerializeField] private float vitesse = 4f;
+
+    private List<Noeud> chemin;
+    private int etape;
+
+    private void Update()
+    {
+        // TODO 8 : au clic gauche, lance un rayon depuis la souris vers le sol
+        //          et demande un chemin jusqu'au point touché
+        Avancer();
+    }
+
+    private void Avancer()
+    {
+        // TODO 9 : avance vers chemin[etape], passe à l'étape suivante une fois arrivé
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Dans la vue Scene, la grille s'affiche avec les cases touchées par un mur en rouge, et seulement celles-là.
+- [ ] Un clic sur le sol dessine un chemin cyan et l'explorateur le suit jusqu'au point cliqué.
+- [ ] Le chemin contourne les murs et prend le plus court : il utilise les diagonales en terrain dégagé.
+- [ ] Le chemin ne coupe jamais le coin d'un mur en diagonale.
+- [ ] Cliquer sur une zone fermée de tous les côtés affiche « Pas de chemin possible. » sans erreur ni blocage du jeu.
+- [ ] Recliquer pendant un déplacement fait repartir l'explorateur vers le nouveau point, depuis là où il est.
+
+## Si tu bloques
+
+<Indice titre="TODO 1 : le centre de chaque case">
+`nbX = Mathf.RoundToInt(tailleMonde.x / tailleCase)`, pareil pour `nbY` avec `tailleMonde.y`. La case `(x, y)` a pour centre `CoinBasGauche() + new Vector3(x * tailleCase + demi, 0f, y * tailleCase + demi)`, avec `demi = tailleCase * 0.5f`. Attention : le `Y` de la grille correspond au `Z` du monde. Pour l'obstacle, teste une sphère un peu au-dessus du sol : `Physics.CheckSphere(centre + Vector3.up * demi, demi * 0.9f, masqueObstacles)`.
+</Indice>
+
+<Indice titre="TODO 2 et 3 : position, voisins">
+Pour retrouver une case, retire le coin à la position, divise par `tailleCase` et arrondis vers le bas avec `Mathf.FloorToInt`. Protège-toi avec `Mathf.Clamp(..., 0, nbX - 1)`. Pour les voisins, deux boucles `dx` et `dy` de -1 à 1, en sautant le cas `dx == 0 && dy == 0` et les indices hors du tableau. Pour une diagonale (`dx != 0 && dy != 0`), refuse-la si la case `(X + dx, Y)` ou la case `(X, Y + dy)` n'est pas marchable.
+</Indice>
+
+<Indice titre="TODO 7 : la distance sur une grille">
+Pour aller de a à b, on fait d'abord autant de pas en diagonale que possible, puis le reste en ligne droite. Avec `dx` et `dy` les écarts (en valeur absolue), ça fait `Mathf.Min(dx, dy)` diagonales et `Mathf.Abs(dx - dy)` pas droits. Multiplie par 14 et par 10.
+</Indice>
+
+<Indice titre="TODO 5 : les structures">
+La liste ouverte est une `List<Noeud>`. La liste fermée sert seulement à demander « est-ce que j'y suis déjà ? » : prends un `HashSet<Noeud>`, dont la méthode `Contains` est instantanée même avec des milliers d'éléments. Pour trouver le plus petit F, parcours la liste ouverte avec une boucle `for`. En cas d'égalité de F, prends celui qui a le plus petit H : il est plus près de l'arrivée.
+</Indice>
+
+<Indice titre="TODO 5 : le piège du Reinitialiser">
+Les nœuds sont réutilisés d'une recherche à l'autre. Si tu ne remets pas `CoutG` à `int.MaxValue` avant chaque recherche, les coûts de la recherche précédente faussent tout, et le deuxième clic donne un chemin absurde. Appelle `grille.Reinitialiser()` au début de `TrouverChemin`, puis mets le `CoutG` du départ à 0.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Grille.cs">
+```cs
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Grille : MonoBehaviour
+{
+    [SerializeField] private Vector2 tailleMonde = new Vector2(20f, 20f);
+    [SerializeField] private float tailleCase = 1f;
+    [SerializeField] private LayerMask masqueObstacles;
+
+    private Noeud[,] noeuds;
+    private int nbX;
+    private int nbY;
+
+    public List<Noeud> DernierChemin { get; set; }
+
+    private void Awake()
+    {
+        Construire();
+    }
+
+    private Vector3 CoinBasGauche()
+    {
+        return transform.position - new Vector3(tailleMonde.x * 0.5f, 0f, tailleMonde.y * 0.5f);
+    }
+
+    public void Construire()
+    {
+        nbX = Mathf.RoundToInt(tailleMonde.x / tailleCase);
+        nbY = Mathf.RoundToInt(tailleMonde.y / tailleCase);
+        noeuds = new Noeud[nbX, nbY];
+
+        Vector3 coin = CoinBasGauche();
+        float demi = tailleCase * 0.5f;
+
+        for (int x = 0; x < nbX; x++)
+        {
+            for (int y = 0; y < nbY; y++)
+            {
+                Vector3 centre = coin + new Vector3(x * tailleCase + demi, 0f, y * tailleCase + demi);
+                bool marchable = !Physics.CheckSphere(centre + Vector3.up * demi, demi * 0.9f, masqueObstacles);
+                noeuds[x, y] = new Noeud(x, y, centre, marchable);
+            }
+        }
+    }
+
+    public Noeud NoeudDepuisPosition(Vector3 position)
+    {
+        Vector3 local = position - CoinBasGauche();
+        int x = Mathf.Clamp(Mathf.FloorToInt(local.x / tailleCase), 0, nbX - 1);
+        int y = Mathf.Clamp(Mathf.FloorToInt(local.z / tailleCase), 0, nbY - 1);
+        return noeuds[x, y];
+    }
+
+    public List<Noeud> Voisins(Noeud noeud)
+    {
+        List<Noeud> voisins = new List<Noeud>(8);
+
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                if (dx == 0 && dy == 0)
+                {
+                    continue;
+                }
+
+                int x = noeud.X + dx;
+                int y = noeud.Y + dy;
+                if (x < 0 || x >= nbX || y < 0 || y >= nbY)
+                {
+                    continue;
+                }
+
+                // En diagonale, les deux cases "de côté" doivent être libres, sinon on couperait un coin
+                if (dx != 0 && dy != 0)
+                {
+                    if (!noeuds[noeud.X + dx, noeud.Y].Marchable || !noeuds[noeud.X, noeud.Y + dy].Marchable)
+                    {
+                        continue;
+                    }
+                }
+
+                voisins.Add(noeuds[x, y]);
+            }
+        }
+
+        return voisins;
+    }
+
+    public void Reinitialiser()
+    {
+        foreach (Noeud n in noeuds)
+        {
+            n.CoutG = int.MaxValue;
+            n.CoutH = 0;
+            n.Parent = null;
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.white;
+        Gizmos.DrawWireCube(transform.position, new Vector3(tailleMonde.x, 0.1f, tailleMonde.y));
+
+        if (noeuds == null)
+        {
+            return;
+        }
+
+        Vector3 taille = new Vector3(tailleCase * 0.9f, 0.05f, tailleCase * 0.9f);
+        foreach (Noeud n in noeuds)
+        {
+            Gizmos.color = n.Marchable ? new Color(1f, 1f, 1f, 0.15f) : new Color(1f, 0f, 0f, 0.5f);
+            if (DernierChemin != null && DernierChemin.Contains(n))
+            {
+                Gizmos.color = Color.cyan;
+            }
+            Gizmos.DrawCube(n.PositionMonde, taille);
+        }
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="AEtoile.cs">
+```cs
+using System.Collections.Generic;
+using UnityEngine;
+
+public class AEtoile : MonoBehaviour
+{
+    private const int CoutDroit = 10;
+    private const int CoutDiagonal = 14;
+
+    [SerializeField] private Grille grille;
+
+    public List<Noeud> TrouverChemin(Vector3 depart, Vector3 arrivee)
+    {
+        Noeud noeudDepart = grille.NoeudDepuisPosition(depart);
+        Noeud noeudArrivee = grille.NoeudDepuisPosition(arrivee);
+
+        if (!noeudArrivee.Marchable)
+        {
+            grille.DernierChemin = null;
+            return null;
+        }
+
+        grille.Reinitialiser();
+
+        List<Noeud> ouverts = new List<Noeud>();
+        HashSet<Noeud> fermes = new HashSet<Noeud>();
+
+        noeudDepart.CoutG = 0;
+        noeudDepart.CoutH = Distance(noeudDepart, noeudArrivee);
+        ouverts.Add(noeudDepart);
+
+        while (ouverts.Count > 0)
+        {
+            // 1. Le nœud ouvert le plus prometteur
+            Noeud courant = ouverts[0];
+            for (int i = 1; i < ouverts.Count; i++)
+            {
+                Noeud candidat = ouverts[i];
+                if (candidat.CoutF < courant.CoutF
+                    || (candidat.CoutF == courant.CoutF && candidat.CoutH < courant.CoutH))
+                {
+                    courant = candidat;
+                }
+            }
+
+            // 2. On le ferme
+            ouverts.Remove(courant);
+            fermes.Add(courant);
+
+            // 3. Arrivé ?
+            if (courant == noeudArrivee)
+            {
+                List<Noeud> chemin = Remonter(noeudDepart, noeudArrivee);
+                grille.DernierChemin = chemin;
+                return chemin;
+            }
+
+            // 4. On regarde ses voisins
+            foreach (Noeud voisin in grille.Voisins(courant))
+            {
+                if (!voisin.Marchable || fermes.Contains(voisin))
+                {
+                    continue;
+                }
+
+                int nouveauCoutG = courant.CoutG + Distance(courant, voisin);
+                if (nouveauCoutG < voisin.CoutG)
+                {
+                    voisin.CoutG = nouveauCoutG;
+                    voisin.CoutH = Distance(voisin, noeudArrivee);
+                    voisin.Parent = courant;
+
+                    if (!ouverts.Contains(voisin))
+                    {
+                        ouverts.Add(voisin);
+                    }
+                }
+            }
+        }
+
+        // 5. Liste ouverte vide : aucun chemin
+        grille.DernierChemin = null;
+        return null;
+    }
+
+    private List<Noeud> Remonter(Noeud depart, Noeud arrivee)
+    {
+        List<Noeud> chemin = new List<Noeud>();
+        Noeud courant = arrivee;
+
+        while (courant != depart)
+        {
+            chemin.Add(courant);
+            courant = courant.Parent;
+        }
+
+        chemin.Reverse();
+        return chemin;
+    }
+
+    private int Distance(Noeud a, Noeud b)
+    {
+        int dx = Mathf.Abs(a.X - b.X);
+        int dy = Mathf.Abs(a.Y - b.Y);
+        int diagonales = Mathf.Min(dx, dy);
+        int droits = Mathf.Abs(dx - dy);
+        return CoutDiagonal * diagonales + CoutDroit * droits;
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="Suiveur.cs">
+```cs
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Suiveur : MonoBehaviour
+{
+    [SerializeField] private AEtoile aEtoile;
+    [SerializeField] private Camera cam;
+    [SerializeField] private LayerMask masqueSol;
+    [SerializeField] private float vitesse = 4f;
+
+    private List<Noeud> chemin;
+    private int etape;
+
+    private void Update()
+    {
+        Mouse souris = Mouse.current;
+        if (souris != null && souris.leftButton.wasPressedThisFrame)
+        {
+            Ray rayon = cam.ScreenPointToRay(souris.position.ReadValue());
+            if (Physics.Raycast(rayon, out RaycastHit impact, 200f, masqueSol))
+            {
+                chemin = aEtoile.TrouverChemin(transform.position, impact.point);
+                etape = 0;
+
+                if (chemin == null)
+                {
+                    Debug.Log("Pas de chemin possible.");
+                }
+            }
+        }
+
+        Avancer();
+    }
+
+    private void Avancer()
+    {
+        if (chemin == null || etape >= chemin.Count)
+        {
+            return;
+        }
+
+        Vector3 cible = chemin[etape].PositionMonde;
+        cible.y = transform.position.y;
+        transform.position = Vector3.MoveTowards(transform.position, cible, vitesse * Time.deltaTime);
+
+        if ((transform.position - cible).sqrMagnitude < 0.0001f)
+        {
+            etape++;
+        }
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** A\* explore toujours en premier la case qui semble la plus prometteuse (le plus petit F). Le H oriente la recherche vers l'arrivée : au lieu de s'étendre en cercle dans toutes les directions, elle file droit vers le but et ne s'étale que quand un mur la gêne. Comme notre H ne **surestime jamais** la vraie distance (on ignore les murs, donc la vraie distance est toujours au moins aussi longue), le premier chemin trouvé est forcément le plus court. Chaque case retient par quel voisin on y est arrivé au moindre coût (son `Parent`) : une fois l'arrivée atteinte, il suffit de remonter cette chaîne à l'envers. `Remonter` s'arrête toujours, car chaque `Parent` a été fixé par un nœud déjà fermé, et le premier nœud fermé est le départ.
+
+<Encadre type="piege" titre="Toutes les cases sont rouges">
+Si toute la grille est rouge, ton sol est sur le layer `Obstacles`, ou ton `Masque Obstacles` contient `Default`. Si aucune case n'est rouge, vérifie que les murs sont bien sur le layer `Obstacles` et qu'ils touchent le sol. La grille n'est calculée qu'une fois, dans `Awake` : si tu déplaces un mur pendant le jeu, la grille ne le sait pas.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Mesure le temps de calcul avec un `System.Diagnostics.Stopwatch` et affiche-le dans la Console. Passe à une grille 100 × 100 avec `tailleCase` à 0.2 : chercher le plus petit F dans une `List` devient lent. Remplace-la par une file de priorité (`PriorityQueue` n'existe pas dans la version de .NET d'Unity : écris un petit tas binaire, ou « binary heap »).
+- Ajoute un type de terrain qui coûte plus cher, comme de la boue : un champ `CoutTerrain` dans `Noeud`, ajouté au coût de chaque pas. Le personnage contournera la boue si le détour n'est pas trop long.
+- Lisse le chemin : supprime les points intermédiaires quand un `Physics.SphereCast` montre que la ligne droite entre deux points plus éloignés est libre.

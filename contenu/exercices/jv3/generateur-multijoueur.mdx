@@ -1,0 +1,357 @@
+## Le contexte
+
+Dans un jeu coopératif, les joueurs doivent réparer ensemble un générateur : chaque appui sur E ajoute 10 % de charge, et à 100 % une lumière s'allume pour tout le monde. Simple en solo. En multijoueur, c'est une autre histoire : chaque joueur a **sa propre copie** du monde, et seul le serveur a le droit de décider. Le serveur doit ensuite envoyer ses décisions aux clients : c'est la **réplication**.
+
+Le développeur qui a écrit ce code n'a testé qu'en solo, ou en étant l'hôte. Tout semblait marcher.
+
+## Ce que tu dois faire
+
+**Pour tester :** dans la barre d'outils, menu des trois points à côté de Play, règle **Number of Players** sur 2 et **Net Mode** sur **Play As Listen Server**. Deux fenêtres s'ouvrent : l'hôte (serveur et joueur à la fois) et un client. Le Blueprint de ton personnage doit avoir `AJoueurReseau` comme parent (Class Settings › Parent Class), avec E branché sur **Reparer**.
+
+**Ce que tu observes :**
+
+- Quand l'**hôte** répare, son texte monte jusqu'à 100 %, mais la lumière ne s'allume jamais, ni chez lui ni chez le client. Chez le client, le texte reste à 0 %.
+- Quand le **client** répare, seul le client voit son texte monter. L'hôte ne voit rien changer. Arrivé à 100 %, le client ne voit pas non plus la lumière.
+
+**Ce qui est attendu :** que ce soit l'hôte ou le client qui répare, les deux fenêtres affichent la même charge, et la lumière s'allume chez les deux à 100 %.
+
+Il y a **4 bugs**. Attention : ils se cachent les uns derrière les autres. En corriger un peut faire apparaître un nouveau symptôme, c'est normal. Garde l'Output Log ouvert, il te donnera deux indices précieux.
+
+## Le code de départ
+
+<Fichier nom="Generateur.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Generateur.generated.h"
+
+class UStaticMeshComponent;
+class UPointLightComponent;
+class UTextRenderComponent;
+
+UCLASS()
+class MONPROJET_API AGenerateur : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AGenerateur();
+	virtual void Tick(float DeltaTime) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	UFUNCTION(Server, Reliable)
+	void ServeurReparer(float Quantite);
+
+	UFUNCTION(BlueprintPure, Category = "Generateur")
+	float GetPourcentage() const { return ChargeMax > 0.f ? Charge / ChargeMax : 0.f; }
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, Category = "Generateur")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	UPROPERTY(VisibleAnywhere, Category = "Generateur")
+	TObjectPtr<UPointLightComponent> Lumiere;
+
+	UPROPERTY(VisibleAnywhere, Category = "Generateur")
+	TObjectPtr<UTextRenderComponent> Texte;
+
+	UPROPERTY(EditAnywhere, Category = "Generateur")
+	float ChargeMax = 100.f;
+
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Generateur")
+	float Charge = 0.f;
+
+	UPROPERTY(ReplicatedUsing = OnRep_Actif, BlueprintReadOnly, Category = "Generateur")
+	bool bActif = false;
+
+	UFUNCTION()
+	void OnRep_Actif();
+};
+```
+</Fichier>
+
+<Fichier nom="Generateur.cpp">
+```cpp
+#include "Generateur.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Components/TextRenderComponent.h"
+#include "Net/UnrealNetwork.h"
+
+AGenerateur::AGenerateur()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	RootComponent = Mesh;
+
+	Lumiere = CreateDefaultSubobject<UPointLightComponent>(TEXT("Lumiere"));
+	Lumiere->SetupAttachment(Mesh);
+	Lumiere->SetRelativeLocation(FVector(0.f, 0.f, 150.f));
+	Lumiere->SetIntensity(20000.f);
+	Lumiere->SetVisibility(false);
+
+	Texte = CreateDefaultSubobject<UTextRenderComponent>(TEXT("Texte"));
+	Texte->SetupAttachment(Mesh);
+	Texte->SetRelativeLocation(FVector(0.f, 0.f, 200.f));
+	Texte->SetHorizontalAlignment(EHTA_Center);
+}
+
+void AGenerateur::BeginPlay()
+{
+	Super::BeginPlay();
+	Lumiere->SetVisibility(bActif);
+}
+
+void AGenerateur::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	Texte->SetText(FText::FromString(FString::Printf(TEXT("%.0f %%"), GetPourcentage() * 100.f)));
+}
+
+void AGenerateur::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AGenerateur, bActif);
+}
+
+void AGenerateur::ServeurReparer_Implementation(float Quantite)
+{
+	if (bActif)
+	{
+		return;
+	}
+
+	Charge = FMath::Min(Charge + Quantite, ChargeMax);
+	if (Charge >= ChargeMax)
+	{
+		bActif = true;
+	}
+}
+
+void AGenerateur::OnRep_Actif()
+{
+	Lumiere->SetVisibility(bActif);
+}
+```
+</Fichier>
+
+<Fichier nom="JoueurReseau.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Character.h"
+#include "JoueurReseau.generated.h"
+
+class AGenerateur;
+
+UCLASS()
+class MONPROJET_API AJoueurReseau : public ACharacter
+{
+	GENERATED_BODY()
+
+public:
+	// Appelée par le Blueprint quand le joueur appuie sur E
+	UFUNCTION(BlueprintCallable, Category = "Reparation")
+	void Reparer();
+
+protected:
+	UPROPERTY(EditAnywhere, Category = "Reparation")
+	float DistanceReparation = 250.f;
+
+	UPROPERTY(EditAnywhere, Category = "Reparation")
+	float QuantiteParAppui = 10.f;
+
+private:
+	AGenerateur* TrouverGenerateur() const;
+};
+```
+</Fichier>
+
+<Fichier nom="JoueurReseau.cpp">
+```cpp
+#include "JoueurReseau.h"
+#include "Generateur.h"
+#include "EngineUtils.h"
+
+void AJoueurReseau::Reparer()
+{
+	if (AGenerateur* Generateur = TrouverGenerateur())
+	{
+		Generateur->ServeurReparer(QuantiteParAppui);
+	}
+}
+
+AGenerateur* AJoueurReseau::TrouverGenerateur() const
+{
+	for (TActorIterator<AGenerateur> It(GetWorld()); It; ++It)
+	{
+		if (FVector::Dist(It->GetActorLocation(), GetActorLocation()) < DistanceReparation)
+		{
+			return *It;
+		}
+	}
+	return nullptr;
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] L'hôte répare : les deux fenêtres affichent la même charge.
+- [ ] Le client répare : les deux fenêtres affichent la même charge.
+- [ ] Les deux réparent en même temps : la charge monte deux fois plus vite, pareil chez les deux.
+- [ ] À 100 %, la lumière s'allume dans les **deux** fenêtres, quel que soit le joueur qui a fini.
+- [ ] L'Output Log n'affiche plus aucun avertissement `LogNet` au sujet du générateur.
+- [ ] Avec 3 joueurs (Number of Players à 3), tout marche aussi pour le deuxième client.
+
+## Si tu bloques
+
+<Indice titre="Qui décide ?">
+En réseau, une seule machine a l'autorité sur un acteur : le serveur. Une variable modifiée sur un client ne change **que** sur ce client. Pour qu'un client fasse changer quelque chose, il doit **demander** au serveur avec un RPC Server, puis le serveur modifie la variable, puis la réplication envoie la nouvelle valeur à tout le monde.
+</Indice>
+
+<Indice titre="Un acteur qui ne se réplique pas du tout">
+Pour qu'un acteur envoie quoi que ce soit aux clients, il doit être marqué comme répliqué dans son constructeur. Sans ça, chaque machine a son générateur à elle, et chacune se croit le chef : c'est pour ça que le client voit sa charge monter, mais seulement chez lui.
+</Indice>
+
+<Indice titre="Lis l'Output Log">
+Une fois le premier bug corrigé, deux messages devraient apparaître. Le premier dit qu'une propriété marquée `Replicated` n'a pas été enregistrée dans `GetLifetimeReplicatedProps`. Le second parle de « No owning connection » : un client ne peut appeler un RPC Server que sur un acteur qu'il **possède** (son personnage, son PlayerController, son PlayerState). Le générateur n'appartient à personne.
+</Indice>
+
+<Indice titre="La lumière de l'hôte">
+`OnRep_Actif` est appelé automatiquement quand la nouvelle valeur **arrive** sur un client. Sur le serveur, la valeur ne « arrive » jamais : c'est lui qui l'a changée. En C++, il faut donc appeler soi-même `OnRep_Actif()` sur le serveur, juste après avoir changé `bActif`. (En Blueprint, les RepNotify sont appelés partout, d'où la surprise.)
+</Indice>
+
+<Solution>
+
+<Fichier nom="Generateur.h (corrigé)">
+```cpp
+public:
+	AGenerateur();
+	virtual void Tick(float DeltaTime) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	// Bug 3 : ce n'est plus un RPC. Fonction normale, à n'appeler que sur le serveur.
+	void AjouterCharge(float Quantite);
+
+	UFUNCTION(BlueprintPure, Category = "Generateur")
+	float GetPourcentage() const { return ChargeMax > 0.f ? Charge / ChargeMax : 0.f; }
+```
+</Fichier>
+
+<Fichier nom="Generateur.cpp (corrigé)">
+```cpp
+AGenerateur::AGenerateur()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	// Bug 1 : sans ça, rien n'est jamais envoyé aux clients
+	bReplicates = true;
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	RootComponent = Mesh;
+
+	Lumiere = CreateDefaultSubobject<UPointLightComponent>(TEXT("Lumiere"));
+	Lumiere->SetupAttachment(Mesh);
+	Lumiere->SetRelativeLocation(FVector(0.f, 0.f, 150.f));
+	Lumiere->SetIntensity(20000.f);
+	Lumiere->SetVisibility(false);
+
+	Texte = CreateDefaultSubobject<UTextRenderComponent>(TEXT("Texte"));
+	Texte->SetupAttachment(Mesh);
+	Texte->SetRelativeLocation(FVector(0.f, 0.f, 200.f));
+	Texte->SetHorizontalAlignment(EHTA_Center);
+}
+
+void AGenerateur::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	// Bug 2 : chaque propriété Replicated doit être enregistrée ici
+	DOREPLIFETIME(AGenerateur, Charge);
+	DOREPLIFETIME(AGenerateur, bActif);
+}
+
+void AGenerateur::AjouterCharge(float Quantite)
+{
+	// Sécurité : seul le serveur décide
+	if (!HasAuthority() || bActif)
+	{
+		return;
+	}
+
+	Charge = FMath::Min(Charge + Quantite, ChargeMax);
+	if (Charge >= ChargeMax)
+	{
+		bActif = true;
+		// Bug 4 : en C++, le serveur ne reçoit pas son propre RepNotify
+		OnRep_Actif();
+	}
+}
+```
+</Fichier>
+
+<Fichier nom="JoueurReseau.h (corrigé)">
+```cpp
+public:
+	UFUNCTION(BlueprintCallable, Category = "Reparation")
+	void Reparer();
+
+protected:
+	// Bug 3 : le RPC est sur le personnage, que le client possède
+	UFUNCTION(Server, Reliable)
+	void ServeurReparer(AGenerateur* Generateur);
+
+	UPROPERTY(EditAnywhere, Category = "Reparation")
+	float DistanceReparation = 250.f;
+```
+</Fichier>
+
+<Fichier nom="JoueurReseau.cpp (corrigé)">
+```cpp
+void AJoueurReseau::Reparer()
+{
+	if (AGenerateur* Generateur = TrouverGenerateur())
+	{
+		// Sur l'hôte, ce RPC s'exécute directement. Sur un client, il est envoyé au serveur.
+		ServeurReparer(Generateur);
+	}
+}
+
+void AJoueurReseau::ServeurReparer_Implementation(AGenerateur* Generateur)
+{
+	// Le serveur ne fait pas confiance au client : il revérifie la distance
+	if (Generateur && FVector::Dist(Generateur->GetActorLocation(), GetActorLocation()) < DistanceReparation * 1.2f)
+	{
+		Generateur->AjouterCharge(QuantiteParAppui);
+	}
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :**
+
+**Bug 1, `bReplicates` oublié.** Un acteur qui ne se réplique pas existe en double, une copie par machine, sans aucun lien. Pire, chaque copie se croit chef (`HasAuthority()` est vrai partout) : le RPC Server du client s'exécutait donc... sur le client lui-même. D'où le symptôme « ça monte, mais seulement chez moi ».
+
+**Bug 2, `Charge` jamais enregistrée.** Marquer une variable `Replicated` ne suffit pas : il faut aussi la déclarer dans `GetLifetimeReplicatedProps` avec `DOREPLIFETIME`. Sinon le moteur ne l'envoie jamais, et il l'écrit dans l'Output Log.
+
+**Bug 3, le RPC au mauvais endroit.** Un client ne peut envoyer un RPC Server qu'à travers un acteur qu'il possède. Le générateur est posé dans le niveau, il n'appartient à aucun joueur : le moteur jette l'appel avec l'avertissement « No owning connection ». Le personnage, lui, appartient au PlayerController du client. On met donc le RPC sur le personnage, qui transmet au générateur côté serveur. C'est le même chemin que dans les vrais jeux : le joueur demande, le serveur vérifie, puis applique.
+
+**Bug 4, le RepNotify oublié sur le serveur.** En C++, `OnRep_Actif` n'est appelé que sur les machines qui **reçoivent** la valeur. L'hôte l'a changée lui-même : sans appel manuel, sa lumière reste éteinte.
+
+<Encadre type="retenir" titre="Le trajet d'une action en réseau">
+Client : le joueur appuie sur E. Personnage : RPC Server. Serveur : vérifie, puis modifie une variable répliquée. Réplication : la nouvelle valeur part vers tous les clients. Clients : le RepNotify met à jour l'affichage. Sur le serveur : on appelle le RepNotify à la main.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Le `Tick` qui réécrit le texte à chaque image est inutile : ajoute un `OnRep_Charge` qui met à jour le texte seulement quand la valeur change.
+- Ajoute un son « générateur réparé » joué chez tout le monde avec un RPC `NetMulticast, Unreliable`, et compare avec ce que fait déjà le RepNotify : quand préférer l'un ou l'autre ?
+- Ajoute un compteur de participation par joueur dans un `APlayerState` personnalisé, répliqué, et affiche « Merci Joueur 2 (60 %) » à la fin.

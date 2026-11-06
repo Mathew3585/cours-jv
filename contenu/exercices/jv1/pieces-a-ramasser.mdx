@@ -1,0 +1,122 @@
+## Le contexte
+
+Ramasser des pièces, c'est le premier vrai gameplay de beaucoup de jeux. Ton joueur passe sur une pièce, elle disparaît et un compteur augmente. Quand tout est ramassé, tu as gagné.
+
+Pour ça, tu vas utiliser un **trigger** : une zone de collision qu'on peut traverser, mais qui prévient le script quand quelque chose entre dedans.
+
+## Ce que tu dois faire
+
+1. Reprends la scène de l'exercice « Déplacer un cube au clavier », avec ton cube `Joueur` qui bouge.
+2. Sur le `Joueur`, ajoute un composant **Rigidbody** (bouton **Add Component** dans l'Inspector) et coche **Is Kinematic**. Sans Rigidbody, Unity ne détecte aucun trigger.
+3. Crée une pièce : **GameObject › 3D Object › Cylinder**, renomme-la `Piece`, donne-lui une échelle de 0.6, 0.05, 0.6 et pose-la au-dessus du sol. Tu peux la tourner de 90 degrés sur X pour qu'elle soit debout, et lui ajouter le script `Toupie` si tu l'as fait.
+4. Sur la pièce, dans le composant **Capsule Collider**, coche **Is Trigger**.
+5. Crée un tag : en haut de l'Inspector de la pièce, ouvre la liste **Tag › Add Tag…**, clique sur **+**, tape `Piece` et valide. Reviens sur la pièce et choisis ce tag dans la liste.
+6. Duplique la pièce (Ctrl+D) pour en avoir 5 ou 6 réparties sur le sol.
+7. Crée un script `Ramasseur`, colle le code de départ et glisse-le sur le `Joueur`.
+8. Remplis les `// TODO`.
+
+## Le code de départ
+
+<Fichier nom="Ramasseur.cs">
+```cs
+using UnityEngine;
+
+public class Ramasseur : MonoBehaviour
+{
+    private int piecesRamassees = 0;
+    private int piecesTotal = 0;
+
+    private void Start()
+    {
+        // TODO 1 : compter combien d'objets ont le tag "Piece" dans la scène
+        //          et ranger ce nombre dans piecesTotal
+
+        Debug.Log("Pièces à trouver : " + piecesTotal);
+    }
+
+    // Unity appelle cette fonction quand le joueur entre dans un trigger
+    private void OnTriggerEnter(Collider other)
+    {
+        // TODO 2 : si l'objet touché a le tag "Piece" :
+        //          - ajouter 1 au compteur
+        //          - détruire la pièce
+        //          - afficher le compteur dans la Console
+
+        // TODO 3 : si toutes les pièces sont ramassées, afficher "Gagné !"
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Au lancement, la Console affiche le bon nombre de pièces à trouver.
+- [ ] Une pièce disparaît dès que le joueur passe dessus.
+- [ ] La Console affiche le compteur qui augmente : 1, 2, 3…
+- [ ] Le message « Gagné ! » s'affiche une seule fois, à la dernière pièce.
+- [ ] Le sol, qui n'a pas le tag `Piece`, n'est jamais compté.
+
+## Si tu bloques
+
+<Indice titre="Rien ne se passe">
+Vérifie les trois conditions pour qu'un trigger marche : la pièce a un collider avec **Is Trigger** coché, le joueur a un collider (le Box Collider du cube) et le joueur a un **Rigidbody**. Vérifie aussi que le nom de ta fonction est exactement `OnTriggerEnter`, avec les majuscules.
+</Indice>
+
+<Indice titre="Reconnaître une pièce">
+`other` est le collider dans lequel le joueur vient d'entrer. `other.CompareTag("Piece")` renvoie `true` si son objet a le tag `Piece`. Pour détruire la pièce, il faut détruire son GameObject : `Destroy(other.gameObject)`. Si tu écris `Destroy(other)`, tu ne retires que le collider !
+</Indice>
+
+<Indice titre="Compter les pièces au départ">
+`GameObject.FindGameObjectsWithTag("Piece")` renvoie un tableau de tous les objets qui ont ce tag. Sa propriété `Length` donne leur nombre.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Ramasseur.cs">
+```cs
+using UnityEngine;
+
+public class Ramasseur : MonoBehaviour
+{
+    private int piecesRamassees = 0;
+    private int piecesTotal = 0;
+
+    private void Start()
+    {
+        piecesTotal = GameObject.FindGameObjectsWithTag("Piece").Length;
+        Debug.Log("Pièces à trouver : " + piecesTotal);
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Piece"))
+        {
+            piecesRamassees++;
+            Destroy(other.gameObject);
+            Debug.Log("Pièces : " + piecesRamassees + " / " + piecesTotal);
+
+            if (piecesRamassees == piecesTotal)
+            {
+                Debug.Log("Gagné !");
+            }
+        }
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** au démarrage, on compte une fois pour toutes les pièces présentes. Ensuite, chaque fois que le joueur entre dans un trigger, Unity appelle `OnTriggerEnter` et nous donne le collider touché. On vérifie son tag pour ne réagir qu'aux pièces. `piecesRamassees++` ajoute 1 au compteur, qui est une variable de la classe : il garde sa valeur d'un appel à l'autre.
+
+Le test « Gagné » est **dans** le `if` de la pièce : il ne peut donc se déclencher qu'au moment où on ramasse la dernière.
+
+<Encadre type="piege" titre="Le tag doit être écrit pareil partout">
+`CompareTag("piece")` et `CompareTag("Piece")`, ce n'est pas la même chose. Une majuscule de différence et la pièce n'est jamais reconnue.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Affiche le compteur à l'écran avec un texte TextMeshPro (regarde l'exercice du chronomètre).
+- Crée une pièce rare avec un autre tag, `PieceOr`, qui vaut 5 points.
+- Joue un son quand une pièce est ramassée avec `AudioSource.PlayClipAtPoint(son, transform.position)`, où `son` est un `[SerializeField] private AudioClip`.

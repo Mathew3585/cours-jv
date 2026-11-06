@@ -1,0 +1,281 @@
+## Le contexte
+
+Un inventaire simple, c'est une liste de « quel objet, combien d'exemplaires » : 12 pièces, 1 clé, 3 potions. En C++, la structure parfaite pour ça est la `TMap` : un dictionnaire qui associe une **clé** (ici le nom de l'objet, un `FName`) à une **valeur** (la quantité, un `int32`).
+
+Les `TMap` sont très pratiques, mais deux pièges reviennent tout le temps : modifier une **copie** au lieu de la vraie valeur, et lire une clé qui n'existe pas. Cet exercice contient les deux, plus un troisième bug.
+
+## Ce que tu dois faire
+
+Le code est en deux classes :
+
+- `UComposantInventaire`, un composant qu'on ajoute au personnage (dans son Blueprint, **Add › Composant Inventaire**).
+- `AObjetRamassable`, un objet posé dans le niveau. Il donne `Nombre` exemplaires de `ObjetDonne`. S'il a un `ObjetRequis`, il faut le donner pour l'obtenir : un coffre qui demande une `Cle`, par exemple.
+
+On a posé dans le niveau trois pièces (`ObjetDonne = Piece`), une clé (`ObjetDonne = Cle`), et un coffre (`ObjetDonne = Potion`, `ObjetRequis = Cle`). Voici ce qu'on observe :
+
+- **Après avoir ramassé deux pièces, l'écran affiche `Piece x0`.** Les pièces disparaissent bien, mais l'inventaire ne compte rien.
+- **Si on va au coffre avant d'avoir ramassé la clé, l'éditeur plante** avec un message `Assertion failed: Pair != nullptr`.
+- **Une fois les deux premiers bugs corrigés : après avoir ouvert le coffre avec la clé, l'inventaire affiche encore `Cle x0`.** Un objet dont on n'a plus aucun exemplaire ne devrait plus apparaître dans la liste.
+
+`AObjetRamassable` est correct : les **3 bugs** sont tous dans le composant. Le code compile.
+
+1. Recopie les quatre fichiers et prépare le niveau.
+2. Reproduis chaque symptôme et trouve sa cause.
+3. Corrige, sans changer les déclarations du header du composant.
+
+## Le code de départ
+
+<Fichier nom="ComposantInventaire.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "ComposantInventaire.generated.h"
+
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+class MONPROJET_API UComposantInventaire : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "Inventaire")
+	void Ajouter(FName Objet, int32 Nombre = 1);
+
+	// Renvoie true si on avait assez d'exemplaires (et les enlève), false sinon (et ne change rien)
+	UFUNCTION(BlueprintCallable, Category = "Inventaire")
+	bool Retirer(FName Objet, int32 Nombre = 1);
+
+	UFUNCTION(BlueprintPure, Category = "Inventaire")
+	int32 Combien(FName Objet) const;
+
+	// Affiche tout l'inventaire en haut à gauche de l'écran
+	void Afficher() const;
+
+protected:
+	UPROPERTY(VisibleInstanceOnly, Category = "Inventaire")
+	TMap<FName, int32> Objets;
+};
+```
+</Fichier>
+
+<Fichier nom="ComposantInventaire.cpp">
+```cpp
+#include "ComposantInventaire.h"
+#include "Engine/Engine.h"
+
+void UComposantInventaire::Ajouter(FName Objet, int32 Nombre)
+{
+	if (Objet.IsNone() || Nombre <= 0)
+	{
+		return;
+	}
+
+	int32 Quantite = Objets.FindOrAdd(Objet);
+	Quantite += Nombre;
+	Afficher();
+}
+
+bool UComposantInventaire::Retirer(FName Objet, int32 Nombre)
+{
+	if (Objets[Objet] < Nombre)
+	{
+		return false;
+	}
+
+	Objets[Objet] -= Nombre;
+	Afficher();
+	return true;
+}
+
+int32 UComposantInventaire::Combien(FName Objet) const
+{
+	return Objets.FindRef(Objet);
+}
+
+void UComposantInventaire::Afficher() const
+{
+	if (!GEngine)
+	{
+		return;
+	}
+
+	FString Texte = TEXT("Inventaire :");
+	for (const TPair<FName, int32>& Paire : Objets)
+	{
+		Texte += FString::Printf(TEXT("\n  %s x%d"), *Paire.Key.ToString(), Paire.Value);
+	}
+	GEngine->AddOnScreenDebugMessage(20, 5.f, FColor::Cyan, Texte);
+}
+```
+</Fichier>
+
+<Fichier nom="ObjetRamassable.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "ObjetRamassable.generated.h"
+
+class USphereComponent;
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API AObjetRamassable : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AObjetRamassable();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, Category = "Objet")
+	TObjectPtr<USphereComponent> Zone;
+
+	UPROPERTY(VisibleAnywhere, Category = "Objet")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	// Ce que le joueur reçoit
+	UPROPERTY(EditAnywhere, Category = "Objet")
+	FName ObjetDonne = FName(TEXT("Piece"));
+
+	UPROPERTY(EditAnywhere, Category = "Objet", meta = (ClampMin = "1"))
+	int32 Nombre = 1;
+
+	// Si rempli, le joueur doit donner un exemplaire de cet objet pour recevoir ObjetDonne
+	UPROPERTY(EditAnywhere, Category = "Objet")
+	FName ObjetRequis;
+
+private:
+	UFUNCTION()
+	void EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+};
+```
+</Fichier>
+
+<Fichier nom="ObjetRamassable.cpp">
+```cpp
+#include "ObjetRamassable.h"
+#include "ComposantInventaire.h"
+#include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/Engine.h"
+
+AObjetRamassable::AObjetRamassable()
+{
+	Zone = CreateDefaultSubobject<USphereComponent>(TEXT("Zone"));
+	RootComponent = Zone;
+	Zone->SetSphereRadius(80.f);
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	Mesh->SetupAttachment(Zone);
+	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void AObjetRamassable::BeginPlay()
+{
+	Super::BeginPlay();
+	Zone->OnComponentBeginOverlap.AddDynamic(this, &AObjetRamassable::EntreeZone);
+}
+
+void AObjetRamassable::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	UComposantInventaire* Inventaire = OtherActor ? OtherActor->FindComponentByClass<UComposantInventaire>() : nullptr;
+	if (!Inventaire)
+	{
+		return;
+	}
+
+	if (!ObjetRequis.IsNone() && !Inventaire->Retirer(ObjetRequis, 1))
+	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(21, 2.f, FColor::Red, FString::Printf(TEXT("Il te faut : %s"), *ObjetRequis.ToString()));
+		}
+		return;
+	}
+
+	Inventaire->Ajouter(ObjetDonne, Nombre);
+	Destroy();
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Ramasser les trois pièces affiche `Piece x1`, puis `x2`, puis `x3`.
+- [ ] Aller au coffre sans clé affiche « Il te faut : Cle » sans planter, et le coffre reste en place.
+- [ ] Avec la clé, le coffre s'ouvre : l'inventaire contient `Potion x1` et la ligne `Cle` a disparu.
+- [ ] Un Blueprint qui appelle **Combien** avec un objet jamais ramassé reçoit 0, sans planter.
+
+## Si tu bloques
+
+<Indice titre="Piece x0">
+`FindOrAdd` renvoie une **référence** (`int32&`) vers la valeur rangée dans la `TMap`. Mais regarde le type de la variable dans laquelle on la range : est-ce une référence, ou un nouvel entier qui reçoit une copie ?
+</Indice>
+
+<Indice titre="Pair != nullptr">
+Sur une `TMap`, l'opérateur `[]` suppose que la clé existe. Si elle n'existe pas, Unreal arrête tout : c'est un `check`, pas une erreur douce. Quand on n'est pas sûr, on utilise `Find`, qui renvoie un **pointeur** vers la valeur, ou `nullptr` si la clé est absente.
+</Indice>
+
+<Indice titre="Cle x0">
+Quand une quantité tombe à 0, la paire reste dans la `TMap` avec la valeur 0. Il faut l'enlever avec `Remove(Clé)`. Attention : après `Remove`, un pointeur obtenu avec `Find` sur cette clé ne pointe plus sur rien.
+</Indice>
+
+<Solution>
+
+<Fichier nom="ComposantInventaire.cpp">
+```cpp
+void UComposantInventaire::Ajouter(FName Objet, int32 Nombre)
+{
+	if (Objet.IsNone() || Nombre <= 0)
+	{
+		return;
+	}
+
+	Objets.FindOrAdd(Objet) += Nombre;
+	Afficher();
+}
+
+bool UComposantInventaire::Retirer(FName Objet, int32 Nombre)
+{
+	int32* Quantite = Objets.Find(Objet);
+	if (!Quantite || *Quantite < Nombre)
+	{
+		return false;
+	}
+
+	*Quantite -= Nombre;
+	if (*Quantite <= 0)
+	{
+		Objets.Remove(Objet);
+	}
+
+	Afficher();
+	return true;
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :**
+
+- **Bug 1, `Piece x0` :** `int32 Quantite = Objets.FindOrAdd(Objet);` crée bien la paire (avec 0), puis **copie** sa valeur dans une nouvelle variable locale. On augmente la copie, qui disparaît à la fin de la fonction, et la `TMap` garde 0. On peut écrire `int32& Quantite = ...` (avec le `&`), ou plus court, modifier directement le résultat de `FindOrAdd`.
+- **Bug 2, le plantage au coffre :** sans clé ramassée, la paire `Cle` n'existe pas. `Objets[Objet]` fait alors échouer un `check` dans le code d'Unreal (`Pair != nullptr`), ce qui arrête l'éditeur. `Find` renvoie `nullptr` dans ce cas, et on peut répondre `false` proprement. `Combien` utilisait déjà `FindRef`, qui renvoie 0 pour une clé absente : il n'avait pas ce problème.
+- **Bug 3, `Cle x0` :** la `TMap` ne retire jamais une paire toute seule. On le fait à la main quand la quantité tombe à 0, et on ne se sert plus du pointeur après le `Remove`.
+
+<Encadre type="retenir">
+Sur une `TMap` : `[]` quand tu es **sûr** que la clé existe, `Find` quand tu n'es pas sûr (et tu testes le pointeur), `FindRef` pour lire une copie avec une valeur par défaut, `FindOrAdd` pour créer si besoin. Et une valeur rangée dans une variable sans `&` est une copie.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Remplace les `FName` par des Data Assets, comme les objets bonus de Mario Kart : chaque objet aurait un nom affiché, une icône et une quantité maximale.
+- Ajoute un délégué `OnInventaireChange` en `BlueprintAssignable`, et affiche l'inventaire dans un widget UMG au lieu d'un message de débogage.
+- Limite l'inventaire à 5 objets différents : `Ajouter` renvoie `false` si un nouvel objet ne rentre plus.

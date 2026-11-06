@@ -1,0 +1,383 @@
+## Le contexte
+
+Quand le joueur perd de la vie, plein de choses doivent réagir : le texte de vie, un flash rouge à l'écran, un son, peut-être une caméra qui tremble. Si `VieJoueur` doit connaître tous ces scripts, il devient un énorme nœud de références.
+
+La bonne solution, c'est un **événement C#**. `VieJoueur` annonce « ma vie a changé » sans savoir qui écoute. Chaque script intéressé **s'abonne** avec `+=` et se **désabonne** avec `-=`. Ici l'événement est `static` : il appartient à la classe `VieJoueur` elle-même, pas à un objet. N'importe qui peut donc s'y abonner sans avoir de référence vers le joueur.
+
+```cs
+public static event Action<int, int> VieChangee;   // vie actuelle, vie max
+```
+
+Une collègue a branché un HUD et un flash rouge sur cet événement. Ça marche… à moitié.
+
+## Ce que tu dois faire
+
+**Mise en place :**
+
+1. Crée un objet vide `Joueur` avec le script `VieJoueur`.
+2. Crée un Canvas. Dedans : un **Text - TextMeshPro** en haut à gauche avec le texte « Vie : ? », et une **Image** qui couvre tout l'écran (Anchor Presets : maintiens Alt et clique sur le carré en bas à droite), de couleur rouge transparente. Décoche **Raycast Target** sur l'image pour qu'elle ne bloque pas les clics.
+3. Sur le Canvas, ajoute `HudVie` (relie le texte) et `FlashDegats` (relie l'image).
+4. Vérifie que ta scène est dans la liste **File › Build Profiles › Scene List**, sinon le rechargement avec R ne marchera pas.
+
+Les touches : H = prendre un coup, G = se soigner, R = recharger la scène.
+
+**Les symptômes :**
+
+- Au lancement, le HUD affiche parfois « Vie : ? » au lieu de « Vie : 100 / 100 », jusqu'au premier coup. Et le tout premier coup ne fait pas de flash.
+- Le flash rouge dure environ deux fois trop longtemps et reste presque opaque au lieu de s'estomper en douceur.
+- Après un R, l'erreur rouge `MissingReferenceException` apparaît dans la Console, et le HUD ne se met plus à jour du tout.
+
+**Ce qui est attendu :** « Vie : 100 / 100 » dès le lancement, un flash net de 0,4 seconde à **chaque** coup, et tout fonctionne aussi bien après autant de R que tu veux.
+
+Il y a **3 bugs**, un dans chaque script.
+
+## Le code de départ
+
+<Fichier nom="VieJoueur.cs">
+```cs
+using System;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
+
+public class VieJoueur : MonoBehaviour
+{
+    // Paramètres : vie actuelle, vie maximum
+    public static event Action<int, int> VieChangee;
+
+    [SerializeField] private int vieMax = 100;
+    [SerializeField] private int degatsParCoup = 15;
+    [SerializeField] private int soinParAppui = 20;
+
+    private int vie;
+
+    private void Awake()
+    {
+        vie = vieMax;
+        // On annonce la vie de départ à tous ceux qui écoutent
+        VieChangee?.Invoke(vie, vieMax);
+    }
+
+    private void Update()
+    {
+        Keyboard clavier = Keyboard.current;
+        if (clavier == null)
+        {
+            return;
+        }
+
+        if (clavier.hKey.wasPressedThisFrame)
+        {
+            RecevoirDegats(degatsParCoup);
+        }
+        if (clavier.gKey.wasPressedThisFrame)
+        {
+            Soigner(soinParAppui);
+        }
+        if (clavier.rKey.wasPressedThisFrame)
+        {
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+    }
+
+    public void RecevoirDegats(int degats)
+    {
+        vie = Mathf.Max(vie - degats, 0);
+        VieChangee?.Invoke(vie, vieMax);
+    }
+
+    public void Soigner(int quantite)
+    {
+        vie = Mathf.Min(vie + quantite, vieMax);
+        VieChangee?.Invoke(vie, vieMax);
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="HudVie.cs">
+```cs
+using TMPro;
+using UnityEngine;
+
+public class HudVie : MonoBehaviour
+{
+    [SerializeField] private TMP_Text texteVie;
+
+    private void OnEnable()
+    {
+        VieJoueur.VieChangee += MettreAJour;
+    }
+
+    private void MettreAJour(int vie, int vieMax)
+    {
+        texteVie.text = "Vie : " + vie + " / " + vieMax;
+        texteVie.color = vie <= vieMax / 4 ? Color.red : Color.white;
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="FlashDegats.cs">
+```cs
+using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class FlashDegats : MonoBehaviour
+{
+    [SerializeField] private Image voile;
+    [SerializeField] private float duree = 0.4f;
+    [SerializeField] private float opaciteMax = 0.5f;
+
+    private int derniereVie = -1;
+    private bool doitFlasher;
+
+    private void OnEnable()
+    {
+        VieJoueur.VieChangee += QuandVieChange;
+    }
+
+    private void OnDisable()
+    {
+        VieJoueur.VieChangee -= QuandVieChange;
+    }
+
+    private void Start()
+    {
+        voile.color = new Color(1f, 0f, 0f, 0f);
+    }
+
+    private void Update()
+    {
+        if (doitFlasher)
+        {
+            StartCoroutine(Flash());
+        }
+    }
+
+    private void QuandVieChange(int vie, int vieMax)
+    {
+        // derniereVie vaut -1 tant qu'on n'a pas reçu la vie de départ
+        if (derniereVie >= 0 && vie < derniereVie)
+        {
+            doitFlasher = true;
+        }
+        derniereVie = vie;
+    }
+
+    private IEnumerator Flash()
+    {
+        float temps = 0f;
+        while (temps < duree)
+        {
+            temps += Time.deltaTime;
+            float alpha = Mathf.Lerp(opaciteMax, 0f, temps / duree);
+            voile.color = new Color(1f, 0f, 0f, alpha);
+            yield return null;
+        }
+        doitFlasher = false;
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Au lancement, le HUD affiche « Vie : 100 / 100 », à chaque fois, quel que soit l'ordre des objets dans la Hierarchy.
+- [ ] Le **premier** coup déclenche un flash, comme les suivants.
+- [ ] Le flash dure 0,4 seconde et s'estompe en douceur. Si tu ajoutes un `Debug.Log` au début de `Flash`, il s'affiche **une fois** par coup.
+- [ ] Deux coups très rapprochés relancent le flash proprement depuis le début.
+- [ ] Après cinq R d'affilée, H et G mettent toujours le HUD à jour, sans aucune erreur dans la Console.
+
+## Si tu bloques
+
+<Indice titre="Bug 1 : qui est réveillé en premier ?">
+Au chargement d'une scène, Unity appelle `Awake` puis `OnEnable` sur chaque objet, objet par objet, dans un ordre que tu ne contrôles pas. `Start` n'est appelée qu'**après** que tous les objets de la scène ont fait leur `Awake` et leur `OnEnable`. Au moment où `VieJoueur` annonce sa vie de départ, le HUD est-il déjà abonné ?
+</Indice>
+
+<Indice titre="Bug 2 : une coroutine par image">
+Mets un `Debug.Log("Flash")` au début de la coroutine et prends un coup. Combien de lignes vois-tu ? Regarde quand `doitFlasher` repasse à `false`, et ce que fait `Update` pendant tout ce temps.
+</Indice>
+
+<Indice titre="Bug 3 : un abonné fantôme">
+L'événement est `static` : il n'appartient à aucun objet, donc il **survit** au rechargement de la scène. Compare `HudVie` et `FlashDegats` : l'un des deux fait quelque chose que l'autre oublie. Que devient l'abonnement de l'ancien HUD, détruit par le rechargement ?
+</Indice>
+
+<Indice titre="Relancer un flash proprement">
+Démarre la coroutine directement dans `QuandVieChange`, au lieu de passer par un booléen et `Update`. Garde-la dans une variable `Coroutine flashEnCours = StartCoroutine(Flash());` pour pouvoir faire `StopCoroutine(flashEnCours)` si un nouveau coup arrive pendant le flash précédent.
+</Indice>
+
+<Solution>
+
+<Fichier nom="VieJoueur.cs">
+```cs
+using System;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
+
+public class VieJoueur : MonoBehaviour
+{
+    public static event Action<int, int> VieChangee;
+
+    [SerializeField] private int vieMax = 100;
+    [SerializeField] private int degatsParCoup = 15;
+    [SerializeField] private int soinParAppui = 20;
+
+    private int vie;
+
+    private void Awake()
+    {
+        vie = vieMax;
+    }
+
+    // BUG 1 corrigé : dans Start, tous les abonnés de la scène ont fait leur OnEnable
+    private void Start()
+    {
+        VieChangee?.Invoke(vie, vieMax);
+    }
+
+    private void Update()
+    {
+        Keyboard clavier = Keyboard.current;
+        if (clavier == null)
+        {
+            return;
+        }
+
+        if (clavier.hKey.wasPressedThisFrame)
+        {
+            RecevoirDegats(degatsParCoup);
+        }
+        if (clavier.gKey.wasPressedThisFrame)
+        {
+            Soigner(soinParAppui);
+        }
+        if (clavier.rKey.wasPressedThisFrame)
+        {
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+    }
+
+    public void RecevoirDegats(int degats)
+    {
+        vie = Mathf.Max(vie - degats, 0);
+        VieChangee?.Invoke(vie, vieMax);
+    }
+
+    public void Soigner(int quantite)
+    {
+        vie = Mathf.Min(vie + quantite, vieMax);
+        VieChangee?.Invoke(vie, vieMax);
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="HudVie.cs">
+```cs
+using TMPro;
+using UnityEngine;
+
+public class HudVie : MonoBehaviour
+{
+    [SerializeField] private TMP_Text texteVie;
+
+    private void OnEnable()
+    {
+        VieJoueur.VieChangee += MettreAJour;
+    }
+
+    // BUG 3 corrigé : on se désabonne quand l'objet est désactivé ou détruit
+    private void OnDisable()
+    {
+        VieJoueur.VieChangee -= MettreAJour;
+    }
+
+    private void MettreAJour(int vie, int vieMax)
+    {
+        texteVie.text = "Vie : " + vie + " / " + vieMax;
+        texteVie.color = vie <= vieMax / 4 ? Color.red : Color.white;
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="FlashDegats.cs">
+```cs
+using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class FlashDegats : MonoBehaviour
+{
+    [SerializeField] private Image voile;
+    [SerializeField] private float duree = 0.4f;
+    [SerializeField] private float opaciteMax = 0.5f;
+
+    private int derniereVie = -1;
+    private Coroutine flashEnCours;
+
+    private void OnEnable()
+    {
+        VieJoueur.VieChangee += QuandVieChange;
+    }
+
+    private void OnDisable()
+    {
+        VieJoueur.VieChangee -= QuandVieChange;
+    }
+
+    private void Start()
+    {
+        voile.color = new Color(1f, 0f, 0f, 0f);
+    }
+
+    private void QuandVieChange(int vie, int vieMax)
+    {
+        if (derniereVie >= 0 && vie < derniereVie)
+        {
+            // BUG 2 corrigé : une seule coroutine à la fois, lancée au moment du coup
+            if (flashEnCours != null)
+            {
+                StopCoroutine(flashEnCours);
+            }
+            flashEnCours = StartCoroutine(Flash());
+        }
+        derniereVie = vie;
+    }
+
+    private IEnumerator Flash()
+    {
+        float temps = 0f;
+        while (temps < duree)
+        {
+            temps += Time.deltaTime;
+            float alpha = Mathf.Lerp(opaciteMax, 0f, temps / duree);
+            voile.color = new Color(1f, 0f, 0f, alpha);
+            yield return null;
+        }
+        flashEnCours = null;
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :**
+
+- **Bug 1, l'ordre Awake / OnEnable / Start.** Unity réveille les objets un par un : `Awake` puis `OnEnable` pour le premier, puis pour le suivant, etc. Si le `Joueur` passe avant le Canvas, il annonce sa vie alors que personne n'écoute encore : le HUD reste sur « Vie : ? », et `FlashDegats` garde `derniereVie` à -1, ce qui annule le flash du premier coup. Toutes les `Start` de la scène passent après tous les `OnEnable` : en annonçant dans `Start`, on est sûr que tout le monde est abonné. Retiens la règle : **`Awake` pour se préparer soi-même, `Start` pour parler aux autres.**
+- **Bug 2, la coroutine relancée à chaque image.** `doitFlasher` reste à `true` pendant toute la durée du flash, donc `Update` démarre une nouvelle coroutine **à chaque image** : environ 25 coroutines par coup, qui se battent pour la couleur de l'image. La plus jeune gagne, et la dernière ne finit qu'environ 0,8 seconde après le coup. En lançant la coroutine une seule fois, au moment du coup, il n'y en a jamais plus d'une.
+- **Bug 3, l'abonnement jamais retiré.** Quand on recharge la scène, l'ancien HUD est détruit, mais l'événement `static`, lui, garde une référence vers sa méthode `MettreAJour`. Au prochain `Invoke`, C# appelle la méthode de cet objet mort, qui touche `texteVie`, un composant détruit : `MissingReferenceException`. Et comme l'exception arrête l'appel des abonnés suivants, le nouveau HUD n'est jamais prévenu. `FlashDegats` faisait déjà bien les choses avec son `OnDisable`.
+
+<Encadre type="retenir">
+Chaque `+=` dans `OnEnable` doit avoir son `-=` dans `OnDisable`. C'est encore plus important avec un événement `static`, qui vit plus longtemps que n'importe quelle scène.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute un événement `public static event Action JoueurMort;` déclenché quand la vie tombe à 0, et un script `EcranGameOver` qui s'y abonne pour afficher un panneau.
+- Ajoute un script `SonDegats` qui joue un son à chaque perte de vie, sans modifier une seule ligne de `VieJoueur` : c'est tout l'intérêt des événements.
+- Fais trembler la caméra pendant le flash avec un troisième abonné, qui décale légèrement la position de la caméra au hasard pendant 0,2 seconde.

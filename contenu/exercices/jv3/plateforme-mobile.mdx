@@ -1,0 +1,147 @@
+## Le contexte
+
+Les plateformes qui montent et descendent sont partout dans les jeux de plateforme : il faut attendre le bon moment pour sauter dessus. Plutôt que de les animer à la main, on utilise une fonction mathématique qui oscille toute seule : le sinus.
+
+Tu as déjà croisé le sinus dans `RotatingObject` (module « Boîtes et objets bonus » de Mario Kart), pour faire flotter la boîte. Ici, tu vas l'utiliser pour déplacer tout l'acteur, dans la direction de ton choix.
+
+## Ce que tu dois faire
+
+1. Crée une classe C++ `APlateformeMobile` qui hérite de `AActor`.
+2. Recopie le header donné plus bas.
+3. Dans le `.cpp`, remplis les deux `// TODO`.
+4. Crée un Blueprint enfant, donne un mesh au composant `Mesh` (un cube aplati fait l'affaire), place deux ou trois plateformes dans le niveau et monte dessus.
+
+<Encadre type="info" titre="Le sinus en deux phrases">
+`FMath::Sin(Angle)` renvoie une valeur qui va de -1 à 1, puis revient à -1, et ainsi de suite. Un tour complet correspond à un angle de 2π radians (environ 6,28), que Unreal appelle `UE_TWO_PI`.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="PlateformeMobile.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "PlateformeMobile.generated.h"
+
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API APlateformeMobile : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	APlateformeMobile();
+	virtual void Tick(float DeltaTime) override;
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, Category = "Plateforme")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	// Distance maximale par rapport à la position de départ, dans chaque direction (en cm)
+	UPROPERTY(EditAnywhere, Category = "Plateforme")
+	FVector Amplitude = FVector(0.f, 0.f, 200.f);
+
+	// Durée d'un aller-retour complet, en secondes
+	UPROPERTY(EditAnywhere, Category = "Plateforme", meta = (ClampMin = "0.1"))
+	float Periode = 4.f;
+
+	// Décalage dans le cycle, entre 0 et 1, pour que deux plateformes ne bougent pas pareil
+	UPROPERTY(EditAnywhere, Category = "Plateforme", meta = (ClampMin = "0", ClampMax = "1"))
+	float Decalage = 0.f;
+
+private:
+	FVector PositionDepart;
+};
+```
+</Fichier>
+
+<Fichier nom="PlateformeMobile.cpp">
+```cpp
+#include "PlateformeMobile.h"
+#include "Components/StaticMeshComponent.h"
+
+APlateformeMobile::APlateformeMobile()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	RootComponent = Mesh;
+	Mesh->SetMobility(EComponentMobility::Movable);
+}
+
+void APlateformeMobile::BeginPlay()
+{
+	Super::BeginPlay();
+	// TODO 1 : retenir la position de départ de la plateforme
+}
+
+void APlateformeMobile::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	// TODO 2 : calculer l'angle à partir du temps écoulé, de la période et du décalage,
+	// puis placer la plateforme à PositionDepart + Amplitude multipliée par le sinus
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] La plateforme monte et descend doucement, sans à-coup, et revient toujours au même endroit.
+- [ ] Ton personnage reste dessus et se fait transporter.
+- [ ] Mettre `Amplitude` à `(300, 0, 0)` la fait aller et venir de gauche à droite au lieu de monter.
+- [ ] Doubler `Periode` la rend deux fois plus lente.
+- [ ] Deux plateformes côte à côte avec `Decalage` à 0 et 0,5 bougent en sens opposé.
+
+## Si tu bloques
+
+<Indice titre="Pourquoi retenir la position de départ ?">
+Si tu ajoutais un petit déplacement à chaque image, les erreurs d'arrondi s'accumuleraient et la plateforme finirait par dériver. Calcule plutôt la position complète à chaque image, à partir d'un point fixe : celui où tu as posé la plateforme dans le niveau (`GetActorLocation()` dans `BeginPlay`).
+</Indice>
+
+<Indice titre="Le temps écoulé">
+`GetWorld()->GetTimeSeconds()` donne le nombre de secondes depuis le début de la partie. Divisé par `Periode`, ça donne le nombre d'allers-retours déjà faits.
+</Indice>
+
+<Indice titre="Assembler la formule">
+Angle = 2π × (temps ÷ période + décalage). Ensuite, `FMath::Sin(Angle)` donne un nombre entre -1 et 1 : multiplie `Amplitude` par ce nombre et ajoute le résultat à la position de départ. Il ne reste qu'à appeler `SetActorLocation`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="PlateformeMobile.cpp">
+```cpp
+void APlateformeMobile::BeginPlay()
+{
+	Super::BeginPlay();
+	PositionDepart = GetActorLocation();
+}
+
+void APlateformeMobile::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	const float Temps = GetWorld()->GetTimeSeconds();
+	const float Angle = UE_TWO_PI * (Temps / Periode + Decalage);
+	SetActorLocation(PositionDepart + Amplitude * FMath::Sin(Angle));
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** le sinus fait tout le travail. Quand l'angle avance de 2π, la valeur fait un cycle complet de 0 à 1, puis à -1, puis revient à 0. Comme l'angle grandit de 2π toutes les `Periode` secondes, la plateforme fait un aller-retour par période. Le `Decalage` décale l'angle : 0,5 correspond à un demi-cycle, donc la plateforme est toujours à l'opposé de sa voisine. Et comme on repart de `PositionDepart` à chaque image, rien ne dérive.
+
+<Encadre type="piege">
+Le `Mesh` doit être en mobilité **Movable**, sinon Unreal refuse de le déplacer en jeu et affiche un avertissement. C'est pour ça que le constructeur appelle `SetMobility`.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Au lieu d'un sinus, essaie `FMath::Abs(FMath::Sin(Angle))` : la plateforme rebondit au lieu d'osciller. Que se passe-t-il ?
+- Ajoute une pause en haut : la plateforme attend une seconde avant de redescendre. (Le sinus ne suffit plus : il faut gérer un état.)
+- Fais tourner la plateforme sur elle-même en même temps avec `AddActorLocalRotation`, comme un manège.

@@ -1,0 +1,141 @@
+## Le contexte
+
+Un garde qui fait sa ronde, un slime qui fait des allers-retours sur une plateforme : la patrouille est le comportement d'ennemi le plus courant. L'ennemi va d'un point à un autre, s'arrête un instant, puis repart vers le point suivant.
+
+Tu vas placer les points de passage dans la scène et les donner au script grâce à un **tableau** (une liste de plusieurs éléments du même type).
+
+## Ce que tu dois faire
+
+1. Crée un sol (**GameObject › 3D Object › Plane**).
+2. Crée un cube rouge pour l'ennemi : **GameObject › 3D Object › Cube**, renomme-le `Ennemi` et pose-le sur le sol (position Y à 0.5).
+3. Crée 3 ou 4 objets vides (**GameObject › Create Empty**) nommés `Point1`, `Point2`, `Point3`... et place-les à différents endroits du sol, à la même hauteur que l'ennemi (Y à 0.5). Astuce : pour les voir dans la vue Scene, clique sur le cube à gauche de leur nom dans l'Inspector et choisis une icône.
+4. Crée un script `Patrouille`, colle le code de départ et glisse-le sur l'`Ennemi`.
+5. Dans l'Inspector de l'ennemi, le champ **Points** est un tableau. Clique sur **+** pour ajouter des cases, puis glisse chaque point depuis la Hierarchy dans une case, dans l'ordre de la ronde.
+6. Remplis les `// TODO`.
+
+<Encadre type="piege" titre="Ne range pas les points dans l'ennemi">
+Si tu glisses les points **dans** l'ennemi dans la Hierarchy (comme enfants), ils bougeront avec lui et il ne les atteindra jamais. Laisse-les à la racine, ou range-les dans un objet vide à part nommé `Ronde`.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="Patrouille.cs">
+```cs
+using UnityEngine;
+
+public class Patrouille : MonoBehaviour
+{
+    // Les points de la ronde, dans l'ordre
+    [SerializeField] private Transform[] points;
+
+    [SerializeField] private float vitesse = 3f;
+
+    // Temps d'arrêt sur chaque point, en secondes
+    [SerializeField] private float tempsPause = 1f;
+
+    private int indexCible = 0;
+    private float minuteurPause = 0f;
+
+    private void Update()
+    {
+        // Sécurité : sans points, on ne fait rien
+        if (points.Length == 0)
+        {
+            return;
+        }
+
+        // TODO 3 : si l'ennemi est en pause, faire descendre le minuteur et s'arrêter là
+
+        Transform cible = points[indexCible];
+
+        // TODO 1 : avancer vers la cible à vitesse constante, sans la dépasser
+
+        // TODO 2 : si la cible est atteinte, passer au point suivant
+        //          (après le dernier point, on revient au premier)
+        //          et lancer la pause
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] L'ennemi va de `Point1` à `Point2`, puis `Point3`, et ainsi de suite.
+- [ ] Après le dernier point, il revient au premier et recommence la ronde sans fin.
+- [ ] Il s'arrête environ une seconde sur chaque point.
+- [ ] Il avance à vitesse constante et ne tremble pas en arrivant sur un point.
+- [ ] Ajouter un point au tableau dans l'Inspector l'ajoute à la ronde, sans toucher au code.
+
+## Si tu bloques
+
+<Indice titre="Avancer vers un point">
+`Vector3.MoveTowards(depart, arrivee, distanceMax)` renvoie une position rapprochée de l'arrivée d'au plus `distanceMax`, sans jamais la dépasser. Donne-lui la position actuelle, la position de la cible et `vitesse * Time.deltaTime`, puis range le résultat dans `transform.position`.
+</Indice>
+
+<Indice titre="Cible atteinte ?">
+`Vector3.Distance(a, b)` donne la distance entre deux positions. Comme `MoveTowards` ne dépasse jamais la cible, l'ennemi finit exactement dessus : une distance plus petite que 0.01 suffit comme test.
+</Indice>
+
+<Indice titre="Revenir au premier point">
+L'opérateur `%` donne le reste d'une division. Avec 4 points, `(indexCible + 1) % points.Length` donne 1, 2, 3, puis 0 : on revient au début tout seul.
+</Indice>
+
+<Indice titre="La pause">
+Quand la cible est atteinte, mets `minuteurPause = tempsPause`. Au début de `Update`, si `minuteurPause` est plus grand que 0, retire-lui `Time.deltaTime` et fais `return` : l'ennemi ne bouge pas pendant cette image.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Patrouille.cs">
+```cs
+using UnityEngine;
+
+public class Patrouille : MonoBehaviour
+{
+    [SerializeField] private Transform[] points;
+    [SerializeField] private float vitesse = 3f;
+    [SerializeField] private float tempsPause = 1f;
+
+    private int indexCible = 0;
+    private float minuteurPause = 0f;
+
+    private void Update()
+    {
+        if (points.Length == 0)
+        {
+            return;
+        }
+
+        if (minuteurPause > 0f)
+        {
+            minuteurPause -= Time.deltaTime;
+            return;
+        }
+
+        Transform cible = points[indexCible];
+
+        transform.position = Vector3.MoveTowards(transform.position, cible.position, vitesse * Time.deltaTime);
+
+        if (Vector3.Distance(transform.position, cible.position) < 0.01f)
+        {
+            indexCible = (indexCible + 1) % points.Length;
+            minuteurPause = tempsPause;
+        }
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** l'ennemi ne retient qu'une chose, le numéro du point vers lequel il va (`indexCible`). À chaque image, il s'en rapproche un peu avec `MoveTowards`. Quand il est dessus, il passe au numéro suivant, et le `%` le ramène à 0 après le dernier.
+
+La pause est un simple minuteur : on le remplit en arrivant, on le vide image après image, et tant qu'il n'est pas vide on sort de `Update` avant de bouger. Pas besoin de coroutine pour ça.
+
+`MoveTowards` évite le tremblement : avec un déplacement fixe, l'ennemi pourrait dépasser le point, revenir, le redépasser... Là, il s'arrête pile dessus.
+
+</Solution>
+
+## Pour aller plus loin
+
+- Fais regarder l'ennemi vers sa cible avec `transform.LookAt(cible.position)` (mets les points à la même hauteur que lui, sinon il penche).
+- Ajoute une option `[SerializeField] private bool allerRetour` : au lieu de revenir au premier point, l'ennemi refait la ronde à l'envers.
+- Dessine la ronde dans la vue Scene avec `OnDrawGizmos` et `Gizmos.DrawLine` entre chaque point.

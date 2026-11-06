@@ -1,0 +1,397 @@
+## Le contexte
+
+Un ennemi un peu crédible ne fait pas qu'une seule chose. Il monte la garde, il te repère, il te court après, il t'attaque quand il est assez près, et il retourne à son poste quand tu t'es enfui. Si tu écris tout ça avec des `if` en vrac dans `Update`, ça devient vite illisible et plein de cas bizarres.
+
+La technique utilisée dans presque tous les jeux, c'est la **machine à états** : l'ennemi est toujours dans **un seul** état à la fois, et chaque état a ses propres règles pour passer à un autre. En C#, on la code avec un `enum` (la liste des états) et un `switch` (ce qu'on fait dans chaque état).
+
+Voici les règles de ton ennemi :
+
+```text
+GARDE      --(joueur à moins de rayonDetection)-->   POURSUITE
+POURSUITE  --(joueur à moins de porteeAttaque)-->    ATTAQUE
+POURSUITE  --(joueur à plus de rayonAbandon)-->      RETOUR
+ATTAQUE    --(joueur s'éloigne un peu)-->            POURSUITE
+RETOUR     --(joueur à moins de rayonDetection)-->   POURSUITE
+RETOUR     --(arrivé à son poste)-->                 GARDE
+```
+
+## Ce que tu dois faire
+
+1. Crée un sol (**GameObject › 3D Object › Plane**), agrandis-le (Scale 5, 1, 5).
+2. Crée une capsule `Joueur`. Dans l'Inspector, en haut, mets son **Tag** sur `Player`. Ajoute-lui le script `VieJoueur` (donné).
+3. Crée une capsule `Ennemi` un peu plus loin, et donne-lui un matériau à part (clic droit dans le Project › **Create › Material**, glisse-le sur la capsule). Ajoute-lui le script `Ennemi` et glisse son **Mesh Renderer** dans le champ `Rendu`.
+4. Crée le fichier `EtatEnnemi.cs` qui contient l'`enum` avec les quatre états.
+5. Remplis les `// TODO` de `Ennemi` en suivant le tableau des règles.
+6. Pour tester, lance le jeu, sélectionne le `Joueur` dans la Hierarchy et déplace-le avec l'outil **Move** (touche W) dans la vue Scene. Tu peux aussi réutiliser un de tes scripts de déplacement.
+
+<Encadre type="info" titre="Un enum, c'est quoi ?">
+Un `enum` est une liste de noms fixes. `EtatEnnemi.Garde`, `EtatEnnemi.Poursuite`… Une variable de type `EtatEnnemi` ne peut contenir qu'une de ces valeurs. C'est bien plus sûr qu'un `int` (que veut dire « état 3 » ?) ou qu'un `string` (une faute de frappe et plus rien ne marche, sans erreur).
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="VieJoueur.cs">
+```cs
+using UnityEngine;
+
+public class VieJoueur : MonoBehaviour
+{
+    [SerializeField] private int pointsDeVie = 100;
+
+    public void RecevoirDegats(int degats)
+    {
+        pointsDeVie -= degats;
+        Debug.Log("Aïe ! Il te reste " + pointsDeVie + " PV.");
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="EtatEnnemi.cs">
+```cs
+// TODO 1 : déclare un enum public EtatEnnemi avec les valeurs Garde, Poursuite, Attaque, Retour
+```
+</Fichier>
+
+<Fichier nom="Ennemi.cs">
+```cs
+using UnityEngine;
+
+public class Ennemi : MonoBehaviour
+{
+    [Header("Distances")]
+    [SerializeField] private float rayonDetection = 8f;
+    [SerializeField] private float rayonAbandon = 14f;
+    [SerializeField] private float porteeAttaque = 1.5f;
+
+    [Header("Mouvement")]
+    [SerializeField] private float vitesse = 3.5f;
+    [SerializeField] private float vitesseRotation = 360f;
+
+    [Header("Attaque")]
+    [SerializeField] private int degats = 10;
+    [SerializeField] private float delaiEntreAttaques = 1f;
+
+    [Header("Retour visuel")]
+    [SerializeField] private Renderer rendu;
+
+    private EtatEnnemi etat;
+    private Transform joueur;
+    private VieJoueur vieJoueur;
+    private Vector3 positionDeGarde;
+    private float prochaineAttaque;
+
+    private void Start()
+    {
+        // TODO 2 : trouve le joueur grâce à son tag, récupère son VieJoueur,
+        //          retiens la position de départ et passe en état Garde
+    }
+
+    private void Update()
+    {
+        // TODO 3 : calcule la distance au joueur, puis un switch sur etat
+        //          qui appelle la bonne méthode
+    }
+
+    private void EtatGarde(float distance)
+    {
+        // TODO 4 : tourne lentement sur place, passe en Poursuite si le joueur est détecté
+    }
+
+    private void EtatPoursuite(float distance)
+    {
+        // TODO 5
+    }
+
+    private void EtatAttaque(float distance)
+    {
+        // TODO 6 : regarde le joueur, frappe toutes les delaiEntreAttaques secondes
+    }
+
+    private void EtatRetour(float distance)
+    {
+        // TODO 7
+    }
+
+    private void ChangerEtat(EtatEnnemi nouvelEtat)
+    {
+        // TODO 8 : change etat, affiche un Debug.Log et change la couleur de l'ennemi
+    }
+
+    private void AvancerVers(Vector3 cible)
+    {
+        cible.y = transform.position.y;
+        TournerVers(cible);
+        transform.position = Vector3.MoveTowards(transform.position, cible, vitesse * Time.deltaTime);
+    }
+
+    private void TournerVers(Vector3 cible)
+    {
+        Vector3 direction = cible - transform.position;
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        Quaternion rotationVoulue = Quaternion.LookRotation(direction);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, rotationVoulue, vitesseRotation * Time.deltaTime);
+    }
+
+    private static float DistanceAPlat(Vector3 a, Vector3 b)
+    {
+        a.y = 0f;
+        b.y = 0f;
+        return Vector3.Distance(a, b);
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, rayonDetection);
+        Gizmos.color = Color.gray;
+        Gizmos.DrawWireSphere(transform.position, rayonAbandon);
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, porteeAttaque);
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Au repos, l'ennemi est vert et tourne lentement sur lui-même.
+- [ ] Quand tu entres dans le cercle jaune (visible dans la vue Scene si l'ennemi est sélectionné), il devient orange et fonce vers toi.
+- [ ] Quand il est collé à toi, il devient rouge et la Console affiche « Aïe ! » une fois par seconde, pas à chaque image.
+- [ ] Si tu t'enfuis au-delà du cercle gris, il devient bleu et retourne exactement à son point de départ, puis redevient vert.
+- [ ] La Console affiche chaque changement d'état, et il n'y a jamais deux changements à la suite qui font des allers-retours en boucle.
+
+## Si tu bloques
+
+<Indice titre="La forme générale">
+`Update` ne fait presque rien : il calcule la distance avec `DistanceAPlat(transform.position, joueur.position)`, puis un `switch (etat)` avec un `case` par état. Chaque `case` appelle sa méthode et finit par `break;`. Toute la logique est rangée dans les méthodes `EtatXxx`.
+</Indice>
+
+<Indice titre="Trouver le joueur">
+`GameObject.FindWithTag("Player")` renvoie l'objet qui a ce tag, ou `null` s'il n'y en a pas. Fais-le **une seule fois** dans `Start` et garde le résultat dans `joueur`. Chercher un objet à chaque image coûte cher.
+</Indice>
+
+<Indice titre="Frapper une fois par seconde">
+Même principe qu'une cadence de tir : si `Time.time >= prochaineAttaque`, tu frappes, puis tu fais `prochaineAttaque = Time.time + delaiEntreAttaques;`. Dans `ChangerEtat`, quand on entre en `Attaque`, donne un petit délai de préparation (`Time.time + 0.3f`) pour que le premier coup ne soit pas instantané.
+</Indice>
+
+<Indice titre="L'ennemi hésite entre deux états">
+Si on entre en `Attaque` à moins de 1,5 m et qu'on en sort à plus de 1,5 m, l'ennemi peut changer d'état à chaque image quand tu es pile à la limite. L'astuce s'appelle l'**hystérésis** : on sort de l'attaque un peu plus loin qu'on y entre, par exemple à `porteeAttaque * 1.3f`. C'est pour la même raison que `rayonAbandon` est plus grand que `rayonDetection`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="EtatEnnemi.cs">
+```cs
+public enum EtatEnnemi
+{
+    Garde,
+    Poursuite,
+    Attaque,
+    Retour
+}
+```
+</Fichier>
+
+<Fichier nom="Ennemi.cs">
+```cs
+using UnityEngine;
+
+public class Ennemi : MonoBehaviour
+{
+    [Header("Distances")]
+    [SerializeField] private float rayonDetection = 8f;
+    [SerializeField] private float rayonAbandon = 14f;
+    [SerializeField] private float porteeAttaque = 1.5f;
+
+    [Header("Mouvement")]
+    [SerializeField] private float vitesse = 3.5f;
+    [SerializeField] private float vitesseRotation = 360f;
+
+    [Header("Attaque")]
+    [SerializeField] private int degats = 10;
+    [SerializeField] private float delaiEntreAttaques = 1f;
+
+    [Header("Retour visuel")]
+    [SerializeField] private Renderer rendu;
+
+    private EtatEnnemi etat;
+    private Transform joueur;
+    private VieJoueur vieJoueur;
+    private Vector3 positionDeGarde;
+    private float prochaineAttaque;
+
+    private void Start()
+    {
+        GameObject objetJoueur = GameObject.FindWithTag("Player");
+        if (objetJoueur == null)
+        {
+            Debug.LogError("Aucun objet avec le tag Player dans la scène.");
+            enabled = false;
+            return;
+        }
+
+        joueur = objetJoueur.transform;
+        vieJoueur = objetJoueur.GetComponent<VieJoueur>();
+        positionDeGarde = transform.position;
+        ChangerEtat(EtatEnnemi.Garde);
+    }
+
+    private void Update()
+    {
+        float distance = DistanceAPlat(transform.position, joueur.position);
+
+        switch (etat)
+        {
+            case EtatEnnemi.Garde:
+                EtatGarde(distance);
+                break;
+            case EtatEnnemi.Poursuite:
+                EtatPoursuite(distance);
+                break;
+            case EtatEnnemi.Attaque:
+                EtatAttaque(distance);
+                break;
+            case EtatEnnemi.Retour:
+                EtatRetour(distance);
+                break;
+        }
+    }
+
+    private void EtatGarde(float distance)
+    {
+        transform.Rotate(0f, 30f * Time.deltaTime, 0f);
+
+        if (distance < rayonDetection)
+        {
+            ChangerEtat(EtatEnnemi.Poursuite);
+        }
+    }
+
+    private void EtatPoursuite(float distance)
+    {
+        AvancerVers(joueur.position);
+
+        if (distance <= porteeAttaque)
+        {
+            ChangerEtat(EtatEnnemi.Attaque);
+        }
+        else if (distance > rayonAbandon)
+        {
+            ChangerEtat(EtatEnnemi.Retour);
+        }
+    }
+
+    private void EtatAttaque(float distance)
+    {
+        TournerVers(joueur.position);
+
+        if (Time.time >= prochaineAttaque)
+        {
+            if (vieJoueur != null)
+            {
+                vieJoueur.RecevoirDegats(degats);
+            }
+            prochaineAttaque = Time.time + delaiEntreAttaques;
+        }
+
+        // Hystérésis : on sort de l'attaque un peu plus loin qu'on y entre
+        if (distance > porteeAttaque * 1.3f)
+        {
+            ChangerEtat(EtatEnnemi.Poursuite);
+        }
+    }
+
+    private void EtatRetour(float distance)
+    {
+        AvancerVers(positionDeGarde);
+
+        if (distance < rayonDetection)
+        {
+            ChangerEtat(EtatEnnemi.Poursuite);
+        }
+        else if (DistanceAPlat(transform.position, positionDeGarde) < 0.05f)
+        {
+            ChangerEtat(EtatEnnemi.Garde);
+        }
+    }
+
+    private void ChangerEtat(EtatEnnemi nouvelEtat)
+    {
+        Debug.Log(name + " : " + etat + " -> " + nouvelEtat);
+        etat = nouvelEtat;
+
+        if (etat == EtatEnnemi.Attaque)
+        {
+            prochaineAttaque = Time.time + 0.3f;
+        }
+
+        // Une "switch expression" : une façon courte d'écrire un switch qui renvoie une valeur
+        rendu.material.color = etat switch
+        {
+            EtatEnnemi.Garde => Color.green,
+            EtatEnnemi.Poursuite => new Color(1f, 0.5f, 0f),
+            EtatEnnemi.Attaque => Color.red,
+            EtatEnnemi.Retour => Color.blue,
+            _ => Color.white
+        };
+    }
+
+    private void AvancerVers(Vector3 cible)
+    {
+        cible.y = transform.position.y;
+        TournerVers(cible);
+        transform.position = Vector3.MoveTowards(transform.position, cible, vitesse * Time.deltaTime);
+    }
+
+    private void TournerVers(Vector3 cible)
+    {
+        Vector3 direction = cible - transform.position;
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        Quaternion rotationVoulue = Quaternion.LookRotation(direction);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, rotationVoulue, vitesseRotation * Time.deltaTime);
+    }
+
+    private static float DistanceAPlat(Vector3 a, Vector3 b)
+    {
+        a.y = 0f;
+        b.y = 0f;
+        return Vector3.Distance(a, b);
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, rayonDetection);
+        Gizmos.color = Color.gray;
+        Gizmos.DrawWireSphere(transform.position, rayonAbandon);
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, porteeAttaque);
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** à chaque image, une seule méthode d'état s'exécute. Chacune ne s'occupe que de deux choses : agir (avancer, tourner, frapper) et vérifier ses sorties. Tous les changements passent par `ChangerEtat`, qui est le seul endroit où l'on règle ce qui se passe « en entrant » dans un état (couleur, délai avant le premier coup). Pour ajouter un état, par exemple `Fuite` quand l'ennemi a peu de vie, tu ajoutes une valeur dans l'`enum`, un `case` et une méthode, sans casser les autres.
+
+<Encadre type="retenir">
+Une machine à états, c'est : **un enum** pour la liste des états, **un switch** dans `Update`, **une méthode par état** qui agit puis teste ses sorties, et **une seule méthode** `ChangerEtat` pour les transitions. Tu retrouveras ce schéma partout : IA, menus, animations, phases d'un boss.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute un état `Etourdi` : quand le joueur appuie sur Espace à moins de 3 m, l'ennemi s'arrête deux secondes, puis reprend la poursuite.
+- Remplace le mouvement par un `Rigidbody` et sa `linearVelocity` pour que l'ennemi soit bloqué par les murs.
+- Ajoute un texte TextMeshPro au-dessus de sa tête (Canvas en mode **World Space**) qui affiche le nom de l'état en cours.

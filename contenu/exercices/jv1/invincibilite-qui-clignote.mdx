@@ -1,0 +1,166 @@
+## Le contexte
+
+Dans beaucoup de jeux, quand le joueur se fait toucher, il clignote pendant une seconde et ne peut plus être blessé. Ça lui laisse le temps de s'éloigner de l'ennemi au lieu de perdre toutes ses vies d'un coup.
+
+Ce script utilise une **coroutine** : une fonction qui peut faire une pause (« attends 0,1 seconde ») puis reprendre là où elle s'était arrêtée, sans bloquer le jeu. Sauf que le script est plein de bugs.
+
+## Ce que tu dois faire
+
+**Mise en place (sans bug)**
+
+1. Reprends ton cube `Joueur` de l'exercice « Déplacer un cube au clavier », avec un **Rigidbody** coché **Is Kinematic**.
+2. Crée un ennemi : un cube rouge nommé `Ennemi`, posé sur le sol. Sur son **Box Collider**, coche **Is Trigger**.
+3. Crée le tag `Ennemi` (**Tag › Add Tag… › +**) et donne-le à l'ennemi.
+4. Crée un script `Invincibilite`, colle le code de départ et glisse-le sur le `Joueur`.
+5. Lance le jeu et fonce dans l'ennemi plusieurs fois.
+
+**Le bug**
+
+**Le symptôme :** le joueur traverse l'ennemi sans jamais perdre de vie.
+
+**Ce qui est attendu :** au contact, le joueur perd une vie, puis clignote pendant environ 1,6 seconde. Pendant ce temps, toucher à nouveau l'ennemi ne lui fait rien perdre. Après le clignotement, il redevient vulnérable.
+
+**Il y a 3 bugs.** Corrige-les un par un : chaque correction en fait apparaître un nouveau.
+
+## Le code de départ
+
+<Fichier nom="Invincibilite.cs">
+```cs
+using System.Collections;
+using UnityEngine;
+
+public class Invincibilite : MonoBehaviour
+{
+    [SerializeField] private int vies = 3;
+
+    // Durée d'un « éteint » ou d'un « allumé », en secondes
+    [SerializeField] private float dureeClignotement = 0.1f;
+    [SerializeField] private int nombreClignotements = 8;
+
+    private Renderer rendu;
+    private bool invincible = false;
+
+    private void Awake()
+    {
+        rendu = GetComponent<Renderer>();
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Ennemi") && invincible)
+        {
+            vies--;
+            Debug.Log("Aïe ! Vies restantes : " + vies);
+            Clignoter();
+        }
+    }
+
+    private IEnumerator Clignoter()
+    {
+        invincible = true;
+
+        for (int i = 0; i < nombreClignotements; i++)
+        {
+            rendu.enabled = false;
+            yield return new WaitForSeconds(dureeClignotement);
+            rendu.enabled = true;
+        }
+
+        invincible = false;
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Toucher l'ennemi fait perdre une vie, affichée dans la Console.
+- [ ] Le joueur clignote vraiment : on le voit disparaître et réapparaître plusieurs fois.
+- [ ] Pendant le clignotement, ressortir et rentrer dans l'ennemi ne fait pas perdre de vie.
+- [ ] À la fin du clignotement, le joueur est bien visible et peut de nouveau perdre une vie.
+
+## Si tu bloques
+
+<Indice titre="Bug 1 : jamais de dégâts">
+Lis la condition du `if` à voix haute : « si c'est un ennemi **et** que je suis invincible ». Est-ce vraiment quand on veut perdre une vie ?
+</Indice>
+
+<Indice titre="Bug 2 : pas de clignotement, pas d'invincibilité">
+Une coroutine ne se lance pas en l'appelant comme une fonction normale. Écrire `Clignoter();` crée la coroutine, puis la jette sans jamais l'exécuter. Il faut la confier à Unity avec `StartCoroutine(...)`.
+</Indice>
+
+<Indice titre="Bug 3 : il disparaît d'un coup au lieu de clignoter">
+Suis la boucle pas à pas : on éteint, on attend, on rallume... puis on recommence la boucle et on éteint **tout de suite**, dans la même image. Le joueur est rallumé pendant combien de temps ? Il manque une attente.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Invincibilite.cs">
+```cs
+using System.Collections;
+using UnityEngine;
+
+public class Invincibilite : MonoBehaviour
+{
+    [SerializeField] private int vies = 3;
+    [SerializeField] private float dureeClignotement = 0.1f;
+    [SerializeField] private int nombreClignotements = 8;
+
+    private Renderer rendu;
+    private bool invincible = false;
+
+    private void Awake()
+    {
+        rendu = GetComponent<Renderer>();
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        // Bug 1 corrigé : on perd une vie seulement si on n'est PAS invincible
+        if (other.CompareTag("Ennemi") && !invincible)
+        {
+            vies--;
+            Debug.Log("Aïe ! Vies restantes : " + vies);
+
+            // Bug 2 corrigé : une coroutine se lance avec StartCoroutine
+            StartCoroutine(Clignoter());
+        }
+    }
+
+    private IEnumerator Clignoter()
+    {
+        invincible = true;
+
+        for (int i = 0; i < nombreClignotements; i++)
+        {
+            rendu.enabled = false;
+            yield return new WaitForSeconds(dureeClignotement);
+            rendu.enabled = true;
+
+            // Bug 3 corrigé : on reste visible un moment avant de s'éteindre à nouveau
+            yield return new WaitForSeconds(dureeClignotement);
+        }
+
+        invincible = false;
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :**
+
+- **Bug 1, la condition inversée.** Il fallait `!invincible` (« pas invincible »). Avec `invincible`, on ne perdait une vie que pendant l'invincibilité... qui ne commençait jamais.
+- **Bug 2, la coroutine jamais lancée.** Une fonction qui renvoie `IEnumerator` ne s'exécute pas quand on l'appelle : elle prépare seulement la coroutine. `StartCoroutine` la donne à Unity, qui la fait avancer image après image et la reprend après chaque `yield return`. Sans ça, `invincible` restait à `false` et le joueur perdait une vie à chaque contact, sans clignoter.
+- **Bug 3, l'attente manquante.** Avec une seule attente par tour de boucle, le joueur était rallumé puis éteint dans la même image : à l'écran, il restait invisible tout du long. Avec deux attentes, il passe 0,1 seconde éteint, 0,1 seconde allumé, 8 fois de suite, soit 1,6 seconde au total.
+
+<Encadre type="retenir">
+`yield return new WaitForSeconds(x)` veut dire « mets cette fonction en pause pendant x secondes, et continue le jeu en attendant ». Ça ne marche que dans une coroutine, lancée avec `StartCoroutine`.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Quand `vies` arrive à 0, affiche « Game over » et désactive le joueur avec `gameObject.SetActive(false)`.
+- Au lieu de faire disparaître le joueur, fais-le clignoter en blanc et rouge avec `rendu.material.color`.
+- Ajoute un recul : au contact, pousse le joueur à l'opposé de l'ennemi, avec la direction `transform.position - other.transform.position`.

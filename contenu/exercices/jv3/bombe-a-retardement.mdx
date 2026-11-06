@@ -1,0 +1,212 @@
+## Le contexte
+
+Un piège qui ne se déclenche pas tout de suite, ça laisse au joueur une chance de fuir : bombe à retardement, plancher qui s'effondre après deux secondes, porte qui se referme au bout d'un moment. Pour tout ça, on a besoin d'attendre.
+
+Tu pourrais compter le temps toi-même dans `Tick`, mais Unreal a un outil fait pour ça : le **timer**. Tu lui dis « appelle cette fonction dans 3 secondes » et il s'en occupe. Tu peux aussi lui demander de rappeler une fonction en boucle, toutes les secondes par exemple.
+
+## Ce que tu dois faire
+
+1. Crée une classe C++ `ABombe` qui hérite de `AActor`.
+2. Recopie le header donné plus bas.
+3. Remplis les trois `// TODO` du `.cpp`.
+4. Crée un Blueprint enfant avec une sphère comme mesh, pose-le dans le niveau, puis touche-le avec ton personnage et reste à côté (ou cours !).
+
+## Le code de départ
+
+<Fichier nom="Bombe.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Bombe.generated.h"
+
+class USphereComponent;
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API ABombe : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	ABombe();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, Category = "Bombe")
+	TObjectPtr<USphereComponent> Declencheur;
+
+	UPROPERTY(VisibleAnywhere, Category = "Bombe")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	// Temps entre le déclenchement et l'explosion, en secondes
+	UPROPERTY(EditAnywhere, Category = "Bombe", meta = (ClampMin = "1"))
+	int32 Delai = 3;
+
+	// Rayon de l'explosion, en cm
+	UPROPERTY(EditAnywhere, Category = "Bombe")
+	float RayonExplosion = 500.f;
+
+	// Vitesse donnée au personnage soufflé par l'explosion
+	UPROPERTY(EditAnywhere, Category = "Bombe")
+	float ForceSouffle = 1500.f;
+
+private:
+	UFUNCTION()
+	void EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	// Appelée une fois par seconde pendant le compte à rebours
+	void Tic();
+
+	// Appelée une seule fois, à la fin du délai
+	void Exploser();
+
+	FTimerHandle TimerTic;
+	FTimerHandle TimerExplosion;
+
+	bool bAmorcee = false;
+	int32 SecondesRestantes = 0;
+};
+```
+</Fichier>
+
+<Fichier nom="Bombe.cpp">
+```cpp
+#include "Bombe.h"
+#include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "GameFramework/Character.h"
+#include "Kismet/GameplayStatics.h"
+#include "TimerManager.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/Engine.h"
+
+ABombe::ABombe()
+{
+	Declencheur = CreateDefaultSubobject<USphereComponent>(TEXT("Declencheur"));
+	RootComponent = Declencheur;
+	Declencheur->SetSphereRadius(120.f);
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	Mesh->SetupAttachment(Declencheur);
+}
+
+void ABombe::BeginPlay()
+{
+	Super::BeginPlay();
+	Declencheur->OnComponentBeginOverlap.AddDynamic(this, &ABombe::EntreeZone);
+}
+
+void ABombe::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	// TODO 1 : si c'est un Pawn et que la bombe n'est pas déjà amorcée,
+	// l'amorcer, afficher le délai, et lancer les deux timers (Tic en boucle, Exploser une seule fois)
+}
+
+void ABombe::Tic()
+{
+	// TODO 2 : enlever une seconde et l'afficher à l'écran
+}
+
+void ABombe::Exploser()
+{
+	// TODO 3 : arrêter le timer du compte à rebours, dessiner une sphère de débogage,
+	// projeter le joueur s'il est dans le rayon, puis détruire la bombe
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Toucher la bombe affiche « 3 », puis « 2 », puis « 1 », une seconde d'écart, au même endroit de l'écran.
+- [ ] Après 3 secondes, une sphère orange apparaît et la bombe disparaît.
+- [ ] Si ton personnage est dans la sphère, il est projeté en l'air et en arrière. S'il s'est enfui assez loin, il ne se passe rien.
+- [ ] Toucher la bombe une deuxième fois pendant le compte à rebours ne relance pas le compte.
+- [ ] Mettre `Delai` à 5 dans le panneau Details donne bien un compte à rebours de 5.
+
+## Si tu bloques
+
+<Indice titre="Lancer un timer">
+Tout passe par `GetWorldTimerManager().SetTimer(...)`. Les paramètres sont : le handle (la « télécommande » du timer, qui sert à l'arrêter plus tard), l'objet (`this`), la fonction (`&ABombe::Exploser`), le délai en secondes, et un booléen qui dit si le timer tourne en boucle.
+</Indice>
+
+<Indice titre="Arrêter un timer">
+Un timer en boucle ne s'arrête jamais tout seul. `GetWorldTimerManager().ClearTimer(TimerTic)` l'arrête. Fais-le au début de `Exploser`.
+</Indice>
+
+<Indice titre="Le souffle">
+`UGameplayStatics::GetPlayerCharacter(this, 0)` te donne le personnage du joueur. Compare `FVector::Dist` entre lui et la bombe avec `RayonExplosion`. Pour le projeter, prends la direction bombe vers joueur (`GetSafeNormal()`), ajoute un peu de hauteur, multiplie par `ForceSouffle`, et passe le tout à `LaunchCharacter(Vitesse, true, true)`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Bombe.cpp">
+```cpp
+void ABombe::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (bAmorcee || !Cast<APawn>(OtherActor))
+	{
+		return;
+	}
+
+	bAmorcee = true;
+	SecondesRestantes = Delai;
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(10, 1.1f, FColor::Red, FString::Printf(TEXT("%d..."), SecondesRestantes));
+	}
+
+	GetWorldTimerManager().SetTimer(TimerTic, this, &ABombe::Tic, 1.f, true);
+	GetWorldTimerManager().SetTimer(TimerExplosion, this, &ABombe::Exploser, static_cast<float>(Delai), false);
+}
+
+void ABombe::Tic()
+{
+	SecondesRestantes--;
+	if (SecondesRestantes > 0 && GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(10, 1.1f, FColor::Red, FString::Printf(TEXT("%d..."), SecondesRestantes));
+	}
+}
+
+void ABombe::Exploser()
+{
+	GetWorldTimerManager().ClearTimer(TimerTic);
+
+	DrawDebugSphere(GetWorld(), GetActorLocation(), RayonExplosion, 24, FColor::Orange, false, 2.f);
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(10, 2.f, FColor::Orange, TEXT("BOUM !"));
+	}
+
+	ACharacter* Joueur = UGameplayStatics::GetPlayerCharacter(this, 0);
+	if (Joueur && FVector::Dist(Joueur->GetActorLocation(), GetActorLocation()) <= RayonExplosion)
+	{
+		FVector Direction = (Joueur->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+		Direction.Z = 0.5f;
+		Joueur->LaunchCharacter(Direction.GetSafeNormal() * ForceSouffle, true, true);
+	}
+
+	Destroy();
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** on lance deux timers en même temps. Le premier rappelle `Tic` toutes les secondes, le second appelle `Exploser` une seule fois à la fin. Le booléen `bAmorcee` empêche un deuxième overlap de tout relancer. Dans `Exploser`, on arrête le timer en boucle avant de détruire la bombe : sinon il pourrait encore appeler `Tic` au même moment. La clé `10` du message fait que chaque chiffre remplace le précédent, et la durée de 1,1 s le garde affiché jusqu'au suivant.
+
+<Encadre type="retenir">
+Un `FTimerHandle` ne contient pas le timer, c'est juste un numéro pour le retrouver. Garde-le en variable membre si tu veux pouvoir l'arrêter ou savoir combien de temps il reste (`GetTimerRemaining`).
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Remplace le souffle par de vrais dégâts avec `UGameplayStatics::ApplyRadialDamage` : tous les acteurs dans le rayon sont touchés, pas seulement le joueur.
+- Fais clignoter la bombe de plus en plus vite en changeant la couleur ou l'échelle du mesh à chaque `Tic`.
+- Ajoute une fonction `Desamorcer()` qui arrête les deux timers : un joueur qui appuie sur une touche à côté de la bombe la sauve.

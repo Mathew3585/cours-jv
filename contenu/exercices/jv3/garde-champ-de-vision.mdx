@@ -1,0 +1,385 @@
+## Le contexte
+
+Dans un jeu d'infiltration, un garde fait sa ronde entre quelques points. S'il te **voit**, il te poursuit. Si tu te caches assez longtemps, il abandonne et reprend sa ronde. « Voir » veut dire trois choses : tu es assez près, tu es devant lui (dans son cône de vision), et aucun mur ne vous sépare.
+
+Dans le module « Le controller prend les commandes » de Mario Kart, tu as séparé le kart (qui exécute) du controller (qui décide), pour qu'une IA puisse piloter le même kart. Ici, c'est exactement ça : le garde est un simple `ACharacter`, et c'est un `AAIController` qui décide où il va.
+
+## Ce que tu dois faire
+
+1. Ajoute les modules d'IA à ton fichier `MonProjet.Build.cs` (voir plus bas), puis régénère les fichiers du projet.
+2. Crée `AGarde` (hérite de `ACharacter`) : il porte la liste de ses points de ronde et ses deux vitesses. Il est possédé automatiquement par un `AGardeController`.
+3. Crée `AGardeController` (hérite de `AAIController`) :
+   - au début, il envoie le garde vers le premier point, puis vers le suivant à chaque arrivée ;
+   - à chaque image, il teste si le garde voit le joueur (distance, angle avec un **produit scalaire**, puis un line trace contre les murs) ;
+   - s'il le voit, il passe en poursuite avec `MoveToActor` ;
+   - s'il ne le voit plus pendant `DelaiAbandon` secondes, il reprend sa ronde.
+4. Pose un **Nav Mesh Bounds Volume** qui couvre ton niveau (touche P pour voir la zone verte), quelques `Target Point` pour la ronde, et un garde (un Blueprint enfant de `AGarde` avec le mesh du mannequin).
+5. Si le garde arrive à moins de `DistanceCapture` du joueur, le niveau redémarre.
+
+<Encadre type="info" titre="Les modules à ajouter dans Build.cs">
+Le code d'IA est dans des modules qui ne sont pas inclus par défaut. Sans eux, ton code compile mais l'édition de liens échoue avec des erreurs « unresolved external symbol ». Dans `Source/MonProjet/MonProjet.Build.cs` :
+
+```cpp
+PublicDependencyModuleNames.AddRange(new string[] {
+	"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput",
+	"AIModule", "GameplayTasks", "NavigationSystem"
+});
+```
+
+Garde les modules qui y sont déjà, ajoute seulement les trois derniers.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="Garde.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Character.h"
+#include "Garde.generated.h"
+
+UCLASS()
+class MONPROJET_API AGarde : public ACharacter
+{
+	GENERATED_BODY()
+
+public:
+	AGarde();
+
+	// Choisis-les dans le niveau avec la pipette
+	UPROPERTY(EditInstanceOnly, Category = "Garde")
+	TArray<TObjectPtr<AActor>> PointsDeRonde;
+
+	UPROPERTY(EditAnywhere, Category = "Garde")
+	float VitesseRonde = 200.f;
+
+	UPROPERTY(EditAnywhere, Category = "Garde")
+	float VitessePoursuite = 500.f;
+};
+```
+</Fichier>
+
+<Fichier nom="GardeController.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "AIController.h"
+#include "GardeController.generated.h"
+
+class AGarde;
+
+UCLASS()
+class MONPROJET_API AGardeController : public AAIController
+{
+	GENERATED_BODY()
+
+public:
+	AGardeController();
+	virtual void Tick(float DeltaTime) override;
+	virtual void OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result) override;
+
+protected:
+	virtual void OnPossess(APawn* InPawn) override;
+
+	UPROPERTY(EditAnywhere, Category = "Vision")
+	float DistanceVue = 1500.f;
+
+	// Moitié de l'ouverture du cône : 45 donne un cône de 90 degrés
+	UPROPERTY(EditAnywhere, Category = "Vision")
+	float DemiAngleVue = 45.f;
+
+	UPROPERTY(EditAnywhere, Category = "Vision")
+	float DelaiAbandon = 3.f;
+
+	UPROPERTY(EditAnywhere, Category = "Vision")
+	float DistanceCapture = 120.f;
+
+	UPROPERTY(EditAnywhere, Category = "Vision")
+	bool bAfficherCone = true;
+
+private:
+	bool PeutVoir(const AActor* Cible) const;
+	void AllerAuPointSuivant();
+	void CommencerPoursuite(AActor* Cible);
+	void ArreterPoursuite();
+
+	UPROPERTY()
+	TObjectPtr<AGarde> Garde;
+
+	int32 IndexPoint = 0;
+	bool bEnPoursuite = false;
+	float TempsSansVoir = 0.f;
+};
+```
+</Fichier>
+
+<Fichier nom="GardeController.cpp">
+```cpp
+#include "GardeController.h"
+#include "Garde.h"
+#include "Navigation/PathFollowingComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "DrawDebugHelpers.h"
+
+AGardeController::AGardeController()
+{
+	PrimaryActorTick.bCanEverTick = true;
+}
+
+void AGardeController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+	// TODO 1 : retenir le garde, régler sa vitesse de ronde, partir vers le premier point
+}
+
+void AGardeController::AllerAuPointSuivant()
+{
+	// TODO 2 : MoveToLocation vers le point courant, puis passer à l'index suivant (en boucle)
+}
+
+void AGardeController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
+{
+	Super::OnMoveCompleted(RequestID, Result);
+	// TODO 3 : en ronde, une fois arrivé, repartir vers le point suivant
+}
+
+bool AGardeController::PeutVoir(const AActor* Cible) const
+{
+	// TODO 4 : distance, puis angle (produit scalaire), puis mur (line trace)
+	return false;
+}
+
+void AGardeController::CommencerPoursuite(AActor* Cible)
+{
+	// TODO 5
+}
+
+void AGardeController::ArreterPoursuite()
+{
+	// TODO 6
+}
+
+void AGardeController::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	// TODO 7 : voir le joueur, poursuivre, abandonner, capturer
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Le garde fait sa ronde entre les Target Points, en boucle, sans s'arrêter.
+- [ ] Si tu passes **derrière** lui, même tout près, il ne réagit pas.
+- [ ] Si tu entres dans son cône et que rien ne vous sépare, il accélère et te poursuit.
+- [ ] Caché derrière un mur, il ne te voit pas, même si tu es dans le cône.
+- [ ] Si tu restes hors de vue `DelaiAbandon` secondes, il reprend sa ronde à vitesse normale.
+- [ ] S'il t'attrape, le niveau redémarre.
+
+## Si tu bloques
+
+<Indice titre="Le garde ne bouge pas du tout">
+Trois causes fréquentes. Pas de Nav Mesh : appuie sur P dans le viewport, le sol doit être vert. Le garde n'est pas possédé : dans son constructeur, il faut `AIControllerClass = AGardeController::StaticClass();` et `AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;`. Ou bien le Blueprint du garde a une autre classe dans **AI Controller Class**.
+</Indice>
+
+<Indice titre="Le cône de vision avec le produit scalaire">
+Prends deux vecteurs de longueur 1 : la direction où regarde le garde (`GetActorForwardVector()`) et la direction vers le joueur (`VersJoueur.GetSafeNormal()`). Leur produit scalaire `FVector::DotProduct(A, B)` vaut le cosinus de l'angle entre eux : 1 si le joueur est pile devant, 0 sur le côté, -1 derrière. Le joueur est dans le cône si ce produit est plus grand que `FMath::Cos(FMath::DegreesToRadians(DemiAngleVue))`.
+</Indice>
+
+<Indice titre="Le garde regarde toujours dans la même direction">
+Si le garde glisse sans se tourner, son vecteur avant ne suit pas son déplacement et le cône est faux. Dans le constructeur de `AGarde` : `bUseControllerRotationYaw = false;` et `GetCharacterMovement()->bOrientRotationToMovement = true;`.
+</Indice>
+
+<Indice titre="Il saute des points de ronde">
+Quand tu lances un nouveau déplacement alors qu'un autre est en cours, l'ancien est **interrompu** et `OnMoveCompleted` est appelé quand même. Ne passe au point suivant que si `Result.IsSuccess()` et que tu n'es pas en poursuite.
+</Indice>
+
+<Indice titre="MoveToActor une seule fois">
+`MoveToActor(Joueur, Rayon)` suit le joueur tout seul, même s'il bouge. Pas besoin de l'appeler à chaque image : appelle-le une fois en entrant en poursuite.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Garde.cpp">
+```cpp
+#include "Garde.h"
+#include "GardeController.h"
+#include "GameFramework/CharacterMovementComponent.h"
+
+AGarde::AGarde()
+{
+	PrimaryActorTick.bCanEverTick = false;
+
+	AIControllerClass = AGardeController::StaticClass();
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+
+	// Le garde se tourne dans le sens où il marche : son vecteur avant suit son regard
+	bUseControllerRotationYaw = false;
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 360.f, 0.f);
+	GetCharacterMovement()->MaxWalkSpeed = VitesseRonde;
+}
+```
+</Fichier>
+
+<Fichier nom="GardeController.cpp">
+```cpp
+#include "GardeController.h"
+#include "Garde.h"
+#include "Navigation/PathFollowingComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "DrawDebugHelpers.h"
+
+AGardeController::AGardeController()
+{
+	PrimaryActorTick.bCanEverTick = true;
+}
+
+void AGardeController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+
+	Garde = Cast<AGarde>(InPawn);
+	if (Garde)
+	{
+		Garde->GetCharacterMovement()->MaxWalkSpeed = Garde->VitesseRonde;
+		AllerAuPointSuivant();
+	}
+}
+
+void AGardeController::AllerAuPointSuivant()
+{
+	if (!Garde || Garde->PointsDeRonde.Num() == 0)
+	{
+		return;
+	}
+
+	AActor* Point = Garde->PointsDeRonde[IndexPoint];
+	IndexPoint = (IndexPoint + 1) % Garde->PointsDeRonde.Num();
+
+	if (Point)
+	{
+		MoveToLocation(Point->GetActorLocation(), 50.f);
+	}
+}
+
+void AGardeController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
+{
+	Super::OnMoveCompleted(RequestID, Result);
+
+	// Un déplacement interrompu (par une poursuite, par exemple) n'est pas une arrivée
+	if (!bEnPoursuite && Result.IsSuccess())
+	{
+		AllerAuPointSuivant();
+	}
+}
+
+bool AGardeController::PeutVoir(const AActor* Cible) const
+{
+	if (!Garde || !Cible)
+	{
+		return false;
+	}
+
+	const FVector Yeux = Garde->GetActorLocation() + FVector(0.f, 0.f, Garde->BaseEyeHeight);
+	const FVector VersCible = Cible->GetActorLocation() - Yeux;
+
+	// 1. Distance (au carré : pas de racine carrée à calculer)
+	if (VersCible.SizeSquared() > FMath::Square(DistanceVue))
+	{
+		return false;
+	}
+
+	// 2. Angle : produit scalaire entre le regard et la direction de la cible
+	const float CosAngle = FVector::DotProduct(Garde->GetActorForwardVector(), VersCible.GetSafeNormal());
+	if (CosAngle < FMath::Cos(FMath::DegreesToRadians(DemiAngleVue)))
+	{
+		return false;
+	}
+
+	// 3. Un mur entre les deux ?
+	FHitResult Impact;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(Garde);
+	const bool bTouche = GetWorld()->LineTraceSingleByChannel(Impact, Yeux, Cible->GetActorLocation(), ECC_Visibility, Params);
+
+	return !bTouche || Impact.GetActor() == Cible;
+}
+
+void AGardeController::CommencerPoursuite(AActor* Cible)
+{
+	bEnPoursuite = true;
+	TempsSansVoir = 0.f;
+	Garde->GetCharacterMovement()->MaxWalkSpeed = Garde->VitessePoursuite;
+	MoveToActor(Cible, DistanceCapture * 0.5f);
+}
+
+void AGardeController::ArreterPoursuite()
+{
+	bEnPoursuite = false;
+	StopMovement();
+	Garde->GetCharacterMovement()->MaxWalkSpeed = Garde->VitesseRonde;
+	AllerAuPointSuivant();
+}
+
+void AGardeController::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	APawn* Joueur = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (!Garde || !Joueur)
+	{
+		return;
+	}
+
+	const bool bVoit = PeutVoir(Joueur);
+
+	if (bAfficherCone)
+	{
+		DrawDebugCone(GetWorld(), Garde->GetActorLocation(), Garde->GetActorForwardVector(), DistanceVue,
+			FMath::DegreesToRadians(DemiAngleVue), FMath::DegreesToRadians(DemiAngleVue), 16,
+			bVoit ? FColor::Red : FColor::Green, false, 0.f);
+	}
+
+	if (bVoit)
+	{
+		TempsSansVoir = 0.f;
+		if (!bEnPoursuite)
+		{
+			CommencerPoursuite(Joueur);
+		}
+	}
+	else if (bEnPoursuite)
+	{
+		TempsSansVoir += DeltaTime;
+		if (TempsSansVoir >= DelaiAbandon)
+		{
+			ArreterPoursuite();
+		}
+	}
+
+	if (bEnPoursuite && FVector::Dist(Garde->GetActorLocation(), Joueur->GetActorLocation()) < DistanceCapture)
+	{
+		UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this)));
+	}
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** les trois tests de `PeutVoir` vont du moins cher au plus cher. Comparer deux distances au carré ne coûte presque rien. Le produit scalaire, c'est trois multiplications. Le line trace, lui, interroge la physique : on ne le fait que si les deux premiers tests sont passés.
+
+Le produit scalaire de deux vecteurs de longueur 1 donne le cosinus de leur angle. Au lieu de calculer l'angle (ce qui demande un `Acos`), on compare directement les cosinus. Attention, le sens s'inverse : un **petit** angle donne un **grand** cosinus, d'où le test `CosAngle < Cos(DemiAngle)` pour rejeter.
+
+La poursuite et la ronde utilisent le même système de navigation. `MoveToLocation` et `MoveToActor` calculent un chemin sur le Nav Mesh, et `OnMoveCompleted` prévient le controller quand le déplacement se termine, qu'il ait réussi ou non.
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute un état « recherche » : quand il te perd, le garde va jusqu'à ta **dernière position connue** et regarde autour de lui avant de reprendre sa ronde.
+- Remplace ton test fait main par le composant officiel `UAIPerceptionComponent` avec un sens `UAISenseConfig_Sight`, et compare les deux.
+- Rends le garde moins parfait : il te repère seulement si tu restes dans son cône un certain temps, et ce temps est plus court si tu es proche.

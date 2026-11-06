@@ -1,0 +1,582 @@
+## Le contexte
+
+Dans un jeu d'infiltration, un garde fait sa ronde. Il ne te voit que si tu es **devant lui**, **assez près**, et **pas caché derrière un mur**. S'il t'aperçoit, il ne donne pas l'alerte tout de suite : une jauge de soupçon se remplit, plus vite si tu es proche. Une fois la jauge pleine, il te court après en contournant les obstacles. S'il te perd de vue, il va voir l'endroit où il t'a vu pour la dernière fois, regarde autour de lui, puis reprend sa ronde.
+
+Tu vas construire ce garde complet avec trois outils que tu n'as pas encore utilisés :
+
+- le **NavMesh** : une carte des zones où l'on peut marcher, calculée par Unity, et le composant `NavMeshAgent` qui sait trouver un chemin dessus et le suivre tout seul ;
+- `Vector3.Angle` pour savoir si le joueur est dans le cône de vision ;
+- un `Physics.Raycast` pour savoir si un mur bloque la vue.
+
+```text
+RONDE      --(voit le joueur)-->            SOUPÇON
+SOUPÇON    --(jauge pleine)-->              POURSUITE
+SOUPÇON    --(jauge retombée à zéro)-->     RONDE
+POURSUITE  --(ne voit plus le joueur)-->    RECHERCHE
+POURSUITE  --(assez près)-->                capture, la scène recommence
+RECHERCHE  --(voit le joueur)-->            POURSUITE
+RECHERCHE  --(a cherché assez longtemps)--> RONDE
+```
+
+## Ce que tu dois faire
+
+**1. Installer AI Navigation.** Dans Unity 6, le NavMesh est un package à part. Ouvre **Window › Package Manager**, choisis **Unity Registry** à gauche, cherche **AI Navigation** et clique sur **Install**.
+
+**2. Construire le niveau.**
+
+1. Un **Plane** `Sol` (Scale 3, 1, 3).
+2. Des **Cubes** étirés pour faire des murs (par exemple Scale 6, 3, 0.5). Crée un layer `Obstacles` (**Layer › Add Layer**) et mets tous les murs dessus.
+3. Une **Capsule** `Joueur` : retire son **Capsule Collider**, ajoute un **Character Controller** et le script `JoueurSimple` (donné). Mets son Tag sur `Player`.
+4. Une **Capsule** `Garde`, avec un matériau à lui. Ajoute un **NavMesh Agent**, puis les scripts `ChampDeVision` et `Garde`. Pour voir où il regarde, ajoute un petit cube enfant devant son visage et retire son **Box Collider**.
+5. Crée un layer `Personnages` et mets-y le `Joueur` et le `Garde`. Quand Unity demande s'il faut changer aussi les enfants, réponds **Yes, change children**.
+6. Place 3 ou 4 objets vides `Point1`, `Point2`… sur le sol : ce sont les points de ronde.
+7. Place la **Main Camera** au-dessus du niveau, tournée vers le bas (Rotation X = 90), pour une vue de dessus.
+
+**3. Calculer le NavMesh.**
+
+1. Crée un objet vide `NavMesh` et ajoute-lui le composant **NavMesh Surface** (Add Component › Navigation › NavMesh Surface).
+2. Dans **Object Collection › Include Layers**, **décoche** `Personnages` : sinon le joueur et le garde seraient pris pour des obstacles.
+3. Clique sur **Bake**. Le sol se couvre d'une zone bleue, avec des trous autour des murs. C'est la carte où le garde peut marcher. Si tu déplaces un mur, clique à nouveau sur **Bake**.
+
+**4. Relier et coder.**
+
+1. Sur `ChampDeVision` : mets `Obstacles` dans `Masque Obstacles`.
+2. Sur `Garde` : relie le `Joueur`, les points de ronde et le **Mesh Renderer** du garde.
+3. Remplis les `// TODO` de `ChampDeVision`, puis ceux de `Garde`.
+
+<Encadre type="info" titre="ZQSD et l'Input System">
+`Keyboard.current.wKey` désigne la touche placée **à l'emplacement** du W d'un clavier américain. Sur un clavier AZERTY, c'est donc ta touche Z. Le nouvel Input System raisonne en position physique : `wKey`, `aKey`, `sKey`, `dKey` donnent ZQSD chez toi sans rien changer.
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="JoueurSimple.cs">
+```cs
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+[RequireComponent(typeof(CharacterController))]
+public class JoueurSimple : MonoBehaviour
+{
+    [SerializeField] private float vitesse = 5f;
+
+    private CharacterController controleur;
+
+    private void Awake()
+    {
+        controleur = GetComponent<CharacterController>();
+    }
+
+    private void Update()
+    {
+        Keyboard clavier = Keyboard.current;
+        if (clavier == null)
+        {
+            return;
+        }
+
+        Vector3 direction = Vector3.zero;
+        if (clavier.wKey.isPressed)
+        {
+            direction += Vector3.forward;
+        }
+        if (clavier.sKey.isPressed)
+        {
+            direction += Vector3.back;
+        }
+        if (clavier.aKey.isPressed)
+        {
+            direction += Vector3.left;
+        }
+        if (clavier.dKey.isPressed)
+        {
+            direction += Vector3.right;
+        }
+
+        // SimpleMove applique la gravité tout seul. La vitesse est en mètres par seconde.
+        controleur.SimpleMove(direction.normalized * vitesse);
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="ChampDeVision.cs">
+```cs
+using UnityEngine;
+
+public class ChampDeVision : MonoBehaviour
+{
+    [SerializeField] private float portee = 10f;
+    [Range(0f, 360f)]
+    [SerializeField] private float angle = 90f;
+    [SerializeField] private float hauteurYeux = 0.6f;
+    [SerializeField] private float hauteurCible = 0.5f;
+    [SerializeField] private LayerMask masqueObstacles;
+
+    public float Portee => portee;
+
+    public bool Voit(Transform cible)
+    {
+        // TODO 1 : trop loin ? -> false
+        // TODO 2 : hors du cône (angle entre l'avant du garde et la direction de la cible) ? -> false
+        // TODO 3 : un obstacle entre les yeux et la cible ? -> false
+        return false;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        // TODO 4 : dessine la portée et les deux bords du cône
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="Garde.cs">
+```cs
+using UnityEngine;
+using UnityEngine.AI;
+using UnityEngine.SceneManagement;
+
+[RequireComponent(typeof(NavMeshAgent))]
+[RequireComponent(typeof(ChampDeVision))]
+public class Garde : MonoBehaviour
+{
+    private enum Etat
+    {
+        Ronde,
+        Soupcon,
+        Poursuite,
+        Recherche
+    }
+
+    [Header("Références")]
+    [SerializeField] private Transform joueur;
+    [SerializeField] private Transform[] pointsDeRonde;
+    [SerializeField] private Renderer rendu;
+
+    [Header("Vitesses")]
+    [SerializeField] private float vitesseRonde = 2f;
+    [SerializeField] private float vitessePoursuite = 4.5f;
+    [SerializeField] private float vitesseRotation = 180f;
+
+    [Header("Détection")]
+    [Tooltip("Secondes pour remplir la jauge quand le joueur est au bout de la portée")]
+    [SerializeField] private float tempsPourReperer = 1.5f;
+    [SerializeField] private float dureeRecherche = 4f;
+    [SerializeField] private float distanceCapture = 1.2f;
+
+    private NavMeshAgent agent;
+    private ChampDeVision vision;
+    private Etat etat;
+    private int indexPoint;
+    private float jauge;
+    private Vector3 derniereVue;
+    private bool arriveSurPlace;
+    private float finRecherche;
+
+    private void Awake()
+    {
+        agent = GetComponent<NavMeshAgent>();
+        vision = GetComponent<ChampDeVision>();
+    }
+
+    private void Start()
+    {
+        ChangerEtat(Etat.Ronde);
+    }
+
+    private void Update()
+    {
+        // TODO 5 : demande à la vision si elle voit le joueur, puis switch sur etat
+    }
+
+    private void MettreAJourRonde(bool voitJoueur)
+    {
+        // TODO 6 : passe en Soupcon s'il voit le joueur, sinon va au point suivant une fois arrivé
+    }
+
+    private void MettreAJourSoupcon(bool voitJoueur)
+    {
+        // TODO 7 : regarde le joueur et remplis la jauge, ou laisse-la redescendre
+    }
+
+    private void MettreAJourPoursuite(bool voitJoueur)
+    {
+        // TODO 8 : capture si assez près, sinon suis le joueur tant qu'il est visible
+    }
+
+    private void MettreAJourRecherche(bool voitJoueur)
+    {
+        // TODO 9 : va à derniereVue, regarde autour de toi pendant dureeRecherche, puis reprends la ronde
+    }
+
+    private void ChangerEtat(Etat nouvelEtat)
+    {
+        // TODO 10 : régler l'agent (vitesse, arrêt, destination) et la couleur en entrant dans chaque état
+    }
+
+    private bool EstArrive()
+    {
+        // pathPending : le chemin est encore en cours de calcul
+        return !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.1f;
+    }
+
+    private void TournerVers(Vector3 cible)
+    {
+        Vector3 direction = cible - transform.position;
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        Quaternion voulue = Quaternion.LookRotation(direction);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, voulue, vitesseRotation * Time.deltaTime);
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Le garde (vert) fait sa ronde de point en point en contournant les murs, en boucle.
+- [ ] Dans la vue Scene, garde sélectionné, tu vois sa portée et les deux bords de son cône.
+- [ ] Passer **derrière** lui, ou **derrière un mur** dans son cône, ne le fait pas réagir.
+- [ ] Entrer dans son cône le fait passer en jaune : il s'arrête et te regarde. Si tu ressors vite, il reprend sa ronde.
+- [ ] Rester visible le fait passer en rouge et te poursuivre, plus vite que pendant sa ronde. Tout près de lui, la jauge se remplit nettement plus vite que de loin.
+- [ ] Te cacher derrière un mur pendant la poursuite le fait passer en orange : il va à l'endroit où il t'a vu, tourne sur lui-même quelques secondes, puis repart en ronde.
+- [ ] S'il te touche, la Console affiche « Attrapé ! » et la scène recommence.
+
+## Si tu bloques
+
+<Indice titre="Le cône de vision, étape par étape">
+Calcule les yeux : `transform.position + Vector3.up * hauteurYeux`. Le vecteur vers la cible, c'est `point visé - yeux`. Sa longueur (`.magnitude`) te donne la distance. Pour l'angle, mets la composante `y` de ce vecteur à 0, puis compare `Vector3.Angle(transform.forward, versCibleAPlat)` à **la moitié** de `angle` : un cône de 90° s'ouvre de 45° de chaque côté.
+</Indice>
+
+<Indice titre="Le mur qui cache">
+`Physics.Raycast(yeux, direction.normalized, distance, masqueObstacles)` renvoie `true` si le rayon touche un objet du layer `Obstacles` **avant** d'avoir parcouru `distance`. Si c'est vrai, un mur est entre le garde et la cible. Comme le masque ne contient que les murs, pas besoin de vérifier ce que le rayon a touché.
+</Indice>
+
+<Indice titre="Dessiner le cône">
+Pour obtenir le bord gauche du cône, fais tourner `transform.forward` autour de l'axe vertical : `Quaternion.AngleAxis(-angle * 0.5f, Vector3.up) * transform.forward`. Multiplie par `portee` et dessine avec `Gizmos.DrawLine`. Pareil avec `+angle * 0.5f` pour le bord droit.
+</Indice>
+
+<Indice titre="Piloter le NavMeshAgent">
+`agent.SetDestination(position)` lui donne un but : il calcule le chemin et marche tout seul. `agent.speed` règle sa vitesse. `agent.isStopped = true` le fige sur place sans oublier son chemin. Pour que **tu** puisses le faire tourner pendant le soupçon, désactive sa rotation automatique avec `agent.updateRotation = false`, et remets-la à `true` quand il marche.
+</Indice>
+
+<Indice titre="La jauge de soupçon">
+Pendant `Soupcon` : si le garde te voit, `jauge += Time.deltaTime / tempsPourReperer * proximite`, avec `proximite` qui vaut 1 au bout de la portée et 3 tout près : `1f + 2f * (1f - Mathf.Clamp01(distance / vision.Portee))`. S'il ne te voit plus, la jauge redescend deux fois moins vite. Passe en `Poursuite` à 1 et retourne en `Ronde` à 0. Pense à `Mathf.Clamp01(jauge)`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="ChampDeVision.cs">
+```cs
+using UnityEngine;
+
+public class ChampDeVision : MonoBehaviour
+{
+    [SerializeField] private float portee = 10f;
+    [Range(0f, 360f)]
+    [SerializeField] private float angle = 90f;
+    [SerializeField] private float hauteurYeux = 0.6f;
+    [SerializeField] private float hauteurCible = 0.5f;
+    [SerializeField] private LayerMask masqueObstacles;
+
+    public float Portee => portee;
+
+    public bool Voit(Transform cible)
+    {
+        if (cible == null)
+        {
+            return false;
+        }
+
+        Vector3 yeux = transform.position + Vector3.up * hauteurYeux;
+        Vector3 pointVise = cible.position + Vector3.up * hauteurCible;
+        Vector3 versCible = pointVise - yeux;
+        float distance = versCible.magnitude;
+
+        // 1. Trop loin
+        if (distance > portee)
+        {
+            return false;
+        }
+
+        // 2. Hors du cône : on compare les directions à plat, sans tenir compte de la hauteur
+        Vector3 versCibleAPlat = new Vector3(versCible.x, 0f, versCible.z);
+        if (Vector3.Angle(transform.forward, versCibleAPlat) > angle * 0.5f)
+        {
+            return false;
+        }
+
+        // 3. Un mur entre les deux
+        if (Physics.Raycast(yeux, versCible.normalized, distance, masqueObstacles))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Vector3 yeux = transform.position + Vector3.up * hauteurYeux;
+        Vector3 bordGauche = Quaternion.AngleAxis(-angle * 0.5f, Vector3.up) * transform.forward;
+        Vector3 bordDroit = Quaternion.AngleAxis(angle * 0.5f, Vector3.up) * transform.forward;
+
+        Gizmos.color = new Color(1f, 1f, 0f, 0.4f);
+        Gizmos.DrawWireSphere(yeux, portee);
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawLine(yeux, yeux + bordGauche * portee);
+        Gizmos.DrawLine(yeux, yeux + bordDroit * portee);
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="Garde.cs">
+```cs
+using UnityEngine;
+using UnityEngine.AI;
+using UnityEngine.SceneManagement;
+
+[RequireComponent(typeof(NavMeshAgent))]
+[RequireComponent(typeof(ChampDeVision))]
+public class Garde : MonoBehaviour
+{
+    private enum Etat
+    {
+        Ronde,
+        Soupcon,
+        Poursuite,
+        Recherche
+    }
+
+    [Header("Références")]
+    [SerializeField] private Transform joueur;
+    [SerializeField] private Transform[] pointsDeRonde;
+    [SerializeField] private Renderer rendu;
+
+    [Header("Vitesses")]
+    [SerializeField] private float vitesseRonde = 2f;
+    [SerializeField] private float vitessePoursuite = 4.5f;
+    [SerializeField] private float vitesseRotation = 180f;
+
+    [Header("Détection")]
+    [Tooltip("Secondes pour remplir la jauge quand le joueur est au bout de la portée")]
+    [SerializeField] private float tempsPourReperer = 1.5f;
+    [SerializeField] private float dureeRecherche = 4f;
+    [SerializeField] private float distanceCapture = 1.2f;
+
+    private NavMeshAgent agent;
+    private ChampDeVision vision;
+    private Etat etat;
+    private int indexPoint;
+    private float jauge;
+    private Vector3 derniereVue;
+    private bool arriveSurPlace;
+    private float finRecherche;
+
+    private void Awake()
+    {
+        agent = GetComponent<NavMeshAgent>();
+        vision = GetComponent<ChampDeVision>();
+    }
+
+    private void Start()
+    {
+        ChangerEtat(Etat.Ronde);
+    }
+
+    private void Update()
+    {
+        bool voitJoueur = vision.Voit(joueur);
+
+        switch (etat)
+        {
+            case Etat.Ronde:
+                MettreAJourRonde(voitJoueur);
+                break;
+            case Etat.Soupcon:
+                MettreAJourSoupcon(voitJoueur);
+                break;
+            case Etat.Poursuite:
+                MettreAJourPoursuite(voitJoueur);
+                break;
+            case Etat.Recherche:
+                MettreAJourRecherche(voitJoueur);
+                break;
+        }
+    }
+
+    private void MettreAJourRonde(bool voitJoueur)
+    {
+        if (voitJoueur)
+        {
+            ChangerEtat(Etat.Soupcon);
+            return;
+        }
+
+        if (pointsDeRonde.Length > 0 && EstArrive())
+        {
+            indexPoint = (indexPoint + 1) % pointsDeRonde.Length;
+            agent.SetDestination(pointsDeRonde[indexPoint].position);
+        }
+    }
+
+    private void MettreAJourSoupcon(bool voitJoueur)
+    {
+        if (voitJoueur)
+        {
+            TournerVers(joueur.position);
+            float distance = Vector3.Distance(transform.position, joueur.position);
+            float proximite = 1f + 2f * (1f - Mathf.Clamp01(distance / vision.Portee));
+            jauge += Time.deltaTime / tempsPourReperer * proximite;
+        }
+        else
+        {
+            jauge -= Time.deltaTime / tempsPourReperer * 0.5f;
+        }
+
+        jauge = Mathf.Clamp01(jauge);
+
+        if (jauge >= 1f)
+        {
+            ChangerEtat(Etat.Poursuite);
+        }
+        else if (jauge <= 0f)
+        {
+            ChangerEtat(Etat.Ronde);
+        }
+    }
+
+    private void MettreAJourPoursuite(bool voitJoueur)
+    {
+        if (Vector3.Distance(transform.position, joueur.position) <= distanceCapture)
+        {
+            Debug.Log("Attrapé !");
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+            return;
+        }
+
+        if (voitJoueur)
+        {
+            derniereVue = joueur.position;
+            agent.SetDestination(joueur.position);
+        }
+        else
+        {
+            ChangerEtat(Etat.Recherche);
+        }
+    }
+
+    private void MettreAJourRecherche(bool voitJoueur)
+    {
+        if (voitJoueur)
+        {
+            // Il te cherchait déjà : pas besoin de remplir la jauge à nouveau
+            ChangerEtat(Etat.Poursuite);
+            return;
+        }
+
+        if (!arriveSurPlace)
+        {
+            if (EstArrive())
+            {
+                arriveSurPlace = true;
+                finRecherche = Time.time + dureeRecherche;
+                agent.updateRotation = false;
+            }
+            return;
+        }
+
+        // Arrivé : il regarde autour de lui
+        transform.Rotate(0f, 90f * Time.deltaTime, 0f);
+        if (Time.time >= finRecherche)
+        {
+            ChangerEtat(Etat.Ronde);
+        }
+    }
+
+    private void ChangerEtat(Etat nouvelEtat)
+    {
+        etat = nouvelEtat;
+
+        switch (etat)
+        {
+            case Etat.Ronde:
+                jauge = 0f;
+                agent.isStopped = false;
+                agent.updateRotation = true;
+                agent.speed = vitesseRonde;
+                if (pointsDeRonde.Length > 0)
+                {
+                    agent.SetDestination(pointsDeRonde[indexPoint].position);
+                }
+                rendu.material.color = Color.green;
+                break;
+
+            case Etat.Soupcon:
+                agent.isStopped = true;
+                agent.updateRotation = false;
+                rendu.material.color = Color.yellow;
+                break;
+
+            case Etat.Poursuite:
+                agent.isStopped = false;
+                agent.updateRotation = true;
+                agent.speed = vitessePoursuite;
+                rendu.material.color = Color.red;
+                break;
+
+            case Etat.Recherche:
+                agent.isStopped = false;
+                agent.updateRotation = true;
+                agent.speed = vitesseRonde * 1.5f;
+                agent.SetDestination(derniereVue);
+                arriveSurPlace = false;
+                rendu.material.color = new Color(1f, 0.5f, 0f);
+                break;
+        }
+    }
+
+    private bool EstArrive()
+    {
+        return !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.1f;
+    }
+
+    private void TournerVers(Vector3 cible)
+    {
+        Vector3 direction = cible - transform.position;
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        Quaternion voulue = Quaternion.LookRotation(direction);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, voulue, vitesseRotation * Time.deltaTime);
+    }
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** les deux scripts ont chacun un seul rôle. `ChampDeVision` répond à une seule question, « est-ce que je vois cette cible ? », avec trois tests du moins cher au plus cher : une distance, un angle, puis seulement si les deux passent, un raycast. `Garde` ne fait que décider quoi faire de cette réponse, avec la même structure de machine à états qu'avant : un `enum`, un `switch`, une méthode par état, et `ChangerEtat` qui règle l'agent en entrant dans chaque état. Le `NavMeshAgent` s'occupe de tout le reste : trouver un chemin qui contourne les murs, accélérer, freiner, tourner dans le sens de la marche. La position `derniereVue` est mise à jour tant que le garde te voit : quand tu disparais, elle contient l'endroit exact où il t'a perdu.
+
+<Encadre type="piege" titre="Le garde ne bouge pas du tout">
+Trois causes fréquentes. Le NavMesh n'est pas calculé (pas de bleu sur le sol : clique sur **Bake**). Le garde est posé à côté de la zone bleue, ou au-dessus : il doit être dessus. Ou le layer `Personnages` n'a pas été exclu, et le NavMesh a un trou là où se trouve le garde. La Console affiche alors souvent « SetDestination can only be called on an active agent that has been placed on a NavMesh ».
+</Encadre>
+
+<Encadre type="info" titre="Recharger la scène">
+La capture recharge la scène avec `SceneManager.LoadScene`. Pour que ça marche, ta scène doit être dans **File › Build Profiles › Scene List**. La scène d'exemple d'un nouveau projet y est déjà.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Affiche la jauge au-dessus de la tête du garde : un Canvas en **World Space** avec une Image en **Image Type : Filled** dont tu changes le `fillAmount`.
+- Ajoute un deuxième garde et un script `Alarme` avec un événement `static` : quand un garde passe en poursuite, tous les autres vont à `derniereVue`.
+- Ouvre une porte en jeu et recalcule le NavMesh avec `GetComponent<NavMeshSurface>().BuildNavMesh()` (pense au `using Unity.AI.Navigation;`), ou mieux, ajoute un composant **NavMesh Obstacle** coché **Carve** sur la porte pour qu'elle creuse le NavMesh toute seule.

@@ -1,0 +1,289 @@
+## Le contexte
+
+Une mitraillette qui tire 10 balles par seconde, c'est 600 `Instantiate` et 600 `Destroy` par minute. Créer et détruire des objets coûte cher, et ça finit par faire de petites saccades. La technique classique s'appelle l'**object pooling** (une « réserve d'objets ») : on crée 20 balles au démarrage, on les cache, et au lieu de détruire une balle, on la **rend** à la réserve pour la réutiliser au tir suivant.
+
+Un collègue a écrit un pool de balles. Sur le papier, c'est propre. En vrai, ça ne marche pas du tout.
+
+## Ce que tu dois faire
+
+**Mise en place de la scène :**
+
+1. Crée un **Cube** `Tireur`. Ajoute-lui un objet enfant vide `Canon`, placé à environ 1 m devant le cube (hors du cube, sinon les balles le touchent en sortant). Tourne le `Tireur` pour qu'il vise en l'air, en diagonale : certaines balles doivent toucher un mur, d'autres partir dans le vide.
+2. Place un grand cube `Mur` sur la trajectoire de quelques balles.
+3. Crée une petite **Sphere** (Scale 0.2). Ajoute-lui un **Rigidbody** (décoche **Use Gravity**), coche **Is Trigger** sur son **Sphere Collider**, ajoute le script `Balle`, puis glisse-la dans le Project pour en faire un prefab. Supprime-la de la scène.
+4. Crée un layer `Balles` (en haut de l'Inspector, **Layer › Add Layer**) et mets le prefab dessus. Dans **Edit › Project Settings › Physics › Layer Collision Matrix**, décoche la case `Balles` / `Balles` pour que les balles ne se touchent pas entre elles.
+5. Crée un objet vide `Pool` avec le script `PoolDeBalles` (glisse le prefab dans `Prefab Balle`). Mets `Tireur` sur le cube, relie `Pool`, `Canon`, et un **Text - TextMeshPro** pour `Texte Info`.
+
+**Le symptôme :**
+
+- Maintiens le clic gauche quelques secondes. Le texte « Balles créées » ne s'arrête jamais de monter, et la Hierarchy se remplit de balles sous `Pool`. Un pool est censé **réutiliser** ses 20 balles, pas en créer sans fin.
+- Le collègue jure qu'après avoir corrigé ça chez lui, les balles réutilisées disparaissaient dès leur sortie du canon.
+- Appuyer sur R (« tout ranger ») affiche une erreur rouge dans la Console.
+
+**Ce qui est attendu :** au-delà de 20 balles en l'air, le pool en crée quelques-unes de plus si besoin, puis le total se stabilise. Chaque balle vit 2 secondes ou jusqu'à ce qu'elle touche quelque chose. R range toutes les balles d'un coup, sans erreur.
+
+Il y a **3 bugs**. Corrige-les un par un : le deuxième n'apparaît qu'une fois le premier corrigé.
+
+## Le code de départ
+
+<Fichier nom="PoolDeBalles.cs">
+```cs
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PoolDeBalles : MonoBehaviour
+{
+    [SerializeField] private Balle prefabBalle;
+    [SerializeField] private int tailleInitiale = 20;
+
+    private readonly Queue<Balle> disponibles = new Queue<Balle>();
+    private readonly List<Balle> actives = new List<Balle>();
+
+    public int NombreTotal { get; private set; }
+    public int NombreActives => actives.Count;
+
+    private void Awake()
+    {
+        for (int i = 0; i < tailleInitiale; i++)
+        {
+            Balle balle = Creer();
+            balle.gameObject.SetActive(false);
+            disponibles.Enqueue(balle);
+        }
+    }
+
+    private Balle Creer()
+    {
+        Balle balle = Instantiate(prefabBalle, transform);
+        balle.Pool = this;
+        NombreTotal++;
+        return balle;
+    }
+
+    public Balle Prendre(Vector3 position, Quaternion rotation)
+    {
+        // S'il n'y a plus de balle disponible, on en crée une nouvelle
+        Balle balle = disponibles.Count > 0 ? disponibles.Dequeue() : Creer();
+        balle.transform.SetPositionAndRotation(position, rotation);
+        balle.gameObject.SetActive(true);
+        actives.Add(balle);
+        return balle;
+    }
+
+    public void Rendre(Balle balle)
+    {
+        // Remove renvoie false si la balle n'était pas active : déjà rendue, on ne fait rien
+        if (!actives.Remove(balle))
+        {
+            return;
+        }
+
+        balle.gameObject.SetActive(false);
+        disponibles.Enqueue(balle);
+    }
+
+    public void ToutRendre()
+    {
+        foreach (Balle balle in actives)
+        {
+            Rendre(balle);
+        }
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="Balle.cs">
+```cs
+using UnityEngine;
+
+[RequireComponent(typeof(Rigidbody))]
+public class Balle : MonoBehaviour
+{
+    [SerializeField] private float dureeDeVie = 2f;
+
+    public PoolDeBalles Pool { get; set; }
+
+    private Rigidbody rb;
+    private float tempsRestant;
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody>();
+    }
+
+    private void Start()
+    {
+        tempsRestant = dureeDeVie;
+    }
+
+    public void Lancer(float vitesse)
+    {
+        rb.linearVelocity = transform.forward * vitesse;
+    }
+
+    private void Update()
+    {
+        tempsRestant -= Time.deltaTime;
+        if (tempsRestant == 0f)
+        {
+            Pool.Rendre(this);
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        Pool.Rendre(this);
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="Tireur.cs">
+```cs
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Tireur : MonoBehaviour
+{
+    [SerializeField] private PoolDeBalles pool;
+    [SerializeField] private Transform canon;
+    [SerializeField] private float vitesseBalle = 25f;
+    [SerializeField] private float tirsParSeconde = 10f;
+    [SerializeField] private TMP_Text texteInfo;
+
+    private float prochainTir;
+
+    private void Update()
+    {
+        Mouse souris = Mouse.current;
+        Keyboard clavier = Keyboard.current;
+        if (souris == null || clavier == null)
+        {
+            return;
+        }
+
+        if (souris.leftButton.isPressed && Time.time >= prochainTir)
+        {
+            prochainTir = Time.time + 1f / tirsParSeconde;
+            Balle balle = pool.Prendre(canon.position, canon.rotation);
+            balle.Lancer(vitesseBalle);
+        }
+
+        if (clavier.rKey.wasPressedThisFrame)
+        {
+            pool.ToutRendre();
+        }
+
+        texteInfo.text = "Balles créées : " + pool.NombreTotal + "\nEn l'air : " + pool.NombreActives;
+    }
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] En tirant en continu pendant 10 secondes, « Balles créées » se stabilise (autour de 20) au lieu de monter sans fin.
+- [ ] Les balles qui partent dans le vide disparaissent au bout de 2 secondes, **même la 50e** tirée.
+- [ ] Les balles qui touchent le mur disparaissent au contact.
+- [ ] R fait disparaître toutes les balles en l'air, « En l'air » retombe à 0, et la Console reste sans erreur.
+
+## Si tu bloques
+
+<Indice titre="Bug 1 : les balles ne reviennent jamais">
+Les balles qui touchent le mur reviennent bien. Ce sont celles qui partent dans le vide qui ne reviennent pas. Regarde la condition qui doit les renvoyer au bout de 2 secondes, et demande-toi quelle valeur exacte prend `tempsRestant` image après image : `2`, `1.9834`, `1.9667`… Tombe-t-elle un jour **pile** sur zéro ?
+</Indice>
+
+<Indice titre="Bug 2 : réutilisée, disparue">
+Une balle sortie du pool pour la deuxième fois n'est pas un nouvel objet : c'est le même, réactivé. Quelles méthodes Unity sont appelées une seule fois dans la vie d'un objet, et lesquelles sont rappelées à chaque `SetActive(true)` ?
+</Indice>
+
+<Indice titre="Bug 3 : l'erreur du R">
+Lis bien l'erreur rouge : `InvalidOperationException: Collection was modified`. Un `foreach` refuse que la liste qu'il parcourt change pendant le parcours. Or `Rendre` retire la balle de `actives`… pendant que `ToutRendre` parcourt justement `actives`.
+</Indice>
+
+<Indice titre="Parcourir une liste en la vidant">
+Avec une boucle `for` classique qui part de la **fin** (`for (int i = actives.Count - 1; i >= 0; i--)`), retirer l'élément `i` ne décale que les éléments situés après lui, que tu as déjà traités. Plus de problème.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Balle.cs">
+```cs
+using UnityEngine;
+
+[RequireComponent(typeof(Rigidbody))]
+public class Balle : MonoBehaviour
+{
+    [SerializeField] private float dureeDeVie = 2f;
+
+    public PoolDeBalles Pool { get; set; }
+
+    private Rigidbody rb;
+    private float tempsRestant;
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody>();
+    }
+
+    // BUG 2 corrigé : OnEnable est appelée à chaque réactivation, Start une seule fois
+    private void OnEnable()
+    {
+        tempsRestant = dureeDeVie;
+    }
+
+    public void Lancer(float vitesse)
+    {
+        rb.linearVelocity = transform.forward * vitesse;
+    }
+
+    private void Update()
+    {
+        tempsRestant -= Time.deltaTime;
+        // BUG 1 corrigé : on ne compare jamais un float avec ==
+        if (tempsRestant <= 0f)
+        {
+            Pool.Rendre(this);
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        Pool.Rendre(this);
+    }
+}
+```
+</Fichier>
+
+<Fichier nom="PoolDeBalles.cs">
+```cs
+    public void ToutRendre()
+    {
+        // BUG 3 corrigé : boucle à l'envers, on peut retirer des éléments sans rien casser
+        for (int i = actives.Count - 1; i >= 0; i--)
+        {
+            Rendre(actives[i]);
+        }
+    }
+```
+</Fichier>
+
+**Pourquoi ça marche :**
+
+- **Bug 1, le float comparé avec `==`.** `Time.deltaTime` vaut environ 0,0166 mais jamais exactement la même chose d'une image à l'autre. `tempsRestant` passe donc de 0,0121 à -0,0045 sans jamais valoir 0 pile. La condition n'est jamais vraie, les balles qui ne touchent rien restent actives pour toujours, le pool est vide en permanence et `Prendre` crée une balle neuve à chaque tir. Avec `<= 0f`, la condition devient vraie dès qu'on passe sous zéro.
+- **Bug 2, l'initialisation dans `Start`.** `Awake` et `Start` ne sont appelées **qu'une fois** dans la vie d'un objet. Au premier tir, `Start` met bien le minuteur à 2. Mais quand la balle est rendue puis reprise, `Start` n'est pas rappelée : `tempsRestant` est resté négatif, et la balle est rendue dès sa première image. `OnEnable` est appelée à **chaque** `SetActive(true)` : c'est l'endroit où l'on remet à zéro un objet de pool.
+- **Bug 3, la liste modifiée pendant un `foreach`.** Le `foreach` vérifie à chaque tour que la liste n'a pas changé. `Rendre` retire la balle de `actives`, donc au tour suivant le `foreach` lance une `InvalidOperationException`. La boucle `for` à l'envers ne pose pas ce problème.
+
+<Encadre type="retenir" titre="La règle d'or du pooling">
+Tout ce qui doit être remis à neuf à chaque utilisation va dans `OnEnable` (ou dans une méthode appelée par le pool au moment de `Prendre`), jamais dans `Start`. Pense au minuteur, aux points de vie, à la vitesse, aux effets visuels.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Unity propose son propre pool tout fait : `UnityEngine.Pool.ObjectPool`, avec des fonctions appelées à la création, à la prise et au rendu. Réécris `PoolDeBalles` avec.
+- Ajoute une taille maximale : si le pool a déjà créé 50 balles, `Prendre` réutilise la plus ancienne balle active au lieu d'en créer une 51e.
+- Le texte est réécrit à chaque image, ce qui crée un nouveau `string` 60 fois par seconde. Ne le mets à jour que quand un des deux nombres a changé.

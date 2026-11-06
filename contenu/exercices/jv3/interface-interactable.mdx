@@ -1,0 +1,428 @@
+## Le contexte
+
+Dans presque tous les jeux, le joueur appuie sur une seule touche pour « utiliser » ce qui est devant lui : ouvrir un coffre, tirer un levier, parler à un personnage. Ces objets n'ont rien en commun, ils n'ont pas la même classe parente. Pourtant le joueur doit pouvoir leur dire « interagis » sans savoir ce qu'ils sont.
+
+En C++, la réponse s'appelle une **interface** : un contrat que plusieurs classes différentes peuvent signer. Le joueur ne connaît que le contrat. Tu as déjà vu l'idée dans Mario Kart avec les Data Assets d'objets bonus : la poche du kart appelle « utiliser » sans savoir si c'est un champignon ou un projectile. Ici, on va plus loin avec une vraie `UINTERFACE`, utilisable aussi depuis les Blueprints.
+
+## Ce que tu dois faire
+
+1. Crée une interface C++ (Tools › New C++ Class › **Unreal Interface**) nommée `Interactable`. Unreal crée `UInteractable` et `IInteractable`.
+2. Déclare dans `IInteractable` deux fonctions `BlueprintNativeEvent` : `Interagir(AActor* Instigateur)` et `PeutInteragir(AActor* Instigateur)` qui renvoie un `bool`.
+3. Crée `ACoffre` : son couvercle pivote quand on interagit. Un coffre déjà ouvert refuse l'interaction.
+4. Crée `ALevier` : il bascule à chaque interaction et **transmet** l'interaction à une liste d'acteurs cibles (par exemple un coffre loin de là).
+5. Crée `UInteracteurComponent` : il cherche l'acteur interactable le plus proche autour de son propriétaire, et l'appelle.
+6. Ajoute ce composant à ton personnage Blueprint, et branche une touche (par exemple E) sur son nœud **Interagir**.
+
+<Encadre type="info" titre="Le nom de ton projet">
+Remplace `MONPROJET_API` par le nom de ton module en majuscules suivi de `_API` (par exemple `KARTGAMES_API`).
+</Encadre>
+
+## Le code de départ
+
+<Fichier nom="Interactable.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "UObject/Interface.h"
+#include "Interactable.generated.h"
+
+// Cette classe-là sert seulement au système de réflexion d'Unreal : on n'y touche pas.
+UINTERFACE(MinimalAPI, Blueprintable)
+class UInteractable : public UInterface
+{
+	GENERATED_BODY()
+};
+
+// La vraie interface : c'est elle que les acteurs vont hériter.
+class MONPROJET_API IInteractable
+{
+	GENERATED_BODY()
+
+public:
+	// TODO 1 : déclarer Interagir(AActor* Instigateur)
+	// TODO 1 : déclarer PeutInteragir(AActor* Instigateur), qui renvoie un bool
+	// Les deux doivent être UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+};
+```
+</Fichier>
+
+<Fichier nom="Coffre.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Interactable.h"
+#include "Coffre.generated.h"
+
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API ACoffre : public AActor, public IInteractable
+{
+	GENERATED_BODY()
+
+public:
+	ACoffre();
+	virtual void Tick(float DeltaTime) override;
+
+	// TODO 2 : déclarer les deux _Implementation de l'interface
+
+protected:
+	UPROPERTY(VisibleAnywhere, Category = "Coffre")
+	TObjectPtr<UStaticMeshComponent> Base;
+
+	UPROPERTY(VisibleAnywhere, Category = "Coffre")
+	TObjectPtr<UStaticMeshComponent> Couvercle;
+
+	UPROPERTY(EditAnywhere, Category = "Coffre")
+	float AngleOuverture = 110.f;
+
+	// Degrés par seconde
+	UPROPERTY(EditAnywhere, Category = "Coffre")
+	float VitesseOuverture = 180.f;
+
+private:
+	bool bOuvert = false;
+	float AngleActuel = 0.f;
+};
+```
+</Fichier>
+
+<Fichier nom="Levier.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Interactable.h"
+#include "Levier.generated.h"
+
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API ALevier : public AActor, public IInteractable
+{
+	GENERATED_BODY()
+
+public:
+	ALevier();
+
+	// TODO 3 : déclarer les deux _Implementation de l'interface
+
+protected:
+	UPROPERTY(VisibleAnywhere, Category = "Levier")
+	TObjectPtr<UStaticMeshComponent> Socle;
+
+	UPROPERTY(VisibleAnywhere, Category = "Levier")
+	TObjectPtr<UStaticMeshComponent> Manche;
+
+	// Les acteurs qui reçoivent l'interaction quand on tire le levier.
+	// EditInstanceOnly : on les choisit dans le niveau, avec la pipette.
+	UPROPERTY(EditInstanceOnly, Category = "Levier")
+	TArray<TObjectPtr<AActor>> Cibles;
+
+private:
+	bool bBascule = false;
+};
+```
+</Fichier>
+
+<Fichier nom="InteracteurComponent.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "InteracteurComponent.generated.h"
+
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+class MONPROJET_API UInteracteurComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UInteracteurComponent();
+
+	// À appeler depuis le Blueprint du personnage quand le joueur appuie sur E
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void Interagir();
+
+	// L'acteur interactable le plus proche, ou nullptr
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	AActor* TrouverPlusProche() const;
+
+protected:
+	UPROPERTY(EditAnywhere, Category = "Interaction")
+	float Rayon = 200.f;
+};
+```
+</Fichier>
+
+<Fichier nom="InteracteurComponent.cpp">
+```cpp
+#include "InteracteurComponent.h"
+#include "Interactable.h"
+#include "Engine/World.h"
+#include "Engine/OverlapResult.h"
+
+UInteracteurComponent::UInteracteurComponent()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+}
+
+AActor* UInteracteurComponent::TrouverPlusProche() const
+{
+	// TODO 4 : faire un overlap en sphère autour du propriétaire,
+	// garder seulement les acteurs qui implémentent l'interface ET acceptent l'interaction,
+	// et renvoyer le plus proche
+	return nullptr;
+}
+
+void UInteracteurComponent::Interagir()
+{
+	// TODO 5 : appeler Interagir sur l'acteur trouvé
+}
+```
+</Fichier>
+
+Les fichiers `Coffre.cpp` et `Levier.cpp` sont à écrire en entier : constructeur avec les composants, puis les fonctions de l'interface.
+
+## C'est réussi quand…
+
+- [ ] En appuyant sur E près d'un coffre, le couvercle pivote doucement.
+- [ ] Un coffre déjà ouvert est ignoré : si un levier est juste à côté, c'est le levier qui est choisi.
+- [ ] Un levier relié à un coffre lointain (dans `Cibles`) ouvre ce coffre.
+- [ ] `UInteracteurComponent` ne contient **aucun** `Cast` vers `ACoffre` ou `ALevier`.
+- [ ] Un acteur Blueprint qui ajoute l'interface dans Class Settings › Interfaces répond aussi à E (par exemple une lampe qui s'allume).
+
+## Si tu bloques
+
+<Indice titre="La forme d'une fonction d'interface">
+Dans `IInteractable`, une fonction `BlueprintNativeEvent` se déclare sans `virtual` et sans corps : `UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction") void Interagir(AActor* Instigateur);`. Unreal génère tout seul la version que l'on appelle et la version `_Implementation` que les classes remplacent.
+</Indice>
+
+<Indice titre="Implémenter dans le coffre">
+Dans `ACoffre`, tu ne remplaces pas `Interagir` mais `Interagir_Implementation` : `virtual void Interagir_Implementation(AActor* Instigateur) override;`. Pareil pour `PeutInteragir_Implementation`, qui renvoie un `bool`.
+</Indice>
+
+<Indice titre="Appeler une interface sans Cast">
+Pour savoir si un acteur signe le contrat : `Acteur->Implements<UInteractable>()` (avec le U). Pour l'appeler : `IInteractable::Execute_Interagir(Acteur, Instigateur)` (avec le I). Ces deux-là marchent aussi pour un acteur Blueprint qui implémente l'interface, contrairement à `Cast<IInteractable>`.
+</Indice>
+
+<Indice titre="Chercher autour du joueur">
+`GetWorld()->OverlapMultiByObjectType(Resultats, Centre, FQuat::Identity, FCollisionObjectQueryParams(FCollisionObjectQueryParams::InitType::AllObjects), FCollisionShape::MakeSphere(Rayon), Params)` remplit un `TArray<FOverlapResult>`. Chaque résultat a un `GetActor()`. Pense à ignorer le propriétaire avec `Params.AddIgnoredActor(GetOwner())`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="Interactable.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "UObject/Interface.h"
+#include "Interactable.generated.h"
+
+UINTERFACE(MinimalAPI, Blueprintable)
+class UInteractable : public UInterface
+{
+	GENERATED_BODY()
+};
+
+class MONPROJET_API IInteractable
+{
+	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
+	void Interagir(AActor* Instigateur);
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
+	bool PeutInteragir(AActor* Instigateur);
+};
+```
+</Fichier>
+
+<Fichier nom="Coffre.h (extrait)">
+```cpp
+public:
+	ACoffre();
+	virtual void Tick(float DeltaTime) override;
+
+	virtual void Interagir_Implementation(AActor* Instigateur) override;
+	virtual bool PeutInteragir_Implementation(AActor* Instigateur) override;
+```
+</Fichier>
+
+<Fichier nom="Coffre.cpp">
+```cpp
+#include "Coffre.h"
+#include "Components/StaticMeshComponent.h"
+
+ACoffre::ACoffre()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	Base = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Base"));
+	RootComponent = Base;
+
+	Couvercle = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Couvercle"));
+	Couvercle->SetupAttachment(Base);
+}
+
+void ACoffre::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	const float Cible = bOuvert ? AngleOuverture : 0.f;
+	AngleActuel = FMath::FInterpConstantTo(AngleActuel, Cible, DeltaTime, VitesseOuverture);
+	Couvercle->SetRelativeRotation(FRotator(AngleActuel, 0.f, 0.f));
+}
+
+void ACoffre::Interagir_Implementation(AActor* Instigateur)
+{
+	bOuvert = true;
+}
+
+bool ACoffre::PeutInteragir_Implementation(AActor* Instigateur)
+{
+	return !bOuvert;
+}
+```
+</Fichier>
+
+<Fichier nom="Levier.h (extrait)">
+```cpp
+public:
+	ALevier();
+
+	virtual void Interagir_Implementation(AActor* Instigateur) override;
+	virtual bool PeutInteragir_Implementation(AActor* Instigateur) override;
+```
+</Fichier>
+
+<Fichier nom="Levier.cpp">
+```cpp
+#include "Levier.h"
+#include "Components/StaticMeshComponent.h"
+
+ALevier::ALevier()
+{
+	PrimaryActorTick.bCanEverTick = false;
+
+	Socle = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Socle"));
+	RootComponent = Socle;
+
+	Manche = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Manche"));
+	Manche->SetupAttachment(Socle);
+	Manche->SetRelativeRotation(FRotator(30.f, 0.f, 0.f));
+}
+
+void ALevier::Interagir_Implementation(AActor* Instigateur)
+{
+	bBascule = !bBascule;
+	Manche->SetRelativeRotation(FRotator(bBascule ? -30.f : 30.f, 0.f, 0.f));
+
+	// Le levier transmet l'interaction : il ne sait pas ce que sont ses cibles
+	for (AActor* Cible : Cibles)
+	{
+		if (Cible && Cible->Implements<UInteractable>())
+		{
+			IInteractable::Execute_Interagir(Cible, this);
+		}
+	}
+}
+
+bool ALevier::PeutInteragir_Implementation(AActor* Instigateur)
+{
+	return true;
+}
+```
+</Fichier>
+
+<Fichier nom="InteracteurComponent.cpp">
+```cpp
+#include "InteracteurComponent.h"
+#include "Interactable.h"
+#include "Engine/World.h"
+#include "Engine/OverlapResult.h"
+
+UInteracteurComponent::UInteracteurComponent()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+}
+
+AActor* UInteracteurComponent::TrouverPlusProche() const
+{
+	AActor* Proprio = GetOwner();
+	if (!Proprio)
+	{
+		return nullptr;
+	}
+
+	const FVector Centre = Proprio->GetActorLocation();
+
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(Proprio);
+
+	TArray<FOverlapResult> Resultats;
+	GetWorld()->OverlapMultiByObjectType(
+		Resultats,
+		Centre,
+		FQuat::Identity,
+		FCollisionObjectQueryParams(FCollisionObjectQueryParams::InitType::AllObjects),
+		FCollisionShape::MakeSphere(Rayon),
+		Params);
+
+	AActor* Meilleur = nullptr;
+	float MeilleureDistance = TNumericLimits<float>::Max();
+
+	for (const FOverlapResult& Resultat : Resultats)
+	{
+		AActor* Acteur = Resultat.GetActor();
+		if (!Acteur || !Acteur->Implements<UInteractable>())
+		{
+			continue;
+		}
+		if (!IInteractable::Execute_PeutInteragir(Acteur, Proprio))
+		{
+			continue;
+		}
+
+		const float Distance = FVector::DistSquared(Centre, Acteur->GetActorLocation());
+		if (Distance < MeilleureDistance)
+		{
+			MeilleureDistance = Distance;
+			Meilleur = Acteur;
+		}
+	}
+	return Meilleur;
+}
+
+void UInteracteurComponent::Interagir()
+{
+	if (AActor* Cible = TrouverPlusProche())
+	{
+		IInteractable::Execute_Interagir(Cible, GetOwner());
+	}
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** `UInteracteurComponent` ne parle qu'au contrat `IInteractable`. Il ne sait pas ce qu'est un coffre ou un levier, donc tu peux ajouter dix nouveaux objets interactables sans le retoucher. Les fonctions `Execute_` passent par le système de réflexion d'Unreal : elles appellent la version Blueprint si elle existe, sinon la version C++ `_Implementation`. C'est pour ça qu'elles marchent sur un acteur Blueprint, alors qu'un `Cast<IInteractable>` renverrait `nullptr` pour un acteur qui n'a signé l'interface qu'en Blueprint.
+
+Le levier montre la vraie force de l'interface : il appelle `Execute_Interagir` sur ses cibles sans savoir qui elles sont. Un levier peut ouvrir un coffre, un autre levier, ou une lampe faite en Blueprint.
+
+<Encadre type="piege" titre="L'acteur Blueprint est ignoré">
+Si ta lampe Blueprint ne réagit jamais, vérifie qu'elle implémente **aussi** `PeutInteragir` (c'est une fonction dans le panneau My Blueprint, car elle renvoie une valeur). Si elle ne l'implémente pas, l'appel renvoie la valeur par défaut, `false`, et le composant l'écarte.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute une troisième fonction `GetTexteAction` qui renvoie un `FText` (« Ouvrir », « Tirer ») et affiche-la dans un widget quand un objet est à portée.
+- Ne prends pas seulement le plus proche, mais celui qui est **devant** le joueur : compare `GetActorForwardVector()` et la direction vers l'objet avec un produit scalaire.
+- Crée une porte à code qui ne s'ouvre que si l'`Instigateur` a une clé dans son inventaire.

@@ -1,0 +1,216 @@
+## Le contexte
+
+Une plaque au sol qui ouvre une grille tant qu'on pose quelque chose dessus (le joueur, ou une caisse qu'on a poussée) : c'est la base des énigmes de beaucoup de jeux d'aventure. La plaque ne sait pas ce qu'elle ouvre. Elle **annonce** qu'elle s'enfonce ou qu'elle remonte avec deux délégués, et c'est la grille (ou n'importe quoi d'autre) qui écoute.
+
+Ce code mélange overlaps, délégués et Blueprints. Il y a donc plusieurs endroits où un mot oublié suffit à tout casser, sans aucune erreur de compilation.
+
+## Ce que tu dois faire
+
+Voici la plaque telle qu'elle a été écrite. Pour tester, on la pose dans le niveau avec deux caisses physiques à côté (des cubes avec **Simulate Physics** et **Generate Overlap Events** cochés), et un mur qui joue le rôle de la grille. Dans le Level Blueprint, on veut cacher le mur quand la plaque s'active et le faire réapparaître quand elle se désactive.
+
+Voici ce qu'on observe :
+
+- **Dans le Level Blueprint, impossible de brancher quoi que ce soit sur la plaque** : avec la plaque sélectionnée, le clic droit propose ses événements de collision, mais aucun événement **On Activee** ni **On Desactivee**.
+- **Une fois ce problème réglé, la grille s'ouvre bien, mais elle ne se referme pas quand on descend de la plaque.** Selon la version d'Unreal, l'éditeur peut même s'arrêter net à ce moment-là, avec un message `Failed to find function SortieZone`. Dès le lancement du jeu, l'Output Log affichait déjà une erreur `Ensure condition failed` qui contient `Unable to bind delegate to 'SortieZone'`.
+- **Une fois ce problème-là réglé aussi, on pose les deux caisses sur la plaque, puis on en retire une : la grille se referme**, alors qu'il reste une caisse dessus.
+
+Ce qui devrait se passer : la grille est ouverte tant qu'**au moins un** objet lourd (un pawn ou un objet physique) est sur la plaque.
+
+Il y a **3 bugs**. Le code compile.
+
+1. Recopie le code, puis prépare le niveau et le Level Blueprint comme décrit plus haut.
+2. Corrige les bugs un par un, dans l'ordre des symptômes : chaque correction fait apparaître le symptôme suivant.
+
+## Le code de départ
+
+<Fichier nom="PlaquePression.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "PlaquePression.generated.h"
+
+class UBoxComponent;
+class UStaticMeshComponent;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlaqueChange);
+
+UCLASS()
+class MONPROJET_API APlaquePression : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	APlaquePression();
+
+	// Diffusé quand le premier objet arrive sur la plaque
+	UPROPERTY()
+	FOnPlaqueChange OnActivee;
+
+	// Diffusé quand le dernier objet quitte la plaque
+	UPROPERTY()
+	FOnPlaqueChange OnDesactivee;
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, Category = "Plaque")
+	TObjectPtr<UStaticMeshComponent> Plateau;
+
+	UPROPERTY(VisibleAnywhere, Category = "Plaque")
+	TObjectPtr<UBoxComponent> Zone;
+
+private:
+	UFUNCTION()
+	void EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	void SortieZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex);
+
+	// Vrai si cet objet est assez lourd pour enfoncer la plaque
+	bool EstLourd(AActor* Acteur, UPrimitiveComponent* Composant) const;
+
+	int32 NbObjets = 0;
+};
+```
+</Fichier>
+
+<Fichier nom="PlaquePression.cpp">
+```cpp
+#include "PlaquePression.h"
+#include "Components/BoxComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "GameFramework/Pawn.h"
+
+APlaquePression::APlaquePression()
+{
+	Plateau = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Plateau"));
+	RootComponent = Plateau;
+
+	Zone = CreateDefaultSubobject<UBoxComponent>(TEXT("Zone"));
+	Zone->SetupAttachment(Plateau);
+	Zone->SetBoxExtent(FVector(80.f, 80.f, 30.f));
+	Zone->SetRelativeLocation(FVector(0.f, 0.f, 40.f));
+}
+
+void APlaquePression::BeginPlay()
+{
+	Super::BeginPlay();
+	Zone->OnComponentBeginOverlap.AddDynamic(this, &APlaquePression::EntreeZone);
+	Zone->OnComponentEndOverlap.AddDynamic(this, &APlaquePression::SortieZone);
+}
+
+bool APlaquePression::EstLourd(AActor* Acteur, UPrimitiveComponent* Composant) const
+{
+	return Cast<APawn>(Acteur) != nullptr || (Composant && Composant->IsSimulatingPhysics());
+}
+
+void APlaquePression::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (!EstLourd(OtherActor, OtherComp))
+	{
+		return;
+	}
+
+	NbObjets++;
+	if (NbObjets == 1)
+	{
+		OnActivee.Broadcast();
+	}
+}
+
+void APlaquePression::SortieZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex)
+{
+	if (!EstLourd(OtherActor, OtherComp))
+	{
+		return;
+	}
+
+	NbObjets--;
+	OnDesactivee.Broadcast();
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Avec la plaque sélectionnée dans le niveau, le clic droit du Level Blueprint propose les événements **On Activee** et **On Desactivee**.
+- [ ] Monter sur la plaque cache le mur, en descendre le fait réapparaître.
+- [ ] Plus aucun `Ensure condition failed` dans l'Output Log.
+- [ ] Avec deux caisses sur la plaque, en retirer une laisse la grille ouverte. Retirer la deuxième la referme.
+- [ ] Marcher sur la plaque avec une caisse déjà dessus ne déclenche pas une deuxième fois **On Activee** (vérifie avec un Print String).
+
+## Si tu bloques
+
+<Indice titre="Un délégué invisible pour les Blueprints">
+Un délégué en `UPROPERTY()` existe bien pour le système de réflexion d'Unreal, mais il n'est pas **proposé** aux Blueprints. Compare avec les délégués `OnComponentBeginOverlap` des composants, ou avec ceux du GameMode de Mario Kart : quel mot ont-ils dans leur `UPROPERTY` ?
+</Indice>
+
+<Indice titre="Unable to bind delegate">
+`AddDynamic` ne garde pas un pointeur vers ta fonction : il garde son **nom**, et Unreal la retrouve par réflexion au moment de l'appel. Quelles fonctions Unreal connaît-il par leur nom ? Compare les déclarations de `EntreeZone` et `SortieZone` dans le header.
+</Indice>
+
+<Indice titre="Le compteur">
+Dans `EntreeZone`, on ne diffuse `OnActivee` que dans un cas précis. Est-ce que `SortieZone` fait la même vérification avant de diffuser `OnDesactivee` ?
+</Indice>
+
+<Solution>
+
+<Fichier nom="PlaquePression.h">
+```cpp
+	// Diffusé quand le premier objet arrive sur la plaque
+	UPROPERTY(BlueprintAssignable, Category = "Plaque")
+	FOnPlaqueChange OnActivee;
+
+	// Diffusé quand le dernier objet quitte la plaque
+	UPROPERTY(BlueprintAssignable, Category = "Plaque")
+	FOnPlaqueChange OnDesactivee;
+
+	// ...
+
+	UFUNCTION()
+	void SortieZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex);
+```
+</Fichier>
+
+<Fichier nom="PlaquePression.cpp">
+```cpp
+void APlaquePression::SortieZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex)
+{
+	if (!EstLourd(OtherActor, OtherComp))
+	{
+		return;
+	}
+
+	NbObjets--;
+	if (NbObjets == 0)
+	{
+		OnDesactivee.Broadcast();
+	}
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :**
+
+- **Bug 1, rien à brancher dans le Level Blueprint :** sans `BlueprintAssignable`, un délégué dynamique reste réservé au C++. Le mot-clé dit à l'éditeur « les Blueprints ont le droit de s'abonner à cet événement », et c'est ce qui fait apparaître l'événement **On Activee** dans le Level Blueprint, et le nœud **Bind Event to On Activee** dans les autres Blueprints.
+- **Bug 2, la grille ne se referme jamais :** `AddDynamic` enregistre le **nom** de la fonction (`"SortieZone"`), puis Unreal la cherche parmi les fonctions qu'il connaît. Il ne connaît que celles marquées `UFUNCTION()`. Le branchement échoue (d'où le message dans l'Output Log) : quand l'overlap se termine, Unreal ne trouve pas la fonction, elle n'est jamais exécutée (ou l'éditeur s'arrête en la cherchant), et `OnDesactivee` n'est jamais diffusé. `EstLourd`, elle, n'a pas besoin d'`UFUNCTION` : on l'appelle directement depuis le C++.
+- **Bug 3, la grille se referme trop tôt :** `SortieZone` diffusait `OnDesactivee` dès qu'un objet sortait. Le compteur était juste, mais personne ne le regardait. Il faut attendre que le **dernier** objet sorte, exactement comme `EntreeZone` attend le **premier**.
+
+<Encadre type="retenir">
+Délégué dynamique branché avec `AddDynamic` : la fonction doit être une `UFUNCTION()`. Délégué que les Blueprints doivent écouter : il doit être en `BlueprintAssignable`. Ce sont deux oublis qui compilent sans rien dire.
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Fais descendre le `Plateau` de quelques centimètres quand la plaque est active, avec `FMath::FInterpConstantTo` comme dans la porte automatique.
+- Remplace le mur du Level Blueprint par une `APorte` qui expose une fonction `Ouvrir(bool)` : relie la plaque à la porte dans le panneau Details avec une `UPROPERTY(EditInstanceOnly)`, sans Level Blueprint.
+- Fais une énigme à deux plaques : la grille ne s'ouvre que si les deux sont actives en même temps.

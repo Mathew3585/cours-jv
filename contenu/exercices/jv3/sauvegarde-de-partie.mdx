@@ -1,0 +1,403 @@
+## Le contexte
+
+Un joueur qui quitte ton jeu veut retrouver sa partie là où il l'a laissée : sa position, les objets qu'il a déjà ramassés. Si un cristal ramassé réapparaît au chargement, le joueur le voit tout de suite.
+
+Unreal fournit tout ce qu'il faut : une classe `USaveGame` qui contient les données, et `UGameplayStatics` qui écrit ce paquet dans un fichier (un « slot ») sur le disque, puis le relit. Tu vas t'en servir dans un GameMode, comme l'arbitre de Mario Kart qui gère la course : ici, c'est lui qui gère la partie sauvegardée.
+
+## Ce que tu dois faire
+
+1. Crée `UMaSauvegarde` (New C++ Class › All Classes › cherche **SaveGame**). Elle contient la position et la rotation du joueur, la liste des cristaux déjà ramassés et la date de la sauvegarde.
+2. Crée `ACristal` : une sphère qui, quand le joueur la touche, prévient le GameMode puis se détruit.
+3. Crée `ASauvegardeGameMode` qui hérite de `AGameModeBase` :
+   - `Sauvegarder()` remplit un `UMaSauvegarde` et l'écrit dans le slot.
+   - `Charger()` recharge le niveau. Au démarrage du niveau, s'il existe une sauvegarde, le GameMode supprime les cristaux déjà ramassés et replace le joueur.
+   - `EffacerSauvegarde()` supprime le slot (pour une « nouvelle partie »).
+4. Choisis ce GameMode dans World Settings › GameMode Override.
+5. Dans le Blueprint de ton personnage, branche F5 sur **Sauvegarder** et F9 sur **Charger** (Get Game Mode › Cast To SauvegardeGameMode).
+
+## Le code de départ
+
+<Fichier nom="MaSauvegarde.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/SaveGame.h"
+#include "MaSauvegarde.generated.h"
+
+UCLASS()
+class MONPROJET_API UMaSauvegarde : public USaveGame
+{
+	GENERATED_BODY()
+
+public:
+	// TODO 1 : position du joueur (FVector), rotation (FRotator),
+	// cristaux ramassés (TArray de FName), date (FDateTime)
+	// Attention : seuls certains champs sont écrits dans le fichier...
+};
+```
+</Fichier>
+
+<Fichier nom="Cristal.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Cristal.generated.h"
+
+class USphereComponent;
+class UStaticMeshComponent;
+
+UCLASS()
+class MONPROJET_API ACristal : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	ACristal();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, Category = "Cristal")
+	TObjectPtr<USphereComponent> Zone;
+
+	UPROPERTY(VisibleAnywhere, Category = "Cristal")
+	TObjectPtr<UStaticMeshComponent> Mesh;
+
+private:
+	UFUNCTION()
+	void EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+};
+```
+</Fichier>
+
+<Fichier nom="SauvegardeGameMode.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/GameModeBase.h"
+#include "SauvegardeGameMode.generated.h"
+
+class UMaSauvegarde;
+
+UCLASS()
+class MONPROJET_API ASauvegardeGameMode : public AGameModeBase
+{
+	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "Sauvegarde")
+	bool Sauvegarder();
+
+	UFUNCTION(BlueprintCallable, Category = "Sauvegarde")
+	void Charger();
+
+	UFUNCTION(BlueprintCallable, Category = "Sauvegarde")
+	void EffacerSauvegarde();
+
+	// Appelé par un cristal quand le joueur le ramasse
+	void SignalerRamasse(FName IdCristal);
+
+	UFUNCTION(BlueprintPure, Category = "Sauvegarde")
+	int32 GetNbRamasses() const { return CristauxRamasses.Num(); }
+
+protected:
+	virtual void BeginPlay() override;
+
+	// Appelé juste après l'apparition du pawn du joueur
+	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
+
+	UPROPERTY(EditAnywhere, Category = "Sauvegarde")
+	FString NomSlot = TEXT("Partie1");
+
+private:
+	// Lit le slot, ou renvoie nullptr s'il n'existe pas
+	UMaSauvegarde* LireSauvegarde() const;
+
+	UPROPERTY()
+	TArray<FName> CristauxRamasses;
+};
+```
+</Fichier>
+
+<Fichier nom="SauvegardeGameMode.cpp">
+```cpp
+#include "SauvegardeGameMode.h"
+#include "MaSauvegarde.h"
+#include "Cristal.h"
+#include "Kismet/GameplayStatics.h"
+#include "EngineUtils.h"
+
+UMaSauvegarde* ASauvegardeGameMode::LireSauvegarde() const
+{
+	// TODO 2 : vérifier que le slot existe, le charger, le convertir en UMaSauvegarde
+	return nullptr;
+}
+
+bool ASauvegardeGameMode::Sauvegarder()
+{
+	// TODO 3 : créer l'objet de sauvegarde, le remplir, l'écrire dans le slot
+	return false;
+}
+
+void ASauvegardeGameMode::Charger()
+{
+	// TODO 4 : recharger le niveau actuel
+}
+
+void ASauvegardeGameMode::EffacerSauvegarde()
+{
+	// TODO 5
+}
+
+void ASauvegardeGameMode::SignalerRamasse(FName IdCristal)
+{
+	CristauxRamasses.AddUnique(IdCristal);
+}
+
+void ASauvegardeGameMode::BeginPlay()
+{
+	Super::BeginPlay();
+	// TODO 6 : si une sauvegarde existe, récupérer la liste et détruire les cristaux déjà ramassés
+}
+
+void ASauvegardeGameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
+{
+	Super::HandleStartingNewPlayer_Implementation(NewPlayer);
+	// TODO 7 : si une sauvegarde existe, replacer le pawn du joueur et sa caméra
+}
+```
+</Fichier>
+
+## C'est réussi quand…
+
+- [ ] Après F5, un fichier `Partie1.sav` apparaît dans le dossier `Saved/SaveGames` de ton projet.
+- [ ] Tu ramasses 2 cristaux, tu sauvegardes, tu en ramasses un 3e, tu charges : le 3e est revenu, les 2 premiers non.
+- [ ] Après chargement, le personnage est à l'endroit et dans la direction de la sauvegarde.
+- [ ] Tu arrêtes le jeu, tu le relances : la partie reprend toute seule là où tu avais sauvegardé.
+- [ ] `EffacerSauvegarde` puis relancer : tout revient comme au début.
+
+## Si tu bloques
+
+<Indice titre="Quels champs sont sauvegardés ?">
+`SaveGameToSlot` n'écrit dans le fichier que les variables marquées `UPROPERTY()`. Une variable sans cette macro existe bien pendant la partie, mais elle revient vide au chargement.
+</Indice>
+
+<Indice titre="Les trois fonctions de UGameplayStatics">
+`CreateSaveGameObject(UMaSauvegarde::StaticClass())` crée l'objet vide. `SaveGameToSlot(Objet, NomSlot, 0)` l'écrit. `LoadGameFromSlot(NomSlot, 0)` le relit et renvoie un `USaveGame*` qu'il faut convertir avec `Cast`. Le `0` est l'index de l'utilisateur, utile sur console. `DoesSaveGameExist` et `DeleteGameInSlot` complètent la liste.
+</Indice>
+
+<Indice titre="Reconnaître un cristal">
+Chaque acteur posé dans un niveau a un nom unique et stable, par exemple `Cristal_3`. `GetFName()` le renvoie. C'est cet identifiant que tu stockes dans la liste : au chargement, le cristal du niveau qui porte ce nom est détruit.
+</Indice>
+
+<Indice titre="Pourquoi recharger le niveau ?">
+Charger sans recharger obligerait à faire réapparaître les cristaux détruits depuis la sauvegarde. Recharger le niveau remet tout à zéro, puis le GameMode applique la sauvegarde au démarrage. `UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this)))` fait ça.
+</Indice>
+
+<Indice titre="La rotation d'un personnage">
+Un personnage suit la rotation de son controller. Changer seulement `SetActorRotation` ne suffit pas : la caméra repart comme avant. Utilise aussi `NewPlayer->SetControlRotation(...)`.
+</Indice>
+
+<Solution>
+
+<Fichier nom="MaSauvegarde.h">
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/SaveGame.h"
+#include "MaSauvegarde.generated.h"
+
+UCLASS()
+class MONPROJET_API UMaSauvegarde : public USaveGame
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	FVector PositionJoueur = FVector::ZeroVector;
+
+	UPROPERTY()
+	FRotator RotationJoueur = FRotator::ZeroRotator;
+
+	UPROPERTY()
+	TArray<FName> CristauxRamasses;
+
+	UPROPERTY()
+	FDateTime Date;
+};
+```
+</Fichier>
+
+<Fichier nom="Cristal.cpp">
+```cpp
+#include "Cristal.h"
+#include "SauvegardeGameMode.h"
+#include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "GameFramework/Pawn.h"
+
+ACristal::ACristal()
+{
+	PrimaryActorTick.bCanEverTick = false;
+
+	Zone = CreateDefaultSubobject<USphereComponent>(TEXT("Zone"));
+	Zone->InitSphereRadius(60.f);
+	Zone->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+	RootComponent = Zone;
+
+	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
+	Mesh->SetupAttachment(Zone);
+	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void ACristal::BeginPlay()
+{
+	Super::BeginPlay();
+	Zone->OnComponentBeginOverlap.AddDynamic(this, &ACristal::EntreeZone);
+}
+
+void ACristal::EntreeZone(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (!Cast<APawn>(OtherActor))
+	{
+		return;
+	}
+
+	if (ASauvegardeGameMode* GameMode = GetWorld()->GetAuthGameMode<ASauvegardeGameMode>())
+	{
+		GameMode->SignalerRamasse(GetFName());
+	}
+	Destroy();
+}
+```
+</Fichier>
+
+<Fichier nom="SauvegardeGameMode.cpp">
+```cpp
+#include "SauvegardeGameMode.h"
+#include "MaSauvegarde.h"
+#include "Cristal.h"
+#include "Kismet/GameplayStatics.h"
+#include "EngineUtils.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/Pawn.h"
+
+UMaSauvegarde* ASauvegardeGameMode::LireSauvegarde() const
+{
+	if (!UGameplayStatics::DoesSaveGameExist(NomSlot, 0))
+	{
+		return nullptr;
+	}
+	return Cast<UMaSauvegarde>(UGameplayStatics::LoadGameFromSlot(NomSlot, 0));
+}
+
+bool ASauvegardeGameMode::Sauvegarder()
+{
+	UMaSauvegarde* Sauvegarde = Cast<UMaSauvegarde>(UGameplayStatics::CreateSaveGameObject(UMaSauvegarde::StaticClass()));
+	if (!Sauvegarde)
+	{
+		return false;
+	}
+
+	if (APlayerController* Controller = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		if (APawn* Joueur = Controller->GetPawn())
+		{
+			Sauvegarde->PositionJoueur = Joueur->GetActorLocation();
+		}
+		Sauvegarde->RotationJoueur = Controller->GetControlRotation();
+	}
+	Sauvegarde->CristauxRamasses = CristauxRamasses;
+	Sauvegarde->Date = FDateTime::Now();
+
+	const bool bReussi = UGameplayStatics::SaveGameToSlot(Sauvegarde, NomSlot, 0);
+	UE_LOG(LogTemp, Log, TEXT("Sauvegarde %s : %s"), *NomSlot, bReussi ? TEXT("OK") : TEXT("ÉCHEC"));
+	return bReussi;
+}
+
+void ASauvegardeGameMode::Charger()
+{
+	UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this)));
+}
+
+void ASauvegardeGameMode::EffacerSauvegarde()
+{
+	UGameplayStatics::DeleteGameInSlot(NomSlot, 0);
+	CristauxRamasses.Reset();
+}
+
+void ASauvegardeGameMode::SignalerRamasse(FName IdCristal)
+{
+	CristauxRamasses.AddUnique(IdCristal);
+}
+
+void ASauvegardeGameMode::BeginPlay()
+{
+	Super::BeginPlay();
+
+	UMaSauvegarde* Sauvegarde = LireSauvegarde();
+	if (!Sauvegarde)
+	{
+		return;
+	}
+	CristauxRamasses = Sauvegarde->CristauxRamasses;
+
+	// On liste d'abord, on détruit ensuite : on ne modifie pas ce qu'on est en train de parcourir
+	TArray<ACristal*> ADetruire;
+	for (TActorIterator<ACristal> It(GetWorld()); It; ++It)
+	{
+		if (CristauxRamasses.Contains(It->GetFName()))
+		{
+			ADetruire.Add(*It);
+		}
+	}
+	for (ACristal* Cristal : ADetruire)
+	{
+		Cristal->Destroy();
+	}
+}
+
+void ASauvegardeGameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
+{
+	Super::HandleStartingNewPlayer_Implementation(NewPlayer);
+
+	UMaSauvegarde* Sauvegarde = LireSauvegarde();
+	if (!Sauvegarde || !NewPlayer)
+	{
+		return;
+	}
+
+	if (APawn* Joueur = NewPlayer->GetPawn())
+	{
+		Joueur->SetActorLocation(Sauvegarde->PositionJoueur, false, nullptr, ETeleportType::TeleportPhysics);
+		Joueur->SetActorRotation(FRotator(0.f, Sauvegarde->RotationJoueur.Yaw, 0.f));
+	}
+	NewPlayer->SetControlRotation(Sauvegarde->RotationJoueur);
+}
+```
+</Fichier>
+
+**Pourquoi ça marche :** `UMaSauvegarde` est un simple paquet de données. `SaveGameToSlot` le transforme en octets (il « sérialise » toutes ses `UPROPERTY`) et les écrit dans `Saved/SaveGames/Partie1.sav`. `LoadGameFromSlot` fait l'inverse et recrée un objet rempli.
+
+Le chargement se fait en deux temps parce que deux choses n'existent pas au même moment. Les cristaux du niveau existent au `BeginPlay` du GameMode. Le pawn du joueur, lui, apparaît dans `HandleStartingNewPlayer` : c'est là, juste après `Super`, qu'on peut le déplacer à coup sûr.
+
+Le nom d'un acteur posé dans le niveau (`Cristal_3`) reste le même à chaque chargement du niveau. C'est un identifiant simple et suffisant pour des objets placés à la main.
+
+<Encadre type="piege" titre="Le nom n'est pas fiable pour tout">
+Un acteur créé avec `SpawnActor` pendant la partie reçoit un nom qui peut changer d'une partie à l'autre. Pour ces acteurs-là, donne-leur un identifiant à toi (un `FGuid` créé à l'apparition et stocké en `UPROPERTY`).
+</Encadre>
+
+</Solution>
+
+## Pour aller plus loin
+
+- Ajoute un champ `int32 Version` à la sauvegarde. Si un jour tu changes le format, tu sauras qu'un vieux fichier doit être converti.
+- Utilise `UGameplayStatics::AsyncSaveGameToSlot` pour ne pas figer le jeu pendant l'écriture, et affiche une petite icône « sauvegarde en cours ».
+- Propose trois slots (« Partie1 », « Partie2 », « Partie3 ») dans un menu qui affiche la date de chaque sauvegarde.
